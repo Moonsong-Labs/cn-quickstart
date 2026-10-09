@@ -1,11 +1,9 @@
 #!/bin/bash
-# Copyright (c) 2026 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 set -eou pipefail
 
-# The canton image ships neither curl nor grpcurl; grpc-health-probe is the only
-# probe available, so keep this in sync with Splice's own localnet health-check.
 if [ "$APP_USER_PROFILE" = "on" ]; then
   echo "Checking 2${CANTON_GRPC_HEALTHCHECK_PORT_SUFFIX}"
   grpc-health-probe -addr="localhost:2${CANTON_GRPC_HEALTHCHECK_PORT_SUFFIX}"

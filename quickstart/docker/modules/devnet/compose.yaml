@@ -65,10 +65,22 @@ services:
     # --hostname sets the issuer URL that appears in tokens (must match what splice-node expects)
     # splice-node validates tokens against http://host.docker.internal:8082/realms/AppProvider
     # --proxy-headers=forwarded tells Keycloak to trust the X-Forwarded-* headers from nginx
-    command: ["start-dev", "--import-realm", "--http-port=8082", "--health-enabled=true", "--hostname=http://host.docker.internal:8082", "--proxy-headers=forwarded"]
+    command:
+      [
+        "start-dev",
+        "--import-realm",
+        "--http-port=8082",
+        "--health-enabled=true",
+        "--hostname=http://host.docker.internal:8082",
+        "--proxy-headers=forwarded",
+      ]
     # NOTE: No ports exposed - nginx-keycloak handles external access
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'",
+        ]
       interval: 30s
       timeout: 10s
       retries: 50
@@ -123,7 +135,7 @@ services:
       - devnet
 
   pqs-app-provider:
-    image: ${SCRIBE_IMAGE:-europe-docker.pkg.dev/da-images/public/docker/scribe}:${SCRIBE_VERSION:-0.6.12}
+    image: ${SCRIBE_IMAGE:-europe-docker.pkg.dev/da-images/public/docker/scribe}:${SCRIBE_VERSION:-3.5.9}
     container_name: pqs-app-provider
     environment:
       # Connect directly to splice-node's participant gRPC API (bypassing nginx)
@@ -288,12 +300,13 @@ services:
   ### Stub Services (prevent Docker Compose from failing when root compose.yaml is auto-merged)
   ### These are LocalNet services not used in DevNet - they are disabled via profiles
   ###############################################################################################################
-  
+
   # Stub for splice service (LocalNet only - the participant/validator)
   splice:
     image: "alpine:latest"
     container_name: splice-stub
-    command: ["echo", "DevNet mode - splice not used (using external splice-node)"]
+    command:
+      ["echo", "DevNet mode - splice not used (using external splice-node)"]
     volumes:
       - onboarding:/app/onboarding
     profiles:

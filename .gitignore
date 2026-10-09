@@ -32,8 +32,9 @@ gradle-app.setting
 # backups
 *.bak
 
-# VS Code
+# IDEs
 .vscode/
+.cursor/
 
 # MacOS
 .DS_Store
@@ -42,3 +43,5 @@ gradle-app.setting
 .direnv/
 
 logs
+
+plan/
