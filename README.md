@@ -25,12 +25,10 @@ You can find Quickstart documentation in the Canton Network documentation portal
 - [Quickstart Installation](https://docs.canton.network/appdev/quickstart/prerequisites)
 - [Exploring The Demo](https://docs.canton.network/appdev/quickstart/running-the-demo)
 - [FAQ](https://docs.canton.network/appdev/faq)
-- [Observability and Troubleshooting Overview](https://docs.canton.network/appdev/quickstart/observability-and-tracing#observability-and-tracing)
 - [Quickstart Reference](https://docs.canton.network/sdks-tools/reference-projects/cn-quickstart#cn-quickstart)
 
 ### Technical documentation
 
-- [Observability](sdk/docs/user/001-observability.md)
 - [Topology](sdk/docs/user/002-topology.md)
 
 This project is rapidly enhanced, so please check back often for updates.
@@ -54,7 +52,7 @@ $ make setup
 # Build the application
 $ make build
 
-# Start the application, Canton services, and Observability (if enabled)
+# Start the application and Canton services
 $ make start
 
 # In a separate shell - run a Canton Console for the App Provider
@@ -153,7 +151,7 @@ Transfer Factory: `http://scan.localhost:4000/registry/transfer-instruction/v1/t
 Before exploring advanced topics, we recommend familiarizing yourself with the core components of the Licensing Model Workflow within Quickstart. 
 In particular, the implementation of the `backend-service` serves as an excellent entry point.
 
-If you have already explored the Quickstart web UI and would now like to understand how the Quickstart Docker Compose configuration is orchestrated, start by running a simple setup using `make setup` with Observability and OAuth2 disabled. Then, execute the following command to inspect the resolved configuration for the backend service:
+If you have already explored the Quickstart web UI and would now like to understand how the Quickstart Docker Compose configuration is orchestrated, start by running a simple setup using `make setup` with OAuth2 disabled. Then, execute the following command to inspect the resolved configuration for the backend service:
 
 ```bash
 make compose-config | tail -n +2 | yq eval '.services.backend-service'
@@ -310,22 +308,6 @@ The `AppUser` organization is registered on the Quickstart startup by calling th
 | Keycloak (via nginx) | 8082 | 8082 | Identity Provider for OAuth2 |
 | Keycloak Health | - | 9000 | Internal health check endpoint |
 
-## Observability stack
-
-| Service | External port | Internal port | Description |
-|---------|--------------|---------------|-------------|
-| Grafana | 3030 | 3000 | Metrics & logs dashboard |
-| OTEL Collector (OTLP) | - | 14001 | OpenTelemetry OTLP receiver |
-| OTEL Collector (Fluentd) | 14002 | 14002 | Log collection endpoint |
-| Prometheus | - | 14011 | Metrics storage & query |
-| Loki | - | 14012 | Log aggregation |
-| Tempo (OTLP) | - | 14013 | Trace collection |
-| Tempo (HTTP) | - | 14014 | Trace query API |
-| Canton Metrics | - | 14021 | Canton metrics endpoint |
-| cAdvisor | - | 14022 | Container metrics |
-| Postgres Exporter | - | 14023 | PostgreSQL metrics |
-| Nginx Exporter | - | 14024 | Nginx metrics |
-
 ## Port suffix scheme
 
 Quickstart uses a port suffix scheme for participant/validator services:
@@ -364,7 +346,7 @@ Instead of relying on a single extensive docker-compose.yaml file, this approach
 Splice LocalNet is housed within the `docker/modules/localnet` directory. 
 In the `Makefile`, Docker Compose commands are dynamically assembled from Splice LocalNet, Quickstart modules, and Quickstart-specific compose and environment files, arranged in an order that respects the interdependencies of the various components.
 
-Some modules (e.g., Keycloak and Observability) are optional and can be toggled on or off based on your selections made during `make setup`. 
+Some modules (e.g., Keycloak) are optional and can be toggled on or off based on your selections made during `make setup`. 
 When the Docker Compose command is executed, it merges all specified Compose YAML files in the order they appear on the command line. 
 Likewise, the environment is built by applying each environment file in sequence; if the same variable is defined in multiple files, the value from the later file will overwrite the previous ones.
 
@@ -410,7 +392,6 @@ Each module provides specific functionality and may depend on other modules. The
 - **keycloak** (optional): Adds support for OAuth2 authorization to Splice LocalNet.
 - **splice-onboarding**: Provides onboarding capabilities, including a collection of tools, resolved environment settings, and shell scripts for calling JSON Ledger API HTTP endpoints.
 - **pqs**: Offers preconfigured PQS instances for Splice LocalNet participants.
-- **observability**: Introduces observability infrastructure components.
 - **daml-shell**: A standalone module that enables launching Daml Shell. By default, it connects to the pqs-app-provider’s Postgres database.
 
 ### Docker Profiles

@@ -74,11 +74,10 @@ Walkthrough
 
 The CN App Quickstart can run with or without authorization, based on your business needs.
 Toggle authorization with the ``make setup`` command in the ``quickstart`` subdirectory.
-``make setup`` asks to enable Observability, OAUTH2, and specify a party hint.
+``make setup`` asks to enable OAUTH2 and specify a party hint.
 In this demo, we disable ``TEST MODE``, use the default party hint, and show OAUTH2 as enabled and disabled.
 When OAUTH2 makes a difference, we display both paths, one after the other. 
 You can follow your path and ignore the other.
-You may enable Observability, but it is not required for this demo.
 
 **Choose your adventure:**
 
@@ -483,28 +482,6 @@ The Validators menu shows that the local validator has been registered with the 
 .. image:: images/37-registered-validator.png
    :alt: Registered validator
    :width: 80%
-
-Observability Dashboard
-=======================
-
-.. note:: Observability may no longer work while App Quickstart is under revisions.
-
-In a web browser, navigate to http://localhost:3030/dashboards to view
-the observability dashboards. Select **Quickstart - consolidated logs**.
-
-.. image:: images/38-obs-dash.png
-   :alt: observability dashboard
-
-The default view shows a running stream of all services.
-
-.. image:: images/39-service-stream.png
-   :alt: service stream
-
-Change the services filter from “All” to “participant” to view participant logs.
-Select any log entry to view its details.
-
-.. image:: images/40-log-entry-details.png
-   :alt: log entry details
 
 SV UIs
 ======

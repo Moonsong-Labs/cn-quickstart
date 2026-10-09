@@ -7,7 +7,7 @@ import java.io.File
 
 open class ConfigureProfilesTask : DefaultTask() {
 
-    enum class OptionType { BOOLEAN, PARTY_HINT, AUTH_MODE, TEST_MODE }
+    enum class OptionType { PARTY_HINT, AUTH_MODE, TEST_MODE }
 
     data class Option(
         val promptText: String,
@@ -24,7 +24,6 @@ open class ConfigureProfilesTask : DefaultTask() {
     @TaskAction
     fun configure() {
         val options = listOf(
-            Option("Enable Observability", "OBSERVABILITY_ENABLED", OptionType.BOOLEAN),
             Option("Enable OAUTH2", "AUTH_MODE", OptionType.AUTH_MODE),
             Option(
                 "Specify a party hint (this will identify the participant in the network)",
@@ -36,12 +35,6 @@ open class ConfigureProfilesTask : DefaultTask() {
 
         options.forEach { option ->
             when (option.type) {
-                OptionType.BOOLEAN -> {
-                    val boolValue = promptForBoolean(option.promptText, default = true)
-                    option.value = boolValue.toString()
-                    println("  ${option.envVarName} set to '$boolValue'.\n")
-                }
-
                 OptionType.AUTH_MODE -> {
                     val boolValue = promptForBoolean(option.promptText, default = true)
                     option.value = if (boolValue) {

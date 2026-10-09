@@ -50,16 +50,6 @@ DOCKER_COMPOSE_ENVFILE := --env-file .env --env-file .env.local --env-file ${LOC
 ifeq ($(RESOURCE_CONSTRAINTS_ENABLED),true)
   RESOURCE_CONSTRAINT_CONFIG := -f ${LOCALNET_DIR}/resource-constraints.yaml
 endif
-ifeq ($(OBSERVABILITY_ENABLED),true)
-  DOCKER_COMPOSE_OBSERVABILITY_FILES = -f ${MODULES_DIR}/observability/compose.yaml -f ${MODULES_DIR}/observability/observability.yaml
-  DOCKER_COMPOSE_PROFILES += --profile observability
-  DOCKER_COMPOSE_ENVFILE += --env-file ${MODULES_DIR}/observability/compose.env
-  ifeq ($(KERNEL_NAME), Darwin)
-    DOCKER_COMPOSE_OBSERVABILITY_FILES += -f ${MODULES_DIR}/observability/cadvisor-darwin.yaml
-  else ifeq ($(KERNEL_NAME), Linux)
-    DOCKER_COMPOSE_OBSERVABILITY_FILES += -f ${MODULES_DIR}/observability/cadvisor-linux.yaml
-  endif
-endif
 
 ############################################################################
 ####  Keycloak (optional)
@@ -97,18 +87,12 @@ DOCKER_COMPOSE_ENVFILE += --env-file ${MODULES_DIR}/pqs/compose.env
 ifeq ($(RESOURCE_CONSTRAINTS_ENABLED),true)
   RESOURCE_CONSTRAINT_CONFIG += -f ${MODULES_DIR}/pqs/resource-constraints.yaml
 endif
-ifeq ($(OBSERVABILITY_ENABLED),true)
-  DOCKER_COMPOSE_OBSERVABILITY_FILES += -f ${MODULES_DIR}/pqs/observability.yaml
-endif
 
 ############################################################################
 ####  backend-service
 ############################################################################
 ifeq ($(RESOURCE_CONSTRAINTS_ENABLED),true)
   RESOURCE_CONSTRAINT_CONFIG += -f ./docker/backend-service/resource-constraints.yaml
-endif
-ifeq ($(OBSERVABILITY_ENABLED),true)
-  DOCKER_COMPOSE_OBSERVABILITY_FILES += -f ./docker/backend-service/observability.yaml
 endif
 ifeq ($(DEBUG_ENABLED),true)
   DOCKER_COMPOSE_FILES += -f ./docker/backend-service/debug.yaml
@@ -212,7 +196,7 @@ test-daml: build-daml
 
 .PHONY: build-docker-images
 build-docker-images: docker-available
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) build)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) build)
 
 .PHONY: create-app-install-request
 create-app-install-request: DOCKER_COMPOSE_FILES = -f docker/create-app-install-request/compose.yaml
@@ -224,7 +208,7 @@ create-app-install-request: docker-available ## Submit an App Install Request fr
 restart-backend: build-backend docker-available ## Build and start the application
 	$(call docker-compose, rm -s -f backend-service)
 	$(call docker-compose, rm -s -f register-app-user-tenant)
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate register-app-user-tenant)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate register-app-user-tenant)
 
 .PHONY: restart-frontend
 restart-frontend: build-frontend docker-available ## Build and start the application
@@ -240,13 +224,8 @@ restart-service:
 
 # Run targets
 .PHONY: start
-ifeq ($(OBSERVABILITY_ENABLED),true)
-ifneq ($(SKIP_DOWNLOADS),true) # treat “true” (or any non‑empty value) as “enabled”
-start:
-endif
-endif
-start: build ## Start the application, and observability services if enabled
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate)
+start: build ## Start the application
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate)
 
 .PHONY: start-vite-dev
 start-vite-dev: ## Start the frontend application in development mode
@@ -258,11 +237,11 @@ vite-dev:
 	cd frontend && npm run dev
 
 .PHONY: stop
-stop: docker-available ## Stop the application and observability services
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) down)
+stop: docker-available ## Stop the application
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) down)
 
 .PHONY: stop-application
-stop-application: docker-available ## Stop the application, leaving observability services running
+stop-application: docker-available ## Stop the application containers
 	$(call docker-compose, down)
 
 .PHONY: restart
@@ -271,11 +250,11 @@ restart: stop start ## Restart the application
 # Utility targets
 .PHONY: status
 status: docker-available ## Show status of Docker containers
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) ps)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) ps)
 
 .PHONY: compose-config
 compose-config: docker-available
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) config)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) config)
 
 .PHONY: logs
 logs: docker-available ## Show logs of Docker containers
@@ -322,7 +301,7 @@ done | tee -a "logs/compose.log" 2>&1
 
 # Development environment
 .PHONY: setup
-setup: ## Configure the local development environment (enable DevNet/LocalNet, Observability)
+setup: ## Configure the local development environment
 	@echo "Starting local environment setup tool..."
 	$(SETUP_COMMAND)
 
@@ -349,7 +328,7 @@ show-integration-test-report: ## Show the integration test report
 # Console
 .PHONY: canton-console
 canton-console: docker-available ## Start the Canton console
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) run --rm --name canton-console console)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) run --rm --name canton-console console)
 
 .PHONY: clean-canton-console
 clean-canton-console: docker-available ## Stop and remove the Canton console container
@@ -374,10 +353,10 @@ clean: ## Clean the build artifacts
 
 .PHONY: clean-docker
 clean-docker: clean-shell clean-canton-console ## Stop and remove application Docker containers and volumes
-	$(call docker-compose, ${DOCKER_COMPOSE_OBSERVABILITY_FILES} $(RESOURCE_CONSTRAINT_CONFIG) down -v)
+	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) down -v)
 
 .PHONY: clean-application
-clean-application: docker-available ## like clean-docker, but leave observability services running
+clean-application: docker-available ## Stop and remove the application containers and volumes
 	$(call docker-compose, down -v)
 
 .PHONY: clean-all
@@ -415,8 +394,7 @@ ifeq ($(CI),true)
 # Populate .env.local for CI/CD purposes
 .PHONY: ci-create-env-local
 ci-create-env-local:
-	echo "OBSERVABILITY_ENABLED=true" > .env.local
-	echo "AUTH_MODE=oauth2" >> .env.local
+	echo "AUTH_MODE=oauth2" > .env.local
 	echo "PARTY_HINT=quickstart-circleci-1" >> .env.local
 	echo "TEST_MODE=on" >> .env.local
 
@@ -441,8 +419,6 @@ run-command:
 # Helpers to open URLs in the browser
 # open-app-ui: ## Open the Application UI in the active browser
 $(eval $(call open-url-target,open-app-ui,http://app-provider.localhost:3000))
-# open-observe: ## Open the Grafana UI in the active browser
-$(eval $(call open-url-target,open-observe,http://localhost:3030))
 # open-sv-wallet: ## Open the Super Validator wallet UI in the active browser
 $(eval $(call open-url-target,open-sv-wallet,http://wallet.localhost:4000))
 # open-sv-interface: ## Open the Super Validator interface UI in the active browser

@@ -341,7 +341,6 @@ LocalNet is built from modular Docker Compose layers:
 
 * Base LocalNet infrastructure (from Splice)
 * Authentication (Keycloak)
-* Observability (Grafana, Prometheus, Loki)
 * PQS (Participant Query Store)
 * Application services
 

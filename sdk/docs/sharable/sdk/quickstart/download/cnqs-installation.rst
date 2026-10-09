@@ -30,7 +30,6 @@ Roadmap
 
  * After installation, :ref:`quickstart-explore-the-demo` to complete a business operation in the example application.
  * For an overview of how the Quickstart project is structured, read :ref:`quickstart-project-structure-guide`.
- * Learn about debugging features in the :ref:`quickstart-observability-troubleshooting-overview`.
 
 Prerequisites
 =============
@@ -42,7 +41,6 @@ Access to the `CN-Quickstart GitHub repository <https://github.com/digital-asset
 The CN Quickstart is a Dockerized application and requires `Docker Desktop <https://www.docker.com/products/docker-desktop/>`__.
 We recommend allocating 8 GB of memory to Docker Desktop.
 Allocate additional resources if you witness unhealthy containers, if possible.
-Decline Observability if your machine does not have sufficient memory.
 
 Other requirements include:
   -  `Curl <https://curl.se/download.html>`__
@@ -88,7 +86,7 @@ More detailed instructions are provided below.
 3. Login to Docker repositories via the terminal: ``docker login``
 4. **cd** into the ``quickstart`` subdirectory: ``cd quickstart``
 5. `Configure the local development <#deploy-a-validator-on-localnet>`__ environment: ``make setup``
-6. When prompted, enable OAuth2, disable Observability, disable TEST MODE, and leave the party hint blank to use the default value.
+6. When prompted, enable OAuth2, disable TEST MODE, and leave the party hint blank to use the default value.
 7. Build the application from the ``quickstart`` subdirectory: ``make build``
 8. In a new terminal window, initiate log collection from the ``quickstart`` subdirectory: ``make capture-logs``
 9. Return to the previous terminal window to start the application and Canton services: ``make start``
@@ -135,7 +133,6 @@ Deploy a validator on LocalNet
 
 Configure the local development environment by running ``make setup``.
 
-Disable ``Observability``.
 Enable OAuth2. 
 Leave the party hint blank to use the default and disable ``TEST MODE``.
 
@@ -149,9 +146,6 @@ Leave the party hint blank to use the default and disable ``TEST MODE``.
   | % make setup
   |  Starting local environment setup tool...
   |  ./gradlew configureProfiles --no-daemon --console=plain --quiet
-  |  Enable Observability? (Y/n): n
-  |  OBSERVABILITY_ENABLED set to 'false'.
-
   | Enable OAUTH2? (Y/n): y
   | AUTH_MODE set to 'oauth2'.
 
@@ -166,7 +160,7 @@ Leave the party hint blank to use the default and disable ``TEST MODE``.
 
 You can change these choices any time by running ``make setup`` again.
 
-   OAuth2 and Observability may be unstable if your machine has less than 8 GB of memory to allocate to Docker Desktop.
+   OAuth2 may be unstable if your machine has less than 8 GB of memory to allocate to Docker Desktop.
 
 Build the application.
 
@@ -229,7 +223,7 @@ In the Daml shell terminal, execute ``quit`` to stop the shell container.
 Close the CN Quickstart
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Finally, close the application and observability services with:
+Finally, close the application with:
 
 ::
 

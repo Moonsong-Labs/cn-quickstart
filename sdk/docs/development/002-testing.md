@@ -28,7 +28,7 @@ Both methods support parallel, repeatable end-to-end test runs without restartin
 ## Key Technologies and Components
 
 1. **Docker Compose**
-   - Orchestrate the local environment and all dependent containers (e.g. Canton participant, Keycloak, Observability stack, NGINX, etc.).
+   - Orchestrate the local environment and all dependent containers (e.g. Canton participant, Keycloak, NGINX, etc.).
    - The ``Makefile`` defines the primary commands for building images and controlling container life cycles.
 
 2. **Playwright**

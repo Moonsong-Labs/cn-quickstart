@@ -32,9 +32,8 @@ Learning phase
 (½ - 2 weeks)
 
 Often the first interaction with the CN Quickstart is understanding how to get the environment running. 
-The next goal is to explore the application and develop knowledge around the architecture and its workflow. 
-It’s also important to learn how to navigate the most common observability
-dashboards and move between LocalNet and DevNet.
+The next goal is to explore the application and develop knowledge around the architecture and its workflow.
+It’s also important to learn how to move between LocalNet and DevNet.
 
 The most direct update strategy in this phase is to regularly update
 your local copy of the CN Quickstart by making a git pull from the main branch.

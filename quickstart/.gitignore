@@ -1,2 +1,0 @@
-# TODO ignore entire dashboards dir once Canton dashboards are also coming from Artifactory
-/docker/modules/observability/conf/grafana/dashboards/Participant/pqs.json

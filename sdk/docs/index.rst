@@ -11,7 +11,6 @@
   ./sharable/sdk/quickstart/configure/dev-journey-in-cnqs-lifecycle
   ./sharable/sdk/quickstart/configure/development-lifecycle
   ./sharable/sdk/quickstart/configure/project-structure-overview
-  ./sharable/sdk/quickstart/observe/observability-troubleshooting-overview
   ./sharable/sdk/quickstart/operate/explore-the-demo
   ./sharable/sdk/quickstart/operate/json-api
   ./sharable/sdk/quickstart/operate/deploy-quickstart-to-devnet
