@@ -1,4 +1,4 @@
-import {expect, type Page, type Locator} from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import RowOps from '../../../utils/rowOps';
 import ArchiveModal from './archive.modal';
 import RenewalsModal from './renewals/renewals.modal';
@@ -7,7 +7,7 @@ const APP_PROVIDER_LICENSES_URL = 'http://app-provider.localhost:3000/licenses';
 
 export enum Button {
   Renewals = 'Renewals',
-  Archive = 'Archive'
+  Archive = 'Archive',
 }
 
 export default class Licenses extends RowOps {
@@ -21,8 +21,8 @@ export default class Licenses extends RowOps {
   }
 
   button = (name: string, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('button', {name: name});
-  }
+    return row.getByRole('button', { name: name });
+  };
 
   public async assertButtonExists(button: Button, row: Locator = this.matchingRow): Promise<void> {
     await expect(this.button(button, row)).toBeVisible();

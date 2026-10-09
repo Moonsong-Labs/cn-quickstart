@@ -1,17 +1,14 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
+import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
+import type { License, LicenseRenewRequest } from '../openapi.d.ts';
 import { useLicenseStore } from '../stores/licenseStore';
 import { useUserStore } from '../stores/userStore';
-import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
-import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
 import { formatDateTime } from '../utils/format';
-
-import type {
-  License,
-  LicenseRenewRequest,
-} from '../openapi.d.ts';
 
 const LicensesView: React.FC = () => {
   const {
@@ -20,7 +17,7 @@ const LicensesView: React.FC = () => {
     initiateLicenseRenewal,
     initiateLicenseExpiration,
     completeLicenseRenewal,
-    withdrawLicenseRenewalRequest
+    withdrawLicenseRenewalRequest,
   } = useLicenseStore();
 
   const { user, fetchUser } = useUserStore();
@@ -46,7 +43,7 @@ const LicensesView: React.FC = () => {
       setSelectedLicense(null);
       return;
     }
-    setSelectedLicense(licenses.find(l => l.contractId === selectedLicenseId) ?? null);
+    setSelectedLicense(licenses.find((l) => l.contractId === selectedLicenseId) ?? null);
   }, [licenses, selectedLicenseId]);
 
   const openArchiveModal = (licenseId: string) => {
@@ -56,7 +53,7 @@ const LicensesView: React.FC = () => {
 
   const handleArchive = async (description?: string) => {
     if (!selectedLicenseId) return;
-    await initiateLicenseExpiration(selectedLicenseId, description!);
+    await initiateLicenseExpiration(selectedLicenseId, description ?? '');
     setShowArchiveModal(false);
     setSelectedLicenseId(null);
     await fetchLicenses();
@@ -72,10 +69,18 @@ const LicensesView: React.FC = () => {
     setSelectedLicenseId(licenseId);
   };
 
-  const handleCompleteRenewal = async (renewalContractId: string, renewalRequestContractId: string, allocationContractId: string) => {
-    const result = await completeLicenseRenewal(renewalContractId, renewalRequestContractId, allocationContractId);
-    if (result) {
-      setSelectedLicenseId(result.licenseId!);
+  const handleCompleteRenewal = async (
+    renewalContractId: string,
+    renewalRequestContractId: string,
+    allocationContractId: string,
+  ) => {
+    const result = await completeLicenseRenewal(
+      renewalContractId,
+      renewalRequestContractId,
+      allocationContractId,
+    );
+    if (result?.licenseId) {
+      setSelectedLicenseId(result.licenseId);
     }
     await fetchLicenses();
   };
@@ -97,17 +102,17 @@ const LicensesView: React.FC = () => {
     await fetchLicenses();
   };
 
-
   return (
     <div>
       <h2>Licenses</h2>
-      <table className="table table-fixed" id="licenses-table">
+      <table
+        className="table table-fixed"
+        id="licenses-table"
+      >
         <thead>
           <tr>
             <th style={{ width: '220px' }}>License Contract ID</th>
-            {user?.isAdmin && (
-              <th style={{ width: '150px' }}>User</th>
-            )}
+            {user?.isAdmin && <th style={{ width: '150px' }}>User</th>}
             <th style={{ width: '200px' }}>Expires At</th>
             <th style={{ width: '110px' }}>License #</th>
             <th style={{ width: '100px' }}>Pending Renewals</th>
@@ -119,30 +124,40 @@ const LicensesView: React.FC = () => {
         <tbody>
           {licenses.map((license) => {
             return (
-              <tr key={license.contractId} className="license-row">
+              <tr
+                key={license.contractId}
+                className="license-row"
+              >
                 <td className="ellipsis-cell license-contract-id">{license.contractId}</td>
-                {user?.isAdmin && (
-                  <td className="ellipsis-cell license-user">{license.user}</td>
-                )}
-                <td className={`ellipsis-cell license-expires-at ${license.isExpired && 'deadline-passed'}`}>
+                {user?.isAdmin && <td className="ellipsis-cell license-user">{license.user}</td>}
+                <td
+                  className={`ellipsis-cell license-expires-at ${license.isExpired && 'deadline-passed'}`}
+                >
                   {formatDateTime(license.expiresAt)}
                 </td>
                 <td className="ellipsis-cell license-number">{license.licenseNum}</td>
-                <td className="ellipsis-cell">{license.renewalRequests?.filter(r => !r.allocationCid).length || 0}</td>
-                <td className="ellipsis-cell">{license.renewalRequests?.filter(r => r.allocationCid).length || 0}</td>
-                <td className="ellipsis-cell license-status">{license.isExpired ? 'EXPIRED' : 'ACTIVE'}</td>
+                <td className="ellipsis-cell">
+                  {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
+                </td>
+                <td className="ellipsis-cell">
+                  {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
+                </td>
+                <td className="ellipsis-cell license-status">
+                  {license.isExpired ? 'EXPIRED' : 'ACTIVE'}
+                </td>
                 <td className="license-actions">
                   {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
                     <button
+                      type="button"
                       className="btn btn-primary btn-actions-license"
                       onClick={() => openRenewalModal(license.contractId)}
                     >
                       Renewals
                     </button>
-                  )
-                  }
+                  )}
                   {license.expiresAt && license.isExpired && (
                     <button
+                      type="button"
                       className="btn btn-danger btn-expire-license"
                       onClick={() => openArchiveModal(license.contractId)}
                     >

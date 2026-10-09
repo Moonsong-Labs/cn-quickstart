@@ -1,16 +1,15 @@
-import { defineConfig} from '@playwright/test';
+import { existsSync } from 'node:fs';
+import * as path from 'node:path';
+import { defineConfig } from '@playwright/test';
 import * as dotenv from 'dotenv';
-import {existsSync} from 'fs';
-import * as path from 'path';
 
 const { PROVIDER_STORAGE } = require('./tests/global.ts');
 
 const envPath = path.resolve(__dirname, '.generated.env');
 if (!existsSync(envPath)) {
-  throw new Error("Run Quickstart in TEST_MODE please.");
+  throw new Error('Run Quickstart in TEST_MODE please.');
 }
-dotenv.config({path: envPath});
-
+dotenv.config({ path: envPath });
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -30,11 +29,7 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [
-    ['list'],
-    ['html', {open: 'never'}],
-    ['junit', { outputFile: 'results.xml' }]
-  ],
+  reporter: [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'results.xml' }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     browserName: 'chromium',

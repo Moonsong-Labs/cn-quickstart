@@ -1,11 +1,11 @@
-import {test as base, type Page, type Locator} from '@playwright/test';
-import AppUserSetup from '../utils/appUserSetup';
+import { test as base } from '@playwright/test';
 import QS from '../pages/qs.page';
-import {PROVIDER_STORAGE} from '../tests/global';
-import {Keycloak} from '../utils/keycloak';
+import { PROVIDER_STORAGE } from '../tests/global';
+import AppUserSetup from '../utils/appUserSetup';
+import { Keycloak } from '../utils/keycloak';
 
 type Fixtures = {
-  keycloak: Keycloak
+  keycloak: Keycloak;
   tagProvider: TagProvider;
   appUserSetup: AppUserSetup;
   provider: QS;
@@ -15,17 +15,17 @@ type Fixtures = {
 
 export * from '@playwright/test';
 export const test = base.extend<Fixtures>({
-  keycloak: async ({}, use) => {
+  keycloak: async (_fixtures, use) => {
     const kc = await new Keycloak();
     await kc.init();
     await use(kc);
   },
-  tagProvider: async ({}, use) => {
+  tagProvider: async (_fixtures, use) => {
     const tag = new TagProvider();
     console.log(`Using test tag: ${tag.base}`);
     await use(tag);
   },
-  appUserSetup: async ({request, keycloak, tagProvider}, use) => {
+  appUserSetup: async ({ request, keycloak, tagProvider }, use) => {
     // Create an AppUser test instance with a unique test tag
     // - creates keycloak user, ledger party, and ledger user
     // - grants rights to the user to act as and read as the party
@@ -34,7 +34,7 @@ export const test = base.extend<Fixtures>({
     });
     await use(appUser);
   },
-  requestTag: async ({tagProvider, appUserSetup}, use) => {
+  requestTag: async ({ tagProvider, appUserSetup }, use) => {
     const tag = tagProvider.next();
     await base.step('Run create-app-install-request script', async () => {
       appUserSetup.createAppInstallRequest(tag);
@@ -42,14 +42,14 @@ export const test = base.extend<Fixtures>({
 
     await use(tag);
   },
-  provider: async ({browser}, use) => {
-    const context = await browser.newContext({storageState: PROVIDER_STORAGE});
+  provider: async ({ browser }, use) => {
+    const context = await browser.newContext({ storageState: PROVIDER_STORAGE });
     const providerPage = await context.newPage();
     const provider = new QS(providerPage);
     await use(provider);
     await context.close();
   },
-  user: async ({browser, appUserSetup, tagProvider}, use) => {
+  user: async ({ browser, appUserSetup, tagProvider }, use) => {
     const context = await browser.newContext();
     const userPage = await context.newPage();
     const user = new QS(userPage);
@@ -61,15 +61,15 @@ export const test = base.extend<Fixtures>({
 });
 
 export default class TagProvider {
-  counter: number = 0;
-  base: string = 'test-' + Date.now() + "-" + process.env.TEST_WORKER_INDEX;
+  counter = 0;
+  base = `test-${Date.now()}-${process.env.TEST_WORKER_INDEX}`;
 
   next(): string {
     this.counter++;
-    return this.base + '-' + this.counter;
+    return `${this.base}-${this.counter}`;
   }
 
   last(): string {
-    return this.base + '-' + this.counter;
+    return `${this.base}-${this.counter}`;
   }
 }

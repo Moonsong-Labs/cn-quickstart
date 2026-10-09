@@ -1,16 +1,16 @@
-import {expect, type Page, type Locator} from '@playwright/test';
-import AppInstalls from "./sections/appInstalls.tab";
-import Licenses from "./sections/licenses/licenses.tab.ts";
-import Wallet from './wallet.page.ts';
-import Tenants from "./sections/tenants.tab";
+import { expect, type Page } from '@playwright/test';
+import AppInstalls from './sections/appInstalls.tab';
+import Licenses from './sections/licenses/licenses.tab.ts';
 import Login from './sections/login.ts';
+import Tenants from './sections/tenants.tab';
+import Wallet from './wallet.page.ts';
 
 export default class QS {
-  loginPage: Login
-  installs: AppInstalls
-  licenses: Licenses
-  tenants: Tenants
-  wallet: Wallet
+  loginPage: Login;
+  installs: AppInstalls;
+  licenses: Licenses;
+  tenants: Tenants;
+  wallet: Wallet;
   private page: Page;
 
   constructor(page: Page) {

@@ -1,16 +1,16 @@
-import {expect, type Page, type Locator} from '@playwright/test';
-import IssueRenewalModal from './issueRenewal.modal';
+import { expect, type Locator, type Page } from '@playwright/test';
 import RowOps from '../../../../utils/rowOps';
 import Wallet from '../../../wallet.page';
+import IssueRenewalModal from './issueRenewal.modal';
 
 export enum Button {
   New = 'New',
   Withdraw = 'Withdraw',
-  CompleteRenewal = 'Complete Renewal'
+  CompleteRenewal = 'Complete Renewal',
 }
 
 export enum Link {
-  WalletLink = 'wallet'
+  WalletLink = 'wallet',
 }
 
 export enum Status {
@@ -29,12 +29,12 @@ export default class RenewalsModal extends RowOps {
   }
 
   button = (name: Button, loc: Locator = this.matchingRow): Locator => {
-    return loc.getByRole('button', {name: name});
-  }
+    return loc.getByRole('button', { name: name });
+  };
 
-  link = (link: Link, loc: Locator = this.matchingRow) : Locator => {
-    return loc.getByRole('link').filter({hasText: link});
-  }
+  link = (link: Link, loc: Locator = this.matchingRow): Locator => {
+    return loc.getByRole('link').filter({ hasText: link });
+  };
 
   public async clickButton(button: Button, loc: Locator = this.matchingRow): Promise<void> {
     await this.button(button, loc).click();
@@ -45,10 +45,7 @@ export default class RenewalsModal extends RowOps {
     await expect(linkLocator).toBeVisible();
 
     // wait for the new tab (popup) to open as a result of the click
-    const [newPage] = await Promise.all([
-      this.page.waitForEvent('popup'),
-      linkLocator.click(),
-    ]);
+    const [newPage] = await Promise.all([this.page.waitForEvent('popup'), linkLocator.click()]);
 
     await newPage.waitForLoadState();
     return new Wallet(newPage);
@@ -61,5 +58,4 @@ export default class RenewalsModal extends RowOps {
   public async assertLinkDoesNotExist(link: Link, row: Locator = this.matchingRow): Promise<void> {
     await expect(this.link(link, row)).not.toBeVisible();
   }
-
 }

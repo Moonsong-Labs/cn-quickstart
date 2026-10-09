@@ -1,16 +1,21 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { Locator, test } from '../fixtures/workflow';
-import { Status as InstallStatus, Button as InstallButton } from "../pages/sections/appInstalls.tab";
-import { Button as LicenseButton } from "../pages/sections/licenses/licenses.tab";
-import { Button as ArchiveModalButton } from "../pages/sections/licenses/archive.modal";
-import { Button as RenewalsModalButton, Link as RenewalsModalLink, Status as RenewalsModalStatus } from "../pages/sections/licenses/renewals/renewals.modal";
-import { Button as IssueRenewalModalButton } from "../pages/sections/licenses/renewals/issueRenewal.modal";
-
+import { test } from '../fixtures/workflow';
+import {
+  Button as InstallButton,
+  Status as InstallStatus,
+} from '../pages/sections/appInstalls.tab';
+import { Button as ArchiveModalButton } from '../pages/sections/licenses/archive.modal';
+import { Button as LicenseButton } from '../pages/sections/licenses/licenses.tab';
+import { Button as IssueRenewalModalButton } from '../pages/sections/licenses/renewals/issueRenewal.modal';
+import {
+  Button as RenewalsModalButton,
+  Link as RenewalsModalLink,
+  Status as RenewalsModalStatus,
+} from '../pages/sections/licenses/renewals/renewals.modal';
 
 test.describe('AppInstall and Licensing workflow', () => {
-
   test('Users can see newly added AppInstallRequest', async ({ requestTag, provider, user }) => {
     await provider.installs.goto();
     await provider.installs.assertMatchingRowCountIs(1, provider.installs.findRowBy(requestTag));
@@ -86,7 +91,7 @@ test.describe('AppInstall and Licensing workflow', () => {
   });
 
   test('AppUser can see created licenses', async ({ requestTag, provider, user }) => {
-    let licenseIds: string[] = [];
+    const licenseIds: string[] = [];
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
@@ -106,7 +111,7 @@ test.describe('AppInstall and Licensing workflow', () => {
   });
 
   test('AppProvider can archive a license', async ({ requestTag, provider }) => {
-    let licenseIds: string[] = [];
+    const licenseIds: string[] = [];
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
@@ -129,7 +134,13 @@ test.describe('AppInstall and Licensing workflow', () => {
     });
   });
 
-  test('Full License Lifecycle should pass', async ({ requestTag, keycloak, provider, user, appUserSetup }) => {
+  test('Full License Lifecycle should pass', async ({
+    requestTag,
+    keycloak,
+    provider,
+    user,
+    appUserSetup,
+  }) => {
     let licenseId!: string;
     await test.step('AppProvider can accept AppInstallRequest and create License', async () => {
       await provider.installs.goto();
@@ -150,7 +161,9 @@ test.describe('AppInstall and Licensing workflow', () => {
         const renewals = licenses.renewalsModal;
         await renewals.clickButton(RenewalsModalButton.New, renewals.modal);
         await renewals.issueRenewalModal.fillDescription(renewalReason);
-        await renewals.issueRenewalModal.clickButton(IssueRenewalModalButton.IssueLicenseRenewalRequest);
+        await renewals.issueRenewalModal.clickButton(
+          IssueRenewalModalButton.IssueLicenseRenewalRequest,
+        );
         await provider.waitForSuccessMessage('License Renewal initiated successfully');
       });
     });

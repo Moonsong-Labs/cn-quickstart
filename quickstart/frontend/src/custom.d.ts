@@ -2,6 +2,6 @@
 // SPDX-License-Identifier: 0BSD
 
 declare module '*.yaml' {
-    const content: any;
-    export default content;
+  const content: import('openapi-client-axios').Document;
+  export default content;
 }

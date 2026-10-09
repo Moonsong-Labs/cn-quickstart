@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react';
 
 export default function DurationInput({
+  id,
   value,
   onChange,
   inputStyle,
   selectStyle,
   units,
 }: {
+  id?: string;
   value?: string;
   onChange: (v: string) => void;
   inputStyle?: CSSProperties;
@@ -42,11 +44,12 @@ export default function DurationInput({
   }
 
   // choose unit: use parsed value if valid, otherwise first entry key or 'd'
-  const unit = m ? m[2] : (unitOptions[0] ? unitOptions[0][0] : 'd');
+  const unit = m ? m[2] : unitOptions[0] ? unitOptions[0][0] : 'd';
 
   return (
     <>
       <input
+        id={id}
         type="number"
         min={1}
         className="form-control"
@@ -68,7 +71,10 @@ export default function DurationInput({
         style={{ width: '120px', ...(selectStyle || {}) }}
       >
         {unitOptions.map(([key, label]) => (
-          <option key={key} value={key}>
+          <option
+            key={key}
+            value={key}
+          >
             {label}
           </option>
         ))}
@@ -76,4 +82,3 @@ export default function DurationInput({
     </>
   );
 }
-

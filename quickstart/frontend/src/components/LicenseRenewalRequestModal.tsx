@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import Modal from './Modal.tsx';
-import type { License, LicenseRenewalRequest, LicenseRenewRequest } from '../openapi';
 import LicenseRenewModal from '../components/LicenseRenewModal.tsx';
+import type { License, LicenseRenewalRequest, LicenseRenewRequest } from '../openapi';
+import Modal from './Modal.tsx';
 
 type Props = {
   show: boolean;
@@ -10,7 +10,11 @@ type Props = {
   isAdmin: boolean;
   userWallet: string;
   onIssueRenewal: (request: LicenseRenewRequest) => Promise<void> | void;
-  onCompleteRenewal: (licenseContractId: string, renewalContractId: string, allocationCid: string) => Promise<void> | void;
+  onCompleteRenewal: (
+    licenseContractId: string,
+    renewalContractId: string,
+    allocationCid: string,
+  ) => Promise<void> | void;
   onWithdraw: (renewalContractId: string) => Promise<void> | void;
   formatDateTime: (iso?: string) => string;
 };
@@ -43,16 +47,12 @@ export default function LicenseRenewalRequestModal({
         </span>
       );
     }
-    return (
-      <span title="Pending completion by the app-provider.">
-        AWAITING_COMPLETION
-      </span>
-    );
+    return <span title="Pending completion by the app-provider.">AWAITING_COMPLETION</span>;
   }
 
-  function handleIssueRenewal(request: LicenseRenewRequest) {
+  async function handleIssueRenewal(request: LicenseRenewRequest) {
     setShowNewModal(false);
-    onIssueRenewal(request);
+    await onIssueRenewal(request);
   }
 
   function handleClose() {
@@ -66,9 +66,7 @@ export default function LicenseRenewalRequestModal({
   return (
     <Modal
       show={show}
-      title={
-        <div>License Renewal Requests</div>
-      }
+      title={<div>License Renewal Requests</div>}
       onClose={handleClose}
       backdrop="static"
       size="xl"
@@ -76,19 +74,21 @@ export default function LicenseRenewalRequestModal({
       dialogClassName="auto-width-modal"
       contentClassName="auto-width-content"
     >
-
       <LicenseRenewModal
         show={showNewModal && isAdmin}
         license={license}
         onIssueRenewal={handleIssueRenewal}
         onClose={handleClose}
-      /> 
+      />
 
-      <div><strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...</div>     
+      <div>
+        <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
+      </div>
 
       <br />
       {isAdmin && (
         <button
+          type="button"
           className="btn btn-success btn-issue-renewal"
           onClick={() => setShowNewModal(true)}
         >
@@ -97,7 +97,10 @@ export default function LicenseRenewalRequestModal({
       )}
 
       <div className="renewals">
-        <table className="table table-fixed xtable-bordered" id="renewals-table">
+        <table
+          className="table table-fixed xtable-bordered"
+          id="renewals-table"
+        >
           <thead>
             <tr>
               <th style={{ width: '110px' }}>Renewal Contract ID</th>
@@ -115,16 +118,35 @@ export default function LicenseRenewalRequestModal({
           <tbody>
             {license?.renewalRequests?.map((renewal) => {
               return (
-                <tr key={renewal.contractId} className="renewal-row">
-                  <td className="ellipsis-cell renewal-contract-id" data-testid="renewal-contract-id">{renewal.contractId}</td>
-                  <td className="ellipsis-cell renewal-request-id" data-testid="renewal-request-id">{renewal.requestId}</td>
-                  <td className="ellipsis-cell renewal-requested-at">{formatDateTime(renewal.requestedAt)}</td>
+                <tr
+                  key={renewal.contractId}
+                  className="renewal-row"
+                >
+                  <td
+                    className="ellipsis-cell renewal-contract-id"
+                    data-testid="renewal-contract-id"
+                  >
+                    {renewal.contractId}
+                  </td>
+                  <td
+                    className="ellipsis-cell renewal-request-id"
+                    data-testid="renewal-request-id"
+                  >
+                    {renewal.requestId}
+                  </td>
+                  <td className="ellipsis-cell renewal-requested-at">
+                    {formatDateTime(renewal.requestedAt)}
+                  </td>
                   <td className="ellipsis-cell">{renewal.licenseExtensionDuration}</td>
                   <td className="ellipsis-cell">{renewal.licenseFeeAmount}</td>
-                  <td className={`ellipsis-cell ${renewal.prepareDeadlinePassed && 'deadline-passed'}`}>
+                  <td
+                    className={`ellipsis-cell ${renewal.prepareDeadlinePassed && 'deadline-passed'}`}
+                  >
                     {formatDateTime(renewal.prepareUntil)}
                   </td>
-                  <td className={`ellipsis-cell ${renewal.settleDeadlinePassed && 'deadline-passed'}`}>
+                  <td
+                    className={`ellipsis-cell ${renewal.settleDeadlinePassed && 'deadline-passed'}`}
+                  >
                     {formatDateTime(renewal.settleBefore)}
                     {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
                          date component and remove server side computation of settleDeadlinePassed */}
@@ -132,32 +154,48 @@ export default function LicenseRenewalRequestModal({
                   <td className="ellipsis-cell">{renewal.description}</td>
                   <td className="ellipsis-cell">{makeStatus(renewal)}</td>
                   <td className="renewals-actions">
-                    {isAdmin && !renewal.settleDeadlinePassed && renewal.allocationCid && license && (
-                      <button
-                        className="btn btn-success btn-complete-renewal"
-                        onClick={() =>
-                          onCompleteRenewal(
-                            license.contractId,
-                            renewal.contractId,
-                            renewal.allocationCid!
-                          )
-                        }
-                      >
-                        Complete Renewal
-                      </button>
-                    )}
+                    {isAdmin &&
+                      !renewal.settleDeadlinePassed &&
+                      renewal.allocationCid &&
+                      license && (
+                        <button
+                          type="button"
+                          className="btn btn-success btn-complete-renewal"
+                          onClick={() => {
+                            if (!renewal.allocationCid) return;
+                            void onCompleteRenewal(
+                              license.contractId,
+                              renewal.contractId,
+                              renewal.allocationCid,
+                            );
+                          }}
+                        >
+                          Complete Renewal
+                        </button>
+                      )}
                     {isAdmin && renewal && (
                       <button
+                        type="button"
                         className="btn btn-danger btn-withdraw"
                         onClick={() => {
-                          onWithdraw(renewal.contractId);
+                          void onWithdraw(renewal.contractId);
                         }}
                       >
                         Withdraw
                       </button>
                     )}
                     {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
-                      <>Please accept the allocation request in your <a href={`${userWallet}/allocations`} target='_blank'>wallet</a>.</>
+                      <>
+                        Please accept the allocation request in your{' '}
+                        <a
+                          href={`${userWallet}/allocations`}
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          wallet
+                        </a>
+                        .
+                      </>
                     )}
                   </td>
                 </tr>

@@ -1,15 +1,20 @@
-import type {APIRequestContext} from 'playwright-core';
+import type { APIRequestContext } from 'playwright-core';
 
-export async function createParty(request: APIRequestContext, token: string, partyIdHint: string, participant: string): Promise<string> {
+export async function createParty(
+  request: APIRequestContext,
+  token: string,
+  partyIdHint: string,
+  participant: string,
+): Promise<string> {
   const namespace = await getParticipantNamespace(request, token, participant);
   const parties = await request.get(
     `http://${participant}/v2/parties/party?parties=${partyIdHint}::${namespace}`,
     {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    }
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    },
   );
   if (!parties.ok()) {
     throw new Error(`GET request failed with status ${parties.status()}`);
@@ -21,20 +26,17 @@ export async function createParty(request: APIRequestContext, token: string, par
     return party;
   }
 
-  const newParty = await request.post(
-    `http://${participant}/v2/parties`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      data: {
-        partyIdHint,
-        displayName: partyIdHint,
-        identityProviderId: ""
-      }
-    }
-  );
+  const newParty = await request.post(`http://${participant}/v2/parties`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    data: {
+      partyIdHint,
+      displayName: partyIdHint,
+      identityProviderId: '',
+    },
+  });
   if (!newParty.ok()) {
     throw new Error(`POST request failed with status ${newParty.status()}`);
   }
@@ -44,12 +46,16 @@ export async function createParty(request: APIRequestContext, token: string, par
   return partyId;
 }
 
-export async function getParticipantNamespace(request: APIRequestContext, token: string, participant: string): Promise<string> {
+export async function getParticipantNamespace(
+  request: APIRequestContext,
+  token: string,
+  participant: string,
+): Promise<string> {
   const response = await request.get(`http://${participant}/v2/parties/participant-id`, {
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
   });
   if (!response.ok()) {
     throw new Error(`Request failed with status ${response.status()}`);
@@ -67,7 +73,7 @@ export async function createUser(
   party: string,
   participant: string,
 ) {
-  const baseUrl = `http://${participant}`
+  const baseUrl = `http://${participant}`;
 
   // 1) check if user exists
   const check = await request.get(`${baseUrl}/v2/users/${userId}`, {
@@ -75,7 +81,7 @@ export async function createUser(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-  })
+  });
 
   if (check.status() === 404) {
     // 2) create the user
@@ -92,27 +98,26 @@ export async function createUser(
           identityProviderId: '',
           metadata: {
             resourceVersion: '',
-            annotations: {username: userName},
+            annotations: { username: userName },
           },
         },
         rights: [],
       },
-    })
+    });
 
     if (!create.ok()) {
-      throw new Error(
-        `Failed to create user ${userId}: ${create.status()} ${await create.text()}`
-      )
+      throw new Error(`Failed to create user ${userId}: ${create.status()} ${await create.text()}`);
     }
 
-    const json = await create.json()
-    console.log(`Ledger user created with id: ${json.user.id} for party: ${json.user.primaryParty}`);
+    const json = await create.json();
+    console.log(
+      `Ledger user created with id: ${json.user.id} for party: ${json.user.primaryParty}`,
+    );
     return json;
   }
 
   return check.json();
 }
-
 
 export async function grantRights(
   request: APIRequestContext,
@@ -122,24 +127,24 @@ export async function grantRights(
   rightsCsv: string,
   participant: string,
 ) {
-  console.log(`Grant rights user:${userId} party:${partyId}`)
+  console.log(`Grant rights user:${userId} party:${partyId}`);
 
-  const rights = rightsCsv.split(' ').map(r => {
+  const rights = rightsCsv.split(' ').map((r) => {
     switch (r) {
       case 'ParticipantAdmin':
-        return {kind: {ParticipantAdmin: {value: {}}}}
+        return { kind: { ParticipantAdmin: { value: {} } } };
       case 'ActAs':
-        return {kind: {CanActAs: {value: {party: partyId}}}}
+        return { kind: { CanActAs: { value: { party: partyId } } } };
       case 'ReadAs':
-        return {kind: {CanReadAs: {value: {party: partyId}}}}
+        return { kind: { CanReadAs: { value: { party: partyId } } } };
       default:
-        throw new Error(`Unknown right: ${r}`)
+        throw new Error(`Unknown right: ${r}`);
     }
-  })
+  });
 
   const response = await request.post(`http://${participant}/v2/users/${userId}/rights`, {
     headers: {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     data: {
@@ -147,12 +152,12 @@ export async function grantRights(
       identityProviderId: '',
       rights,
     },
-  })
+  });
 
   if (response.status() !== 200) {
-    const body = await response.text()
-    throw new Error(`grantRights failed ${response.status()}: ${body}`)
+    const body = await response.text();
+    throw new Error(`grantRights failed ${response.status()}: ${body}`);
   }
 
-  return response.json()
+  return response.json();
 }

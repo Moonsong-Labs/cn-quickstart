@@ -15,7 +15,7 @@ This frontend enables interaction with the backend components of the Canton Netw
     2. In this directory, start the frontend development server, which will reverse proxy requests to the backend.
     
     ```sh
-    npm run dev
+    bun run dev
     ```
 
     The development server will proxy requests to the backend, which is configured through docker-compose.

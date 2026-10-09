@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "gen:openapi": "npx --yes openapicmd typegen --client ../common/openapi.yaml >| src/openapi.d.ts",
+    "gen:openapi": "bunx openapicmd typegen --client ../common/openapi.yaml >| src/openapi.d.ts",
     "dev": "vite",
-    "build": "npm run gen:openapi && tsc -b --noEmit && vite build",
-    "lint": "eslint .",
+    "build": "bun run gen:openapi && tsc -b --noEmit && vite build",
+    "lint": "biome check .",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,17 +19,11 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.9.0",
     "@types/node": "^22.19.17",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
-    "eslint": "^9.39.4",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.26",
-    "globals": "^15.15.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.58.2",
     "vite": "^6.4.2"
   }
 }

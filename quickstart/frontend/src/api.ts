@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: 0BSD
 
 import OpenAPIClientAxios from 'openapi-client-axios';
-import openApi from '../../common/openapi.yaml'
+import openApi from '../../common/openapi.yaml';
 
 const api: OpenAPIClientAxios = new OpenAPIClientAxios({
-    definition: openApi as any,
-    withServer: { url: '/api' },
+  definition: openApi,
+  withServer: { url: '/api' },
 });
 
-api.init();
+void api.init();
 
 export default api;

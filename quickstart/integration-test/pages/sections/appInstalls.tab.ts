@@ -1,4 +1,4 @@
-import {expect, type Page, type Locator} from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import RowOps from '../../utils/rowOps';
 
 const APP_PROVIDER_APP_INSTALLS_URL = 'http://app-provider.localhost:3000/app-installs';
@@ -21,16 +21,16 @@ export default class AppInstalls extends RowOps {
   }
 
   button = (name: string, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('button', {name: name});
-  }
+    return row.getByRole('button', { name: name });
+  };
 
   status = (name: Status, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('cell', {name: name});
-  }
+    return row.getByRole('cell', { name: name });
+  };
 
   licenseCount = (row: Locator = this.matchingRow): Locator => {
     return row.getByTestId('num-licenses');
-  }
+  };
 
   public async goto(): Promise<void> {
     await this.page.goto(APP_PROVIDER_APP_INSTALLS_URL);
@@ -44,10 +44,13 @@ export default class AppInstalls extends RowOps {
     await this.button(button, row).click();
   }
 
-  public async assertLicenseCountIs(licenseCount: number, row: Locator = this.matchingRow): Promise<void> {
+  public async assertLicenseCountIs(
+    licenseCount: number,
+    row: Locator = this.matchingRow,
+  ): Promise<void> {
     await expect(
       this.licenseCount(row),
-      `There should be ${licenseCount} license(s) for the AppInstall`
+      `There should be ${licenseCount} license(s) for the AppInstall`,
     ).toHaveText(licenseCount.toString());
   }
 
@@ -61,12 +64,15 @@ export default class AppInstalls extends RowOps {
     // e.g. "Success: Created License: 00a6f3cf…"
 
     // extract just the ID
-    const match = fullText!.match(/Success: Created License: ([0-9a-f]+)/);
-    expect(match, 'license ID should parse').not.toBeNull();
-    const licenseId = match![1];
+    const match = fullText?.match(/Success: Created License: ([0-9a-f]+)/);
+    const licenseId = match?.[1];
+    expect(licenseId, 'license ID should parse').toBeTruthy();
+    if (!licenseId) {
+      throw new Error('license ID should parse');
+    }
     console.log('Captured new LicenseId:', licenseId);
 
-    await this.page.getByRole('button', {name: 'Close'}).click();
+    await this.page.getByRole('button', { name: 'Close' }).click();
 
     return licenseId;
   }

@@ -4,6 +4,7 @@ let
   requiredPackages = with pkgs; ([
     # these packages are required both in CI and for local development
     coreutils # provides gdate command needed by Makefile for Docker log timestamp formatting on macOS
+    bun
     dpm
     jdk21
     nodejs_20

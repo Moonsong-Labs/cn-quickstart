@@ -1,20 +1,15 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { useAppInstallStore } from '../stores/appInstallStore';
 import { useUserStore } from '../stores/userStore';
 import type { AppInstallUnified } from '../types';
 
 const AppInstallsView: React.FC = () => {
-  const {
-    unifiedInstalls,
-    fetchAll,
-    accept,
-    reject,
-    createLicense,
-    cancelInstall,
-  } = useAppInstallStore();
+  const { unifiedInstalls, fetchAll, accept, reject, createLicense, cancelInstall } =
+    useAppInstallStore();
   const { user, fetchUser } = useUserStore();
 
   useEffect(() => {
@@ -29,18 +24,23 @@ const AppInstallsView: React.FC = () => {
   return (
     <div>
       <h2>App Installs</h2>
-      <div className="alert alert-info" role="alert">
-        <strong>Note:</strong> Run <code>make create-app-install-request</code> to submit an AppInstallRequest
+      <div
+        className="alert alert-info"
+        role="alert"
+      >
+        <strong>Note:</strong> Run <code>make create-app-install-request</code> to submit an
+        AppInstallRequest
       </div>
       <div className="mt-4">
-        <table className="table table-fixed" id="app-installs-table">
+        <table
+          className="table table-fixed"
+          id="app-installs-table"
+        >
           <thead>
             <tr>
               <th style={{ width: '150px' }}>Contract ID</th>
 
-              {user?.isAdmin && (
-                <th style={{ width: '150px' }}>User</th>
-              )}
+              {user?.isAdmin && <th style={{ width: '150px' }}>User</th>}
               <th style={{ width: '100px' }}># Licenses</th>
               <th style={{ width: '300px' }}>Meta</th>
               <th style={{ width: '250px' }}>Status</th>
@@ -49,16 +49,16 @@ const AppInstallsView: React.FC = () => {
           </thead>
           <tbody>
             {unifiedInstalls.map((item: AppInstallUnified) => (
-              <tr key={item.contractId} className="app-install-row">
-                <td className="ellipsis-cell app-install-contract-id">
-                  {item.contractId}
-                </td>
-                {user?.isAdmin && (
-                  <td className="ellipsis-cell app-install-user">
-                    {item.user}
-                  </td>
-                )}
-                <td className="app-install-num-licenses" data-testid="num-licenses">
+              <tr
+                key={item.contractId}
+                className="app-install-row"
+              >
+                <td className="ellipsis-cell app-install-contract-id">{item.contractId}</td>
+                {user?.isAdmin && <td className="ellipsis-cell app-install-user">{item.user}</td>}
+                <td
+                  className="app-install-num-licenses"
+                  data-testid="num-licenses"
+                >
                   {item.numLicensesCreated}
                 </td>
                 <td className="ellipsis-cell app-install-meta">
@@ -70,9 +70,12 @@ const AppInstallsView: React.FC = () => {
                 <td className="app-install-actions">
                   {item.status === 'REQUEST' ? (
                     user?.isAdmin ? (
-                      <div className="btn-group" role="group">
-                        {unifiedInstalls.findIndex((i) => i.status === 'INSTALL' && i.user === item.user) === -1 && (
+                      <fieldset className="btn-group border-0 p-0 m-0">
+                        {unifiedInstalls.findIndex(
+                          (i) => i.status === 'INSTALL' && i.user === item.user,
+                        ) === -1 && (
                           <button
+                            type="button"
                             className="btn btn-success btn-accept-install"
                             onClick={() => accept(item.contractId, item.meta, {})}
                           >
@@ -80,16 +83,18 @@ const AppInstallsView: React.FC = () => {
                           </button>
                         )}
                         <button
+                          type="button"
                           className="btn btn-warning btn-reject-install"
                           onClick={() => reject(item.contractId, {})}
                         >
                           Reject
                         </button>
-                      </div>
+                      </fieldset>
                     ) : null
                   ) : (
-                    <div className="btn-group" role="group">
+                    <fieldset className="btn-group border-0 p-0 m-0">
                       <button
+                        type="button"
                         className="btn btn-danger btn-cancel-install"
                         onClick={() => cancelInstall(item.contractId, {})}
                       >
@@ -97,13 +102,14 @@ const AppInstallsView: React.FC = () => {
                       </button>
                       {user?.isAdmin && (
                         <button
+                          type="button"
                           className="btn btn-success btn-create-license"
                           onClick={() => createLicense(item.contractId, {})}
                         >
                           Create License
                         </button>
                       )}
-                    </div>
+                    </fieldset>
                   )}
                 </td>
               </tr>

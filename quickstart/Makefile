@@ -139,7 +139,8 @@ endif
 
 .PHONY: build-frontend
 build-frontend: ## Build the frontend application
-	cd frontend && npm install && npm run build
+	bun install --frozen-lockfile
+	bun run --filter frontend build
 
 .PHONY: build-backend
 build-backend: ## Build the backend service
@@ -234,7 +235,7 @@ start-vite-dev: ## Start the frontend application in development mode
 .PHONY: vite-dev
 vite-dev:
 	@echo "Starting Vite frontend development server..."
-	cd frontend && npm run dev
+	bun run --filter frontend dev
 
 .PHONY: stop
 stop: docker-available ## Stop the application
@@ -316,14 +317,14 @@ integration-test: docker-available ## Run integration tests
 		echo "Integration tests supported only for AUTH_MODE=oauth2."; \
 		exit 1; \
 	fi
-	@cd integration-test && \
-	npm install && \
-	npx playwright test
+	@bun install --frozen-lockfile && \
+	cd integration-test && \
+	bunx playwright test
 
 .PHONY: show-integration-test-report
 show-integration-test-report: ## Show the integration test report
 	@cd integration-test && \
-	npx playwright show-report --port=9323 --host=0.0.0.0
+	bunx playwright show-report --port=9323 --host=0.0.0.0
 
 # Console
 .PHONY: canton-console
@@ -401,9 +402,9 @@ ci-create-env-local:
 # Install playwright dependencies in CI/CD
 .PHONY: ci-install-playwright
 ci-install-playwright:
-	cd integration-test \
-		&& npm ci \
-		&& npx playwright install chromium --with-deps
+	bun install --frozen-lockfile \
+		&& cd integration-test \
+		&& bunx playwright install chromium --with-deps
 
 endif
 
