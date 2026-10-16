@@ -3,14 +3,18 @@
   "private": true,
   "packageManager": "bun@1.3.3",
   "workspaces": [
+    "quickstart/cli",
     "quickstart/frontend",
     "quickstart/integration-test"
   ],
   "scripts": {
+    "qs": "bun --no-env-file quickstart/cli/src/main.ts",
+    "typecheck": "tsc -p quickstart/cli --noEmit && tsc -b quickstart/frontend --noEmit && tsc -p quickstart/integration-test --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15"
+    "@biomejs/biome": "2.5.15",
+    "typescript": "5.9.3"
   }
 }

@@ -1,0 +1,17 @@
+{
+  "name": "@cn-quickstart/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Canton Network Quickstart command line.",
+  "scripts": {
+    "qs": "bun --no-env-file src/main.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.3"
+  },
+  "dependencies": {
+    "commander": "15.0.0"
+  }
+}

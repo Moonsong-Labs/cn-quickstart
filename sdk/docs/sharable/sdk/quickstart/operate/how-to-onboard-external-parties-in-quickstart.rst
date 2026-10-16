@@ -39,9 +39,9 @@ refer to :ref:`quickstart-cnqs-installation`.
   make setup
  
   # When prompted, select:
-  # - Enable OAUTH2? no
-  # - Party hint: use default
-  # - Enable Test mode: no
+  # - Enable OAuth2 (Y/n): no
+  # - Party hint: press enter for the default
+  # - Enable test mode (y/N): no
  
   # Start LocalNet
   make start

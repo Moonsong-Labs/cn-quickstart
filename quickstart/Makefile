@@ -121,7 +121,7 @@ else
 endif
 endef
 
-SETUP_COMMAND := ./gradlew configureProfiles --no-daemon --console=plain --quiet
+SETUP_COMMAND := bun --no-env-file cli/src/main.ts setup
 
 # Build targets
 .PHONY: build

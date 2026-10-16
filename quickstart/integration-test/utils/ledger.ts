@@ -1,4 +1,4 @@
-import type { APIRequestContext } from 'playwright-core';
+import type { APIRequestContext } from '@playwright/test';
 
 export async function createParty(
   request: APIRequestContext,

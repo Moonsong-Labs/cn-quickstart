@@ -2,7 +2,8 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 export default class RowOps {
   page: Page;
-  protected matchingRow: Locator;
+  /** Row selected by `withRowMatching`. Read by the assert helpers when no row is passed. */
+  protected matchingRow!: Locator;
 
   constructor(page: Page) {
     this.page = page;

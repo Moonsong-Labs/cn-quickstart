@@ -23,8 +23,3 @@ tasks.register<Copy>("generateNotices") {
 repositories {
 }
 
-tasks.register<ConfigureProfilesTask>("configureProfiles") {
-    group = "Custom"
-    description = "Interactively configure development profiles."
-}
-

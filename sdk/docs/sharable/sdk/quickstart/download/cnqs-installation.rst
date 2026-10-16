@@ -145,18 +145,18 @@ Leave the party hint blank to use the default and disable ``TEST MODE``.
 
   | % make setup
   |  Starting local environment setup tool...
-  |  ./gradlew configureProfiles --no-daemon --console=plain --quiet
-  | Enable OAUTH2? (Y/n): y
-  | AUTH_MODE set to 'oauth2'.
+  |  bun --no-env-file cli/src/main.ts setup
+  | ? Enable OAuth2 (Y/n) y
+  |   AUTH_MODE   oauth2
 
-  | Specify a party hint (this will identify the participant in the
-    network) [quickstart-USERNAME-1]:
-  | PARTY_HINT set to ‘quickstart-USERNAME-1’.
+  | ? Party hint [quickstart-USERNAME-1]
+  |   Names this participant on the network.
+  |   PARTY_HINT  quickstart-USERNAME-1
 
-  | Enable TEST_MODE? (Y/n): n
-  |   TEST_MODE set to 'off'.
+  | ? Enable test mode (y/N) n
+  |   TEST_MODE   off
 
-  | ``.env.local`` updated successfully.
+  | ✓ Wrote .env.local
 
 You can change these choices any time by running ``make setup`` again.
 

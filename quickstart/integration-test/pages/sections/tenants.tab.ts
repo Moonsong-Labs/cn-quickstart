@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: 0BSD
 
 import { expect, type Locator, type Page } from '@playwright/test';
-// @ts-expect-error
 import { TENANTS_URL } from '../../tests/global.ts';
 
 import RowOps from '../../utils/rowOps';

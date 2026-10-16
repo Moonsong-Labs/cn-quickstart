@@ -3,7 +3,6 @@
 
 import { test } from '../fixtures/workflow';
 import { Button as TenantButton } from '../pages/sections/tenants.tab';
-// @ts-expect-error
 import { WALLET_URL } from './global.ts';
 
 test.describe('Tenant Registrations (E2E)', () => {

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import type { APIRequestContext } from 'playwright-core';
+import type { APIRequestContext } from '@playwright/test';
 import type TagProvider from '../fixtures/workflow';
 import { requiredEnv } from './env';
 import type { Keycloak } from './keycloak';

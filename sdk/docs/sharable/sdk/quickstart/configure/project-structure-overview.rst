@@ -81,16 +81,16 @@ Gradle
 Gradle builds the Java backend and Daml contracts.
 The backend uses Transcode-generated classes from DAR files to interact with the Ledger API.
 
-**Custom Gradle plugins** (``buildSrc/src/main/kotlin/``):
+**Build helpers** (Gradle plugins in ``buildSrc/src/main/kotlin/``, and the Bun CLI):
 
 .. list-table::
    :header-rows: 1
    :widths: 40 80
    :align: left
 
-   * - Plugin
+   * - Helper
      - Purpose
-   * - ``ConfigureProfilesTask.kt``
+   * - ``cli``
      - Interactive generation of ``.env.local``
    * - ``Dependencies.kt``
      - Propagates ``.env`` versions to Gradle

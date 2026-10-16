@@ -1,6 +1,5 @@
 import { promises as fs } from 'node:fs';
 import { type BrowserContext, expect, type Page, test } from '@playwright/test';
-// @ts-expect-error
 import { PROVIDER_STORAGE, USER_STORAGE } from './global.ts';
 
 // Reused runtime values

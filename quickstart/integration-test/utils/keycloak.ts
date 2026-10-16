@@ -1,9 +1,9 @@
-import type { APIRequestContext } from 'playwright-core';
-import { request } from 'playwright-core';
+import { type APIRequestContext, request } from '@playwright/test';
 import { requiredEnv } from './env';
 
 export class Keycloak {
-  private kcRequest: APIRequestContext;
+  /** Admin API client. Set by `init` before any other method uses it. */
+  private kcRequest!: APIRequestContext;
 
   public async init(): Promise<void> {
     this.kcRequest = await request.newContext({
