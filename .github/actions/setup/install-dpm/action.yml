@@ -1,0 +1,10 @@
+name: Install dpm
+description: >-
+  Installs dpm 3.5.2 for the rest of the job and exports DPM_HOME,
+  DPM_SDK_VERSION, and PATH. The install is removed when the job ends.
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: bash "${GITHUB_ACTION_PATH}/install-dpm.sh"

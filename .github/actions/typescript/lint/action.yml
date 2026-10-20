@@ -1,0 +1,11 @@
+name: Lint
+description: >-
+  Installs workspace dependencies and runs Biome in CI mode. Fails when Biome
+  reports a diagnostic. Does not modify files.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/bun
+    - shell: bash
+      run: bunx biome ci .

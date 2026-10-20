@@ -15,12 +15,16 @@ type Fixtures = {
 
 export * from '@playwright/test';
 export const test = base.extend<Fixtures>({
-  keycloak: async (_fixtures, use) => {
+  /** Keycloak admin client for this test. */
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright rejects a named first parameter.
+  keycloak: async ({}, use) => {
     const kc = await new Keycloak();
     await kc.init();
     await use(kc);
   },
-  tagProvider: async (_fixtures, use) => {
+  /** Unique tag for this worker's test data. */
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright rejects a named first parameter.
+  tagProvider: async ({}, use) => {
     const tag = new TagProvider();
     console.log(`Using test tag: ${tag.base}`);
     await use(tag);

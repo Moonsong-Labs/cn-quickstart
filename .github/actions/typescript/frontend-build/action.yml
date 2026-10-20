@@ -1,0 +1,11 @@
+name: Frontend build
+description: >-
+  Builds the frontend, including the OpenAPI client generation and the Vite
+  bundle.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/bun
+    - shell: bash
+      run: bun run --filter frontend build

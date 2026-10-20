@@ -1,0 +1,13 @@
+name: Typecheck
+description: >-
+  Generates the frontend OpenAPI client, then type-checks the CLI, the
+  frontend, and the integration tests. Does not emit JavaScript.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/bun
+    - shell: bash
+      run: bun run --filter frontend gen:openapi
+    - shell: bash
+      run: bun run typecheck

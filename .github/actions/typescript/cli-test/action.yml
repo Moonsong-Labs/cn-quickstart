@@ -1,0 +1,10 @@
+name: CLI tests
+description: Runs the Quickstart CLI test suite in quickstart/cli.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/bun
+    - shell: bash
+      working-directory: quickstart/cli
+      run: bun test

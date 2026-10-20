@@ -1,0 +1,15 @@
+name: Daml test
+description: >-
+  Installs dpm, then builds and tests the packages under quickstart/daml.
+  Does not run Gradle.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/install-dpm
+    - shell: bash
+      working-directory: quickstart/daml
+      run: dpm build --all
+    - shell: bash
+      working-directory: quickstart/daml
+      run: dpm test --package-root licensing-tests

@@ -396,7 +396,7 @@ ifeq ($(CI),true)
 .PHONY: ci-create-env-local
 ci-create-env-local:
 	echo "AUTH_MODE=oauth2" > .env.local
-	echo "PARTY_HINT=quickstart-circleci-1" >> .env.local
+	echo "PARTY_HINT=quickstart-ci-1" >> .env.local
 	echo "TEST_MODE=on" >> .env.local
 
 # Install playwright dependencies in CI/CD

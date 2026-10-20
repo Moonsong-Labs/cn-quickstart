@@ -1,0 +1,174 @@
+# One required check: "CI / All checks", the display name of the `ci-ok` job.
+# It fails when any job it needs failed or was cancelled. A skipped job
+# counts as success.
+#
+# Job steps live in .github/actions, grouped by category. This file keeps
+# the triggers, the path filters, and the runner settings.
+#
+# TODO: when the TypeScript backend lands, add actions/typescript/backend
+# and a `backend` job, and list that job in `ci-ok`'s needs.
+# See plan/circleci-to-github-actions.md.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [msl]
+  push:
+    branches: [msl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A pull request shares one group, so a new commit cancels the run still
+# going and only the latest commit is checked. A push to msl, and a manual
+# run, uses the commit SHA: every commit is checked, and a later commit
+# leaves the earlier run alone. A shared group would drop queued msl runs
+# even with cancel-in-progress set to false.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}', github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ts: ${{ steps.resolve.outputs.ts }}
+      daml: ${{ steps.resolve.outputs.daml }}
+      stack: ${{ steps.resolve.outputs.stack }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          token: ${{ github.token }}
+          filters: |
+            ts:
+              - 'quickstart/cli/**'
+              - 'quickstart/frontend/**'
+              - 'quickstart/integration-test/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'biome.json'
+              - 'tsconfig.base.json'
+              - '.bun-version'
+              - 'quickstart/common/openapi.yaml'
+              - '.github/actions/setup/bun/**'
+              - '.github/actions/typescript/**'
+              - '.github/workflows/ci.yml'
+            daml:
+              - 'quickstart/daml/**'
+              - '.github/actions/setup/install-dpm/**'
+              - '.github/actions/daml/**'
+              - '.github/workflows/ci.yml'
+            stack:
+              - 'quickstart/docker/**'
+              - 'quickstart/config/**'
+              - 'quickstart/compose.yaml'
+              - 'quickstart/.env'
+              - 'quickstart/Makefile'
+              - '.github/workflows/ci.yml'
+      - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TS: ${{ steps.filter.outputs.ts }}
+          DAML: ${{ steps.filter.outputs.daml }}
+          STACK: ${{ steps.filter.outputs.stack }}
+        run: |
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "ts=true" >> "${GITHUB_OUTPUT}"
+            echo "daml=true" >> "${GITHUB_OUTPUT}"
+            echo "stack=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ts=${TS}" >> "${GITHUB_OUTPUT}"
+            echo "daml=${DAML}" >> "${GITHUB_OUTPUT}"
+            echo "stack=${STACK}" >> "${GITHUB_OUTPUT}"
+          fi
+
+  lint:
+    name: Lint
+    needs: [changes]
+    if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/lint
+
+  typecheck:
+    name: Typecheck
+    needs: [changes]
+    if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/typecheck
+
+  cli-test:
+    name: CLI tests
+    needs: [changes]
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.stack == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/cli-test
+
+  frontend-build:
+    name: Frontend build
+    needs: [changes]
+    if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/frontend-build
+
+  daml:
+    name: Daml tests
+    needs: [changes]
+    if: needs.changes.outputs.daml == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/daml/test
+
+  integration-test:
+    name: Integration tests
+    # Set the INTEGRATION_RUNNER repository variable to an 8-vCPU runner
+    # label. Until then this uses the standard runner.
+    runs-on: ${{ vars.INTEGRATION_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      checks: write
+    env:
+      COMPOSE_ANSI: never
+      COMPOSE_PROGRESS: plain
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/integration/test
+
+  ci-ok:
+    name: All checks
+    needs: [changes, lint, typecheck, cli-test, frontend-build, daml, integration-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: printf '%s\n' "$NEEDS"
+      - name: Require every job to succeed or be skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
