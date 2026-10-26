@@ -3,13 +3,14 @@
   "private": true,
   "packageManager": "bun@1.3.3",
   "workspaces": [
+    "quickstart/backend-ts",
     "quickstart/cli",
     "quickstart/frontend",
     "quickstart/integration-test"
   ],
   "scripts": {
     "qs": "bun --no-env-file quickstart/cli/src/main.ts",
-    "typecheck": "tsc -p quickstart/cli --noEmit && tsc -b quickstart/frontend --noEmit && tsc -p quickstart/integration-test --noEmit",
+    "typecheck": "tsc -p quickstart/cli --noEmit && tsc -b quickstart/frontend --noEmit && tsc -p quickstart/integration-test --noEmit && tsc -p quickstart/backend-ts --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },

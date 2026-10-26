@@ -1,0 +1,17 @@
+**
+!package.json
+!bun.lock
+!tsconfig.base.json
+!quickstart/
+!quickstart/backend-ts/
+!quickstart/backend-ts/package.json
+!quickstart/backend-ts/tsconfig.json
+!quickstart/backend-ts/src/
+!quickstart/backend-ts/src/**
+!quickstart/cli/
+!quickstart/cli/package.json
+!quickstart/frontend/
+!quickstart/frontend/package.json
+!quickstart/integration-test/
+!quickstart/integration-test/package.json
+**/.env*

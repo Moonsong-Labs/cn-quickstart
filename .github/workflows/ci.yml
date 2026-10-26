@@ -4,10 +4,6 @@
 #
 # Job steps live in .github/actions, grouped by category. This file keeps
 # the triggers, the path filters, and the runner settings.
-#
-# TODO: when the TypeScript backend lands, add actions/typescript/backend
-# and a `backend` job, and list that job in `ci-ok`'s needs.
-# See plan/circleci-to-github-actions.md.
 
 name: CI
 
@@ -50,6 +46,7 @@ jobs:
           token: ${{ github.token }}
           filters: |
             ts:
+              - 'quickstart/backend-ts/**'
               - 'quickstart/cli/**'
               - 'quickstart/frontend/**'
               - 'quickstart/integration-test/**'
@@ -131,6 +128,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/typescript/frontend-build
 
+  backend:
+    name: Backend build and test
+    needs: [changes]
+    if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/backend
+
   daml:
     name: Daml tests
     needs: [changes]
@@ -161,7 +168,7 @@ jobs:
 
   ci-ok:
     name: All checks
-    needs: [changes, lint, typecheck, cli-test, frontend-build, daml, integration-test]
+    needs: [changes, lint, typecheck, cli-test, frontend-build, backend, daml, integration-test]
     if: always()
     runs-on: ubuntu-latest
     steps:
