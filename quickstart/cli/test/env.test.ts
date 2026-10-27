@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: 0BSD
 
 import { describe, expect, test } from 'bun:test';
-import { parseDotEnv, upsertEnvFile } from '../src/lib/env.ts';
+import { expandEnvValue, parseDotEnv, upsertEnvFile } from '../src/lib/env.ts';
 
 /** Key order used when an empty or partial file is updated. Later tests rely on this order. */
 const entries = [
@@ -17,6 +17,24 @@ describe('parseDotEnv', () => {
     expect(parsed.get('A')).toBe('b=c');
     expect(parsed.get('B')).toBe('2');
     expect(parsed.has('not a pair')).toBe(false);
+  });
+});
+
+/** `$` followed by `{name}`, the brace form Make expands in an included env file. */
+function braced(name: string): string {
+  return ['$', '{', name, '}'].join('');
+}
+
+describe('expandEnvValue', () => {
+  /** Replacement for MODULES_DIR. Any other name is unset. */
+  const lookup = (name: string) => (name === 'MODULES_DIR' ? '/modules' : '');
+
+  test('expands a braced name, a parenthesised name, and a doubled dollar', () => {
+    expect(expandEnvValue(`${braced('MODULES_DIR')}/localnet`, lookup)).toBe('/modules/localnet');
+    expect(expandEnvValue('$(MODULES_DIR)/localnet', lookup)).toBe('/modules/localnet');
+    expect(expandEnvValue(`$${braced('MODULES_DIR')}`, lookup)).toBe(braced('MODULES_DIR'));
+    expect(expandEnvValue(`${braced('MISSING')}/x`, lookup)).toBe('/x');
+    expect(expandEnvValue('keep$literal', lookup)).toBe('keep$literal');
   });
 });
 

@@ -11,18 +11,28 @@ export function scriptedIo(lines: readonly string[]): {
   io: PromptIo;
   /** Everything written so far, in order, with no extra separators. */
   output(): string;
+  /** Everything sent through `note`, which the real terminal writes to stderr. */
+  noted(): string;
 } {
   /** Remaining answers. Each `readLine` removes one. */
   const queue = [...lines];
   /** Concatenation of every `write` call. */
   let written = '';
+  /** Concatenation of every `note` call. Kept apart from stdout. */
+  let notes = '';
   return {
     /** Snapshot of `written`. Later writes are not included until the next call. */
     output: () => written,
+    /** Snapshot of stderr-style notes. */
+    noted: () => notes,
     io: {
       /** Append `text` exactly, including newlines the caller already included. */
       write(text: string) {
         written += text;
+      },
+      /** Record a progress or check line without mixing it into stdout. */
+      note(text: string) {
+        notes += text;
       },
       /** Next scripted line, or null when the script has been consumed. */
       readLine() {

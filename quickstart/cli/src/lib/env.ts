@@ -27,6 +27,26 @@ export function parseDotEnv(text: string): Map<string, string> {
 }
 
 /**
+ * Expand Make-style references in `value`.
+ * `${NAME}` and `$(NAME)` are replaced by `lookup(NAME)`. An unknown name is the
+ * lookup's concern; pass a function that returns an empty string for those.
+ * `$$` is a literal `$`, so `$${NAME}` stays `${NAME}`. A bare `$NAME` is left
+ * unchanged, because Make would only expand the first character. The text
+ * `lookup` returns is not scanned again.
+ */
+export function expandEnvValue(value: string, lookup: (name: string) => string): string {
+  /**
+   * Fresh pattern on each call. A shared `/g` regex would lose its place when
+   * `lookup` expands another value before this replacement finishes.
+   */
+  const pattern = /\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$\(([A-Za-z_][A-Za-z0-9_]*)\)/g;
+  return value.replace(pattern, (match, braced: string | undefined, parens: string | undefined) => {
+    if (match === '$$') return '$';
+    return lookup(braced ?? parens ?? '');
+  });
+}
+
+/**
  * Replace `KEY=` lines in place and append any keys that were not already present, in entry order.
  * A line matches only when it starts with `KEY=` with no trim, so ` AUTH_MODE=` and `# AUTH_MODE=` stay untouched.
  * Every matching line is replaced, including duplicates. A single trailing newline is dropped so the

@@ -11,6 +11,11 @@ export type PromptIo = {
   /** Write prompt text exactly. Does not add a newline of its own. */
   write(text: string): void;
   /**
+   * Progress and check results. The real terminal writes these to stderr,
+   * so a command's stdout stays usable in a pipe.
+   */
+  note(text: string): void;
+  /**
    * Next answer without its line terminator.
    * Null means end of input. Callers abort on null instead of asking again.
    */
@@ -155,6 +160,10 @@ export function createStdioPrompt(): PromptIo & { close(): void } {
     /** Write prompt text to stdout without going through readline, so prompts are not echoed twice. */
     write(text: string) {
       process.stdout.write(text);
+    },
+    /** Progress, warnings, and check results. Kept off stdout so pipes stay clean. */
+    note(text: string) {
+      process.stderr.write(text);
     },
     /**
      * Return the next queued line. After close, further calls resolve to null

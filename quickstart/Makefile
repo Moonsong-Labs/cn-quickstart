@@ -7,9 +7,6 @@ SHELL := /usr/bin/env bash
 # Set default goal to 'help' if no target is specified
 .DEFAULT_GOAL := help
 
-# Determine the operating system
-KERNEL_NAME := $(shell uname -s)
-
 ifneq (,$(wildcard .env))
     include .env
 endif
@@ -107,85 +104,33 @@ define docker-compose
 	docker compose $(DOCKER_COMPOSE_FILES) $(DOCKER_COMPOSE_ENVFILE) $(DOCKER_COMPOSE_PROFILES) $(1)
 endef
 
-# Helper to generate an "open URL" target
-define open-url-target # $(1) = target name, $(2) = URL to open
-.PHONY: $(1)
-$(1):
-ifeq ($(KERNEL_NAME),Darwin)
-	open $(2) &
-else ifeq ($(KERNEL_NAME),Linux)
-	xdg-open $(2) &
-else
-	@echo [WARN] $(KERNEL_NAME) is unsupported, please open the following URL in your preferred browser:
-	@echo $(2)
-endif
-endef
-
-SETUP_COMMAND := bun --no-env-file cli/src/main.ts setup
+QS := bun --no-env-file cli/src/main.ts
+SETUP_COMMAND := $(QS) setup
 
 # Build targets
 .PHONY: build
-ifeq ($(strip $(PARTY_HINT)),)
-build:
-	@echo "... setting up .env.local ..."
-	$(SETUP_COMMAND)
-	@if ! grep -qE '^PARTY_HINT=.+' .env.local 2>/dev/null; then \
-	  echo "✗ ERROR: Setup did not produce a valid .env.local. Please try again."; exit 1; \
-	fi
-	@$(MAKE) --no-print-directory build
-else
-build: build-frontend build-backend build-daml build-docker-images ## Build frontend, backend, Daml model and docker images
-endif
+build: ## Build frontend, backend, Daml model and docker images
+	$(QS) build
 
 .PHONY: build-frontend
 build-frontend: ## Build the frontend application
-	bun install --frozen-lockfile
-	bun run --filter frontend build
+	$(QS) build frontend
 
 .PHONY: build-backend
 build-backend: ## Build the backend service
-	./gradlew :backend:build
+	$(QS) build backend
 
 .PHONY: build-daml
 build-daml: ## Build the Daml model
-	./gradlew :daml:build distTar
+	$(QS) build daml
 
 .PHONY: docker-available
 docker-available: ## Check if Docker CLI exists and is running
-	@{ \
-    	  if ! command -v docker >/dev/null 2>&1; then \
-    	    echo "✗ Docker CLI not found – please install Docker."; \
-    	    echo "  See: https://docs.docker.com/engine/install/"; \
-    	    exit 1; \
-    	  fi; \
-    	  if ! docker info >/dev/null 2>&1; then \
-    	    echo "✗ Docker does not appear to be running – please start it."; \
-    	    echo "  See: https://docs.docker.com/engine/daemon/start/"; \
-    	    exit 1; \
-    	  fi; \
-    	  echo "✓ Docker is installed and running"; \
-    }
+	$(QS) doctor
 
 .PHONY: check-docker
-check-docker: docker-available ## Check Docker and Docker Compose versions
-	@{ \
-    	  min_docker="27.0.0"; \
-    	  have_docker=$$(docker version --format '{{.Client.Version}}' | sed 's/-.*//'); \
-    	  if ! printf '%s\n%s\n' "$$min_docker" "$$have_docker" | sort -V -C 2>/dev/null; then \
-    	    echo "✗ Docker $$have_docker too old – need >= $$min_docker"; exit 1; \
-    	  else \
-    	    echo "✓ Docker $$have_docker OK"; \
-    	  fi; \
-    }
-	@{ \
-    	  min_compose="2.27.0"; \
-    	  have_compose=$$(docker compose version --short | sed 's/-.*//'); \
-    	  if ! printf '%s\n%s\n' "$$min_compose" "$$have_compose" | sort -V -C 2>/dev/null; then \
-    	    echo "✗ Compose $$have_compose too old – need >= $$min_compose"; exit 1; \
-    	  else \
-    	    echo "✓ Compose $$have_compose OK"; \
-    	  fi; \
-   	}
+check-docker: ## Check Docker and Docker Compose versions
+	$(QS) doctor
 
 .PHONY: test
 test: test-daml ## Run unit tests
@@ -196,8 +141,8 @@ test-daml: build-daml
 	./gradlew :daml:testDaml
 
 .PHONY: build-docker-images
-build-docker-images: docker-available
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) build)
+build-docker-images:
+	$(QS) build images
 
 .PHONY: create-app-install-request
 create-app-install-request: DOCKER_COMPOSE_FILES = -f docker/create-app-install-request/compose.yaml
@@ -206,27 +151,24 @@ create-app-install-request: docker-available ## Submit an App Install Request fr
 	$(call docker-compose, run --rm container)
 
 .PHONY: restart-backend
-restart-backend: build-backend docker-available ## Build and start the application
-	$(call docker-compose, rm -s -f backend-service)
-	$(call docker-compose, rm -s -f register-app-user-tenant)
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate register-app-user-tenant)
+restart-backend: ## Build and start the application
+	$(QS) restart backend
 
 .PHONY: restart-frontend
-restart-frontend: build-frontend docker-available ## Build and start the application
-	$(call docker-compose, restart nginx)
+restart-frontend: ## Build and start the application
+	$(QS) restart frontend
 
 .PHONY: restart-service
 restart-service:
 	@if [ -z "${SERVICE}" ]; then \
 	  echo "Usage: make restart-service SERVICE=<service>"; exit 1; \
 	fi
-	$(call docker-compose, rm -s -f ${SERVICE})
-	$(call docker-compose, up -d --no-recreate ${SERVICE})
+	$(QS) restart $(SERVICE)
 
 # Run targets
 .PHONY: start
-start: build ## Start the application
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) up -d --no-recreate)
+start: ## Start the application
+	$(QS) start
 
 .PHONY: start-vite-dev
 start-vite-dev: ## Start the frontend application in development mode
@@ -238,32 +180,33 @@ vite-dev:
 	bun run --filter frontend dev
 
 .PHONY: stop
-stop: docker-available ## Stop the application
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) down)
+stop: ## Stop the application
+	$(QS) stop
 
 .PHONY: stop-application
-stop-application: docker-available ## Stop the application containers
-	$(call docker-compose, down)
+stop-application: ## Stop the application containers
+	$(QS) stop
 
 .PHONY: restart
-restart: stop start ## Restart the application
+restart: ## Restart the application
+	$(QS) restart
 
 # Utility targets
 .PHONY: status
-status: docker-available ## Show status of Docker containers
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) ps)
+status: ## Show status of Docker containers
+	$(QS) status
 
 .PHONY: compose-config
-compose-config: docker-available
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) config)
+compose-config:
+	$(QS) compose config
 
 .PHONY: logs
-logs: docker-available ## Show logs of Docker containers
-	$(call docker-compose, logs)
+logs: ## Show logs of Docker containers
+	$(QS) logs
 
 .PHONY: tail
-tail: docker-available ## Tail logs of Docker containers
-	$(call docker-compose, logs -f)
+tail: ## Tail logs of Docker containers
+	$(QS) logs -f
 
 .PHONY: capture-logs
 capture-logs: docker-available ## Monitor docker events and capture logs
@@ -350,32 +293,23 @@ clean-shell: docker-available ## Stop and remove the Daml Shell container
 # Clean targets
 .PHONY: clean
 clean: ## Clean the build artifacts
-	./gradlew clean
+	$(QS) clean build
 
 .PHONY: clean-docker
-clean-docker: clean-shell clean-canton-console ## Stop and remove application Docker containers and volumes
-	$(call docker-compose, $(RESOURCE_CONSTRAINT_CONFIG) down -v)
+clean-docker: ## Stop and remove application Docker containers and volumes
+	$(QS) clean docker
 
 .PHONY: clean-application
-clean-application: docker-available ## Stop and remove the application containers and volumes
-	$(call docker-compose, down -v)
+clean-application: ## Stop and remove the application containers and volumes
+	$(QS) clean docker
 
 .PHONY: clean-all
-clean-all: clean clean-docker clean-all-docker ## Stop and remove all build artifacts, Docker containers and volumes
+clean-all: ## Stop and remove all build artifacts, Docker containers and volumes
+	$(QS) clean all --yes
 
 .PHONY: clean-all-docker
-clean-all-docker: docker-available ## Stop and remove all Docker containers network and volumes created by the project
-	@echo "⛔ Removing QS containers (network=$(DOCKER_NETWORK))..."
-	@cids="$$(docker ps -aq --filter "network=$(DOCKER_NETWORK)")"; \
-    if [ -n "$$cids" ]; then docker rm -f $$cids; else echo "  (none)";fi
-
-	@echo "🧹 Removing $(DOCKER_NETWORK) network..."
-	@nids="$$(docker network ls -q --filter "name=$(DOCKER_NETWORK)")"; \
-	if [ -n "$$nids" ]; then docker network rm $$nids; else echo "  (none)";fi
-
-	@echo "🗑️  Removing QS volumes (label=$(DOCKER_NETWORK))..."
-	@vids="$$(docker volume ls -q --filter "name=^$(DOCKER_NETWORK)")"; \
-	if [ -n "$$vids" ]; then docker volume rm $$vids; else echo "  (none)";fi
+clean-all-docker: ## Stop and remove leftover containers, the project network, and its volumes
+	$(QS) clean sweep
 
 .PHONY: generate-NOTICES
 generate-NOTICES: ## Generate the NOTICES.txt file
@@ -417,16 +351,26 @@ endif
 run-command:
 	$(COMMAND)
 
-# Helpers to open URLs in the browser
-# open-app-ui: ## Open the Application UI in the active browser
-$(eval $(call open-url-target,open-app-ui,http://app-provider.localhost:3000))
-# open-sv-wallet: ## Open the Super Validator wallet UI in the active browser
-$(eval $(call open-url-target,open-sv-wallet,http://wallet.localhost:4000))
-# open-sv-interface: ## Open the Super Validator interface UI in the active browser
-$(eval $(call open-url-target,open-sv-interface,http://sv.localhost:4000))
-# open-sv-scan: ## Open the Super Validator Scan UI in the active browser
-$(eval $(call open-url-target,open-sv-scan,http://scan.localhost:4000))
-# open-app-user-wallet: ## Open the App User wallet UI in the active browser
-$(eval $(call open-url-target,open-app-user-wallet,http://wallet.localhost:2000))
-# open-swagger-ui: ## Open Swagger UI to view Canton JSON API V2 Open API in the active browser
-$(eval $(call open-url-target,open-swagger-ui,http://localhost:9090))
+.PHONY: open-app-ui
+open-app-ui: ## Open the Application UI in the active browser
+	$(QS) open app
+
+.PHONY: open-sv-wallet
+open-sv-wallet: ## Open the Super Validator wallet UI in the active browser
+	$(QS) open sv-wallet
+
+.PHONY: open-sv-interface
+open-sv-interface: ## Open the Super Validator interface UI in the active browser
+	$(QS) open sv
+
+.PHONY: open-sv-scan
+open-sv-scan: ## Open the Super Validator Scan UI in the active browser
+	$(QS) open scan
+
+.PHONY: open-app-user-wallet
+open-app-user-wallet: ## Open the App User wallet UI in the active browser
+	$(QS) open app-user-wallet
+
+.PHONY: open-swagger-ui
+open-swagger-ui: ## Open Swagger UI to view Canton JSON API V2 Open API in the active browser
+	$(QS) open swagger

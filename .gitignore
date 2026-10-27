@@ -42,6 +42,8 @@ gradle-app.setting
 # direnv
 .direnv/
 
+.envrc.private
+
 # Bun workspace install at the repository root
 node_modules/
 

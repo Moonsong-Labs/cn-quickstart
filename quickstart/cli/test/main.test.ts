@@ -2,31 +2,18 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runCli } from '../src/main.ts';
 import { scriptedIo } from './io.ts';
+import { projectCleaner, tempProject } from './project-fixture.ts';
+import { fakeRunner } from './runner.ts';
 
-/** Temp projects created by this file. `afterEach` deletes every entry and clears the list. */
-const dirs: string[] = [];
+/** Temp checkouts for this file. `afterEach` deletes every entry. */
+const cleaner = projectCleaner();
 
-/**
- * Create a throwaway quickstart directory with the two project markers.
- * Used by tests that must prove `.env.local` was or was not written.
- */
-async function project(): Promise<string> {
-  const dir = join(tmpdir(), `qs-cli-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  await mkdir(join(dir, 'docker', 'modules'), { recursive: true });
-  await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.6.11\n');
-  dirs.push(dir);
-  return dir;
-}
-
-/** Delete every temp project from this file, including ones a failed test left behind. */
-afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});
+/** Delete every temp checkout from this file, including ones a failed test left behind. */
+afterEach(() => cleaner.cleanup());
 
 describe('runCli', () => {
   test('no command prints help and exits 0', async () => {
@@ -40,6 +27,7 @@ describe('runCli', () => {
     const io = scriptedIo([]);
     expect(await runCli(['--help'], io.io)).toBe(0);
     expect(io.output()).toContain('setup');
+    expect(io.output()).toContain('doctor');
     expect(io.output()).toContain('Configure auth, party hint, and test mode');
   });
 
@@ -61,13 +49,28 @@ describe('runCli', () => {
     expect(io.output()).toContain('--auth-mode is only valid with setup.');
   });
 
+  test('clean --help explains each target', async () => {
+    const io = scriptedIo([]);
+    expect(await runCli(['clean', '--help'], io.io)).toBe(0);
+    expect(io.output()).toContain('frontend/dist');
+    expect(io.output()).toContain('shell and console');
+    expect(io.output()).toContain('project network');
+    expect(io.output()).toContain('Asks first unless --yes');
+  });
+
+  test('an unknown UI name exits 2', async () => {
+    const io = scriptedIo([]);
+    expect(await runCli(['open', 'nope'], io.io)).toBe(2);
+    expect(io.output()).toContain('Allowed choices');
+  });
+
   test('an unknown flag exits 2', async () => {
     const io = scriptedIo([]);
     expect(await runCli(['setup', '--nope'], io.io)).toBe(2);
   });
 
   test('setup --help does not write .env.local', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     expect(await runCli(['setup', '--help', '--project', dir], io.io)).toBe(0);
     expect(io.output()).toContain('--auth-mode');
@@ -75,7 +78,7 @@ describe('runCli', () => {
   });
 
   test('piped answers are all read', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const proc = Bun.spawn({
       cmd: [
         'bun',
@@ -104,7 +107,7 @@ describe('runCli', () => {
   });
 
   test('shared flags before the command name reach setup', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     const code = await runCli(['--project', dir, '--dry-run', 'setup', '--yes'], io.io, {
       cwd: dir,
@@ -116,8 +119,37 @@ describe('runCli', () => {
     await expect(readFile(join(dir, '.env.local'), 'utf8')).rejects.toThrow();
   });
 
+  test('compose forwards flags such as -f', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    await writeFile(join(dir, '.env.local'), 'PARTY_HINT=App-User-1\n');
+    const io = scriptedIo([]);
+    const fake = fakeRunner();
+    const code = await runCli(['--dry-run', '--project', dir, 'compose', 'logs', '-f'], io.io, {
+      cwd: dir,
+      runner: fake.runner,
+    });
+    expect(code).toBe(0);
+    expect(fake.calls.at(-1)?.cmd.slice(-2)).toEqual(['logs', '-f']);
+  });
+
+  test('compose config keeps headings off stdout', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    await writeFile(join(dir, '.env.local'), 'PARTY_HINT=App-User-1\n');
+    const io = scriptedIo([]);
+    const fake = fakeRunner();
+    const code = await runCli(['compose', '--dry-run', '--project', dir, 'config'], io.io, {
+      cwd: dir,
+      runner: fake.runner,
+    });
+    expect(code).toBe(0);
+    expect(io.output()).toBe('');
+    expect(io.noted()).toContain('docker compose');
+    expect(io.noted()).toContain('config');
+    expect(fake.calls.at(-1)?.cmd.at(-1)).toBe('config');
+  });
+
   test('setup --yes writes .env.local from --project', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     const code = await runCli(['setup', '--yes', '--project', dir], io.io, {
       cwd: dir,

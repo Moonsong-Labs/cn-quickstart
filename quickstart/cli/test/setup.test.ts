@@ -2,32 +2,18 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runSetup } from '../src/commands/setup.ts';
 import { EndOfInputError } from '../src/lib/prompts.ts';
 import { scriptedIo } from './io.ts';
+import { projectCleaner, tempProject } from './project-fixture.ts';
 
-/** Temp projects created by this file. `afterEach` deletes every entry and clears the list. */
-const dirs: string[] = [];
+/** Temp checkouts for this file. `afterEach` deletes every entry. */
+const cleaner = projectCleaner();
 
-/**
- * Create a throwaway quickstart directory with the two project markers.
- * The `.env` contents are not read by setup; they only satisfy project detection if a test starts using it.
- */
-async function project(): Promise<string> {
-  const dir = join(tmpdir(), `qs-setup-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  await mkdir(join(dir, 'docker', 'modules'), { recursive: true });
-  await writeFile(join(dir, '.env'), 'DAML_RUNTIME_VERSION=3.5.2\n');
-  dirs.push(dir);
-  return dir;
-}
-
-/** Delete every temp project from this file, including ones a failed test left behind. */
-afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});
+/** Delete every temp checkout from this file, including ones a failed test left behind. */
+afterEach(() => cleaner.cleanup());
 
 /** Read `.env.local` from a temp project. Rejects when the file was not written. */
 async function localFile(dir: string): Promise<string> {
@@ -36,7 +22,7 @@ async function localFile(dir: string): Promise<string> {
 
 describe('runSetup', () => {
   test('accepts defaults: oauth2, derived party hint, test mode off', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo(['', '', '']);
     await runSetup({
       projectDir: dir,
@@ -59,7 +45,7 @@ describe('runSetup', () => {
   });
 
   test('writes shared-secret, a typed party hint and test mode on', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo(['n', 'Org-Func-2', 'yes']);
     await runSetup({
       projectDir: dir,
@@ -75,7 +61,7 @@ describe('runSetup', () => {
   });
 
   test('re-asks after an invalid answer, then keeps unrelated lines', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     await writeFile(join(dir, '.env.local'), '# comment\nOTHER=1\nAUTH_MODE=shared-secret\n');
     const io = scriptedIo(['maybe', 'y', 'bad', 'App-User-3', '0']);
     await runSetup({
@@ -93,7 +79,7 @@ describe('runSetup', () => {
   });
 
   test('refuses to invent a party hint when no username is available', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo(['', '', 'n', '']);
     await expect(
       runSetup({
@@ -108,7 +94,7 @@ describe('runSetup', () => {
   });
 
   test('--yes uses defaults and does not read answers', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     await runSetup({
       projectDir: dir,
@@ -123,7 +109,7 @@ describe('runSetup', () => {
   });
 
   test('--yes fails when there is no party-hint default', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     await expect(
       runSetup({
@@ -138,7 +124,7 @@ describe('runSetup', () => {
   });
 
   test('flags skip prompts and --dry-run writes nothing', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     await runSetup({
       projectDir: dir,
@@ -159,7 +145,7 @@ describe('runSetup', () => {
   });
 
   test('rejects an invalid flag before asking anything', async () => {
-    const dir = await project();
+    const dir = await tempProject(cleaner.dirs);
     const io = scriptedIo([]);
     await expect(
       runSetup({
