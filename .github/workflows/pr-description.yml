@@ -1,0 +1,44 @@
+# Required check "PR description": the pull request description follows
+# .github/pull_request_template.md. The rules live in
+# .github/scripts/pr-description.ts.
+#
+# A workflow of its own, outside ci.yml and ci-ok: it reruns whenever the
+# description is edited, and an edit must not restart or cancel CI.
+# `synchronize` reruns it on each push, so the result is on the head commit.
+# Dependabot writes its own descriptions; the job is skipped for it, and a
+# skipped job satisfies a required check.
+
+name: PR description
+
+on:
+  pull_request:
+    branches: [msl]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-description-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: PR description
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Test the checker
+        run: bun test ./.github/scripts
+      - name: Check the description
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bun .github/scripts/pr-description.ts

@@ -1,6 +1,7 @@
-# One required check: "CI / All checks", the display name of the `ci-ok` job.
+# Required check "CI / All checks", the display name of the `ci-ok` job.
 # It fails when any job it needs failed or was cancelled. A skipped job
-# counts as success.
+# counts as success. The only other required check is "PR description",
+# from pr-description.yml.
 #
 # Job steps live in .github/actions, grouped by category. This file keeps
 # the triggers, the path filters, and the runner settings.

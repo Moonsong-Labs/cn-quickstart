@@ -1,0 +1,191 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# How CodeRabbit behaves on this repository. What it should look for lives in
+# REVIEW.md, which CodeRabbit reads as review guidelines.
+#
+# CodeRabbit comments are input, not merge requirements. The required checks
+# on msl are "CI / All checks" and "PR description", both GitHub Actions.
+
+language: en-US
+tone_instructions: >-
+  Be brief and concrete. Lead each comment with its severity and the consequence.
+  Skip praise, restated diffs and style that Biome already enforces.
+
+reviews:
+  # Fewer, higher-signal comments. "assertive" recreates the review bottleneck.
+  profile: chill
+  auto_approvals:
+    enabled: false
+  # Keeps the PR description for the author's risk and decisions template.
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: false
+  suggested_reviewers: false
+  poem: false
+  in_progress_fortune: false
+  review_details: true
+  enable_prompt_for_ai_agents: true
+  fail_commit_status: false
+  abort_on_close: true
+
+  # Generated, vendored or binary files. Reviewing them is noise.
+  path_filters:
+    - "!**/bun.lock"
+    - "!**/openapi.d.ts"
+    - "!**/*.dar"
+    - "!quickstart/daml/external-test-sources/**"
+    - "!sdk/docs/images/**"
+    - "!**/*.png"
+    - "!**/*.svg"
+    - "!**/*.drawio"
+    - "!quickstart/gradle/wrapper/**"
+    - "!quickstart/gradlew"
+    - "!quickstart/gradlew.bat"
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    # Agents push often. Ask for "@coderabbitai review" after a pause.
+    auto_pause_after_reviewed_commits: 5
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT REVIEW"
+      - "🚧" # Work in progress gitmoji
+
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 80
+    title:
+      mode: warning
+      requirements: "Imperative mood, under 72 characters, says what changes rather than which files."
+    description:
+      mode: off
+    issue_assessment:
+      mode: warning
+    custom_checks:
+      # The "PR description" workflow already enforces the template's shape.
+      # This check judges whether what was written is true of the diff.
+      - name: "Risk and decisions match the diff"
+        mode: warning
+        instructions: |
+          Read the "Risk" and "Decisions for a person" sections of the PR
+          description against the diff. Fail when any of these holds:
+          1. Risk is rated low or medium, but the diff changes
+             quickstart/daml/licensing/**, signing, auth, ledger writes, or
+             quickstart/common/openapi.yaml.
+          2. Decisions says "None", but the diff makes a choice REVIEW.md marks
+             as needing care, such as a new controller or a consuming choice.
+          3. A decision references a path the diff does not touch.
+          4. The decisions list restates the changed files rather than naming
+             choices.
+          Pass otherwise. Name the section and the reason when failing.
+      - name: "Tests not weakened"
+        mode: warning
+        instructions: |
+          Look only at test files: quickstart/cli/test/**,
+          quickstart/integration-test/**, quickstart/daml/licensing-tests/**
+          and **/*.test.ts.
+          Fail when the PR deletes an assertion, loosens an expected value,
+          adds a skip or `only`, raises a timeout, or deletes a test, and the
+          PR description does not explain why. Pass otherwise, including when
+          the PR adds tests or changes no tests.
+
+  # Linters belong in CI, where they can block a merge and run locally.
+  # CodeRabbit enables most tools by default and runs each on matching files.
+  # Every tool that matches a file type in this repository is turned off here;
+  # tools for languages the repository does not use never run. github-checks
+  # is not a linter: it lets CodeRabbit read failed CI runs.
+  tools:
+    actionlint:
+      enabled: false
+    ast-grep:
+      essential_rules: false
+    biome:
+      enabled: false
+    blinter:
+      enabled: false
+    checkmake:
+      enabled: false
+    checkov:
+      enabled: false
+    detekt:
+      enabled: false
+    dotenvLint:
+      enabled: false
+    eslint:
+      enabled: false
+    fbinfer:
+      enabled: false
+    flake8:
+      enabled: false
+    gitleaks:
+      enabled: false
+    hadolint:
+      enabled: false
+    htmlhint:
+      enabled: false
+    languagetool:
+      enabled: false
+    markdownlint:
+      enabled: false
+    oasdiff:
+      enabled: false
+    opengrep:
+      enabled: false
+    osvScanner:
+      enabled: false
+    oxc:
+      enabled: false
+    pmd:
+      enabled: false
+    presidio:
+      enabled: false
+    pylint:
+      enabled: false
+    reactDoctor:
+      enabled: false
+    ruff:
+      enabled: false
+    semgrep:
+      enabled: false
+    shellcheck:
+      enabled: false
+    stylelint:
+      enabled: false
+    trivy:
+      enabled: false
+    trufflehog:
+      enabled: false
+    vale:
+      enabled: false
+    yamllint:
+      enabled: false
+    zizmor:
+      enabled: false
+    github-checks:
+      enabled: true
+
+chat:
+  # Replies only when mentioned with @coderabbitai. Replying to every comment
+  # in its threads would answer other bots and agents and start loops.
+  auto_reply: false
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "REVIEW.md"
+  learnings:
+    scope: local
+  pull_requests:
+    scope: local
+  issues:
+    scope: local
