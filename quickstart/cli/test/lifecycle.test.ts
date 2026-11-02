@@ -5,6 +5,8 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runBuild } from '../src/commands/build.ts';
+import { runConsole, runShell } from '../src/commands/console.ts';
+import { runInstallRequest } from '../src/commands/demo.ts';
 import { runClean, runRestart, runStart } from '../src/commands/stack.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import type { Runner } from '../src/lib/exec.ts';
@@ -103,6 +105,12 @@ describe('runBuild', () => {
         calls.push(cmd);
         return Promise.resolve({ code: 0, stdout: '', stderr: '' });
       },
+      lines() {
+        return (async function* empty() {})();
+      },
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
     };
     const { context } = await ctx(runner);
     expect(await runBuild(context, 'frontend')).toBe(1);
@@ -191,6 +199,16 @@ describe('runClean', () => {
     expect(noted()).toContain('rm -rf daml/external-test-sources/pkg/.daml/dist');
   });
 
+  test('clean all --dry-run does not prompt and leaves build output in place', async () => {
+    const fake = fakeRunner();
+    const { context, dir } = await ctx(fake.runner);
+    context.dryRun = true;
+    /** Files that a dry run must not remove, even without `--yes`. */
+    const files = await plantBuildOutput(dir);
+    expect(await runClean(context, 'all', false)).toBe(0);
+    for (const file of files) await expect(readFile(file, 'utf8')).resolves.toBe('keep');
+  });
+
   test('clean all --yes --dry-run leaves build output in place', async () => {
     const fake = fakeRunner();
     const { context, dir } = await ctx(fake.runner);
@@ -214,8 +232,120 @@ describe('runClean', () => {
     /** Flat list of arguments, so the filters are easy to find. */
     const args = fake.calls.flatMap((call) => call.cmd);
     expect(args).toContain('network=quickstart');
-    expect(args).toContain('name=quickstart');
+    expect(args).toContain('name=^quickstart$');
     expect(args).toContain('name=^quickstart');
     expect(args).toContain('abc');
+  });
+
+  test('clean console does not need .env.local', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    const fake = fakeRunner([{ code: 0 }]);
+    /** Checkout with no `.env.local`. Removing the container must still run. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+    };
+    expect(await runClean(context, 'console', false)).toBe(0);
+    expect(fake.calls.map((call) => call.cmd)).toEqual([
+      ['docker', 'info'],
+      ['docker', 'rm', '-f', 'canton-console'],
+    ]);
+  });
+
+  test('console removes only the named container and ignores docker rm', async () => {
+    /** Runner whose `docker rm` fails. The command still succeeds. */
+    const calls: string[][] = [];
+    const runner: Runner = {
+      run(cmd) {
+        calls.push(cmd);
+        return Promise.resolve(1);
+      },
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      lines() {
+        return (async function* empty() {})();
+      },
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    const { context } = await ctx(runner);
+    expect(await runClean(context, 'console', false)).toBe(0);
+    expect(calls).toEqual([['docker', 'rm', '-f', 'canton-console']]);
+  });
+
+  test('shell removes only the named container', async () => {
+    const fake = fakeRunner([{ code: 0 }]);
+    const { context } = await ctx(fake.runner);
+    expect(await runClean(context, 'shell', false)).toBe(0);
+    expect(fake.calls.map((call) => call.cmd)).toEqual([
+      ['docker', 'info'],
+      ['docker', 'rm', '-f', 'quickstart-daml-shell'],
+    ]);
+  });
+});
+
+describe('console and shell', () => {
+  test('console runs the named container on the app stack', async () => {
+    const fake = fakeRunner([{ code: 0 }]);
+    const { context, dir } = await ctx(fake.runner);
+    expect(await runConsole(context)).toBe(0);
+    /** Compose invocation. The info probe is the other call. */
+    const cmd = fake.calls[1]?.cmd ?? [];
+    expect(cmd.slice(0, 2)).toEqual(['docker', 'compose']);
+    expect(cmd).toContain('compose.yaml');
+    expect(cmd.slice(-5)).toEqual(['run', '--rm', '--name', 'canton-console', 'console']);
+    expect(cmd).toContain(`${dir}/docker/modules/localnet/resource-constraints.yaml`);
+  });
+
+  test('shell names the container and uses the daml-shell files', async () => {
+    const fake = fakeRunner([{ code: 0 }]);
+    const { context, dir } = await ctx(fake.runner);
+    expect(await runShell(context)).toBe(0);
+    /** Compose invocation. */
+    const cmd = fake.calls[1]?.cmd ?? [];
+    expect(cmd).toContain(`${dir}/docker/modules/daml-shell/compose.yaml`);
+    expect(cmd).toContain(`${dir}/docker/modules/daml-shell/compose.env`);
+    expect(cmd.slice(-5)).toEqual(['run', '--rm', '--name', 'quickstart-daml-shell', 'daml-shell']);
+    expect(cmd).not.toContain('--profile');
+  });
+});
+
+describe('runInstallRequest', () => {
+  test('keeps the Playwright identity variables and hints when the network is missing', async () => {
+    const fake = fakeRunner([
+      { code: 0 },
+      {
+        code: 1,
+        stdout: 'submitting\n',
+        stderr: 'network quickstart declared as external, but could not be found\n',
+      },
+    ]);
+    const { context, noted } = await ctx(fake.runner);
+    context.env = {
+      TEST_UNIQUE_REQUEST_TAG: 'tag-1',
+      TEST_AUTH_APP_USER_WALLET_ADMIN_USER_NAME: 'alice',
+      TEST_AUTH_APP_USER_WALLET_ADMIN_USER_ID: 'id-1',
+      TEST_APP_USER_PARTY: 'party-1',
+    };
+    const io = scriptedIo([]);
+    context.io = io.io;
+    expect(await runInstallRequest(context)).toBe(1);
+    /** Compose capture. The first call is `docker info`. */
+    const compose = fake.calls[1];
+    expect(compose?.cmd).toContain('docker/create-app-install-request/compose.yaml');
+    expect(compose?.cmd.slice(-2)).toEqual(['--rm', 'container']);
+    expect(compose?.env?.TEST_UNIQUE_REQUEST_TAG).toBe('tag-1');
+    expect(compose?.env?.TEST_AUTH_APP_USER_WALLET_ADMIN_USER_NAME).toBe('alice');
+    expect(compose?.env?.TEST_APP_USER_PARTY).toBe('party-1');
+    expect(io.output()).toBe('submitting\n');
+    expect(io.noted()).toContain('Start Quickstart first: qs start.');
+    expect(noted()).toBe('');
   });
 });

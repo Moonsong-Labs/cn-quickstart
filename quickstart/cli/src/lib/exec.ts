@@ -1,6 +1,7 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
+import { closeSync, openSync } from 'node:fs';
 import type { PromptIo } from './prompts.ts';
 import { paint } from './style.ts';
 
@@ -22,6 +23,20 @@ export type Captured = {
   stderr: string;
 };
 
+/** A child that keeps running after `background` returns. `stop` kills it. */
+export type BackgroundChild = {
+  /** Kill the child. A second call does nothing harmful. */
+  stop(): void;
+  /** Status once the child exits. 130 when a signal stopped it. */
+  exited: Promise<number>;
+};
+
+/** Where a background child appends its combined output. */
+export type BackgroundOptions = SpawnOptions & {
+  /** File opened in append mode for both stdout and stderr. Created if missing. */
+  output: string;
+};
+
 /**
  * Runs host commands. Tests replace it. `--dry-run` replaces `run` only,
  * so read-only probes such as `docker version` still execute.
@@ -34,6 +49,10 @@ export type Runner = {
   run(cmd: string[], opts: SpawnOptions): Promise<number>;
   /** Run `cmd` and collect both streams. Does not attach them to the terminal. */
   capture(cmd: string[], opts: SpawnOptions): Promise<Captured>;
+  /** Stream stdout one line at a time. The child is killed when iteration stops. */
+  lines(cmd: string[], opts: SpawnOptions): AsyncIterable<string>;
+  /** Start `cmd` and append both streams to `opts.output`. Does not wait for it. */
+  background(cmd: string[], opts: BackgroundOptions): BackgroundChild;
 };
 
 /** Characters that need quoting before a command is shown in a shell. */
@@ -111,6 +130,79 @@ async function spawn(
   }
 }
 
+/**
+ * Yield stdout of `cmd` one line at a time, without the line ending.
+ * Stderr stays on the terminal. The child is killed when the caller stops reading.
+ */
+async function* readLines(cmd: string[], opts: SpawnOptions): AsyncIterable<string> {
+  /** Events child. Stdout is collected a chunk at a time so a long line cannot be split wrongly. */
+  const child = Bun.spawn({
+    cmd,
+    cwd: opts.cwd,
+    env: opts.env,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+  /** Piped stdout. Null only when stdout was not piped, which this spawn never does. */
+  const stdout = child.stdout;
+  if (stdout === null) {
+    child.kill();
+    return;
+  }
+  /** Chunk reader. Released in `finally` so a thrown error does not leak the stream. */
+  const reader = stdout.getReader();
+  /** Decoder that keeps a trailing partial code point for the next chunk. */
+  const decoder = new TextDecoder();
+  /** Text after the last yielded newline. */
+  let pending = '';
+  try {
+    while (true) {
+      /** Next chunk. `done` means the child closed stdout. */
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      pending += decoder.decode(chunk.value, { stream: true });
+      /** Index of the next newline, or -1 when the chunk ends mid-line. */
+      let newline = pending.indexOf('\n');
+      while (newline !== -1) {
+        yield pending.slice(0, newline).replace(/\r$/, '');
+        pending = pending.slice(newline + 1);
+        newline = pending.indexOf('\n');
+      }
+    }
+    pending += decoder.decode();
+    if (pending.length > 0) yield pending.replace(/\r$/, '');
+  } finally {
+    reader.releaseLock();
+    child.kill();
+    await child.exited;
+  }
+}
+
+/**
+ * Start `cmd` with both streams appended to `opts.output`.
+ * The file descriptor stays open until the child exits.
+ */
+function spawnBackground(cmd: string[], opts: BackgroundOptions): BackgroundChild {
+  /** Append descriptor shared by both streams, matching `>> file 2>&1`. */
+  const output = openSync(opts.output, 'a');
+  /** Detached from the terminal. Killing it is `stop`. */
+  const child = Bun.spawn({
+    cmd,
+    cwd: opts.cwd,
+    env: opts.env,
+    stdin: 'ignore',
+    stdout: output,
+    stderr: output,
+  });
+  return {
+    stop() {
+      child.kill();
+    },
+    exited: child.exited.then((code) => code ?? 130).finally(() => closeSync(output)),
+  };
+}
+
 /** Runner that executes commands. `run` inherits the terminal. `capture` collects both streams. */
 export function realRunner(): Runner {
   return {
@@ -120,21 +212,33 @@ export function realRunner(): Runner {
     capture(cmd, opts) {
       return spawn(cmd, opts, true);
     },
+    lines(cmd, opts) {
+      return readLines(cmd, opts);
+    },
+    background(cmd, opts) {
+      return spawnBackground(cmd, opts);
+    },
   };
 }
 
 /**
- * Runner used for `--dry-run`. `run` prints nothing and does not spawn.
+ * Runner used for `--dry-run`. `run`, `lines`, and `background` do not spawn.
  * `capture` still uses `real`, so version probes keep working.
  * The caller prints the command it would have run.
  */
-export function dryRunRunner(real: Runner): Runner {
+export function dryRunRunner(real: Pick<Runner, 'capture'>): Runner {
   return {
     run() {
       return Promise.resolve(0);
     },
     capture(cmd, opts) {
       return real.capture(cmd, opts);
+    },
+    lines() {
+      return (async function* empty() {})();
+    },
+    background() {
+      return { stop() {}, exited: Promise.resolve(0) };
     },
   };
 }

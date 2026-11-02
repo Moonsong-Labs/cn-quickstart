@@ -24,12 +24,6 @@ tasks.register<Exec>("compileDaml") {
     environment("DPM_SDK_VERSION", requiredVersion)
 }
 
-tasks.register<Exec>("testDaml") {
-    val requiredVersion = VersionFiles.damlYamlSdk
-    commandLine("dpm", "test", "--package-root", "licensing-tests")
-    environment("DPM_SDK_VERSION", requiredVersion)
-}
-
 tasks.register<com.digitalasset.transcode.codegen.java.gradle.JavaCodegenTask>("codeGen") {
     dar.from("$projectDir/licensing/.daml/dist/quickstart-licensing-0.0.1.dar")
     destination = file("$rootDir/backend/build/generated-daml-bindings")

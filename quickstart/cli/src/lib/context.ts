@@ -5,6 +5,19 @@ import type { Runner } from './exec.ts';
 import type { PromptIo } from './prompts.ts';
 
 /**
+ * The part of `fetch` the version lookup uses.
+ * A stub only needs `ok`, `json`, and `text`. The real `fetch` satisfies this.
+ */
+export type FetchLike = (input: string | URL | Request) => Promise<{
+  /** True for a 2xx response. */
+  ok: boolean;
+  /** Parse the body as JSON. */
+  json: () => Promise<unknown>;
+  /** Read the body as text. */
+  text: () => Promise<string>;
+}>;
+
+/**
  * Everything a lifecycle command needs from the process and the parser.
  * `runner` is real, dry-run, or a fake supplied by tests.
  */
@@ -23,4 +36,9 @@ export type CommandContext = {
   project?: string;
   /** How host commands are spawned. */
   runner: Runner;
+  /**
+   * HTTP fetch for the published Splice version.
+   * Defaults to `globalThis.fetch`. Tests pass a stub.
+   */
+  fetch?: FetchLike;
 };

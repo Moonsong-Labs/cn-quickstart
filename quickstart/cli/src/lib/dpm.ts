@@ -46,3 +46,21 @@ export async function dpmBuild(ctx: CommandContext, projectDir: string): Promise
     env: { ...definedEnv(ctx.env), DPM_SDK_VERSION: version },
   });
 }
+
+/**
+ * Run the licensing tests with `dpm test --package-root licensing-tests`.
+ * Runs in `daml/` and sets `DPM_SDK_VERSION` from `damlSdkVersion`, as the Gradle task did.
+ */
+export async function dpmTest(ctx: CommandContext, projectDir: string): Promise<number> {
+  /** SDK version the tests were written for. */
+  const version = damlSdkVersion(projectDir);
+  return loggedRun(
+    ctx.io,
+    ctx.runner,
+    [dpmExecutable(ctx.env), 'test', '--package-root', 'licensing-tests'],
+    {
+      cwd: join(projectDir, 'daml'),
+      env: { ...definedEnv(ctx.env), DPM_SDK_VERSION: version },
+    },
+  );
+}

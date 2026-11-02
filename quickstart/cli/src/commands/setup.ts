@@ -3,8 +3,10 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type Command, Option } from 'commander';
 import { upsertEnvFile } from '../lib/env.ts';
 import { askText, askYesNo, type PromptIo } from '../lib/prompts.ts';
+import type { CommandDeps } from '../lib/register.ts';
 import { aside, ok, paint, warn } from '../lib/style.ts';
 
 /**
@@ -240,4 +242,33 @@ export async function runSetup(options: SetupOptions): Promise<void> {
   }
   await writeFile(path, next);
   io.write(`${ok('Wrote .env.local')}\n`);
+}
+
+/**
+ * Register `qs setup`.
+ * Flags that are omitted are prompted for, unless `--yes` accepts the default.
+ */
+export function registerSetup(program: Command, deps: CommandDeps): void {
+  deps
+    .addSharedOptions(program.command('setup'))
+    .description('Configure auth, party hint, and test mode')
+    .addHelpText('after', () =>
+      [
+        '',
+        aside('Writes AUTH_MODE, PARTY_HINT and TEST_MODE to .env.local.'),
+        aside('Prompts for any value you do not pass as a flag.'),
+      ].join('\n'),
+    )
+    .addOption(
+      new Option('--auth-mode <mode>', 'oauth2, or shared-secret').choices([
+        'oauth2',
+        'shared-secret',
+      ]),
+    )
+    .option('--party-hint <hint>', 'organisation-function-number')
+    .addOption(new Option('--test-mode <mode>', 'on, or off').choices(['on', 'off']))
+    .option('--yes', 'Accept the default for every prompt you omit')
+    .action(async (_local: unknown, command: Command) => {
+      await deps.executeSetup(command);
+    });
 }

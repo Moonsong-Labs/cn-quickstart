@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { composeArgs, composeEnv } from '../src/lib/compose.ts';
+import { type ComposeCall, composeArgs, composeEnv } from '../src/lib/compose.ts';
 import type { Project, Settings } from '../src/lib/project.ts';
 
 /** Captured `make -n compose-config` argument lists, keyed by the five Makefile variables. */
@@ -92,6 +92,33 @@ describe('composeEnv', () => {
     expect(env.LOCALNET_DIR).toBe('/work/quickstart/docker/modules/localnet');
   });
 
+  test('keeps TEST_* identity variables that are not in the env files', () => {
+    /** Checkout whose files define TEST_MODE and leave the request tag to the process. */
+    const project = {
+      dir: '/work/quickstart',
+      fileEnv: new Map([['TEST_MODE', 'on']]),
+      fileKeys: new Set(['TEST_MODE']),
+      hasEnvLocal: true,
+      settings: settingsFor('auth=oauth2,constraints=true,debug=false,pqsUser=off,pqsSv=off'),
+    } satisfies Project;
+    /** Child environment. The non-empty TEST_MODE override stays; the other Playwright keys stay too. */
+    const env = composeEnv(
+      {
+        TEST_MODE: 'off',
+        TEST_UNIQUE_REQUEST_TAG: 'tag-1',
+        TEST_AUTH_APP_USER_WALLET_ADMIN_USER_NAME: 'alice',
+        TEST_AUTH_APP_USER_WALLET_ADMIN_USER_ID: 'id-1',
+        TEST_APP_USER_PARTY: 'party-1',
+      },
+      project,
+    );
+    expect(env.TEST_MODE).toBe('off');
+    expect(env.TEST_UNIQUE_REQUEST_TAG).toBe('tag-1');
+    expect(env.TEST_AUTH_APP_USER_WALLET_ADMIN_USER_NAME).toBe('alice');
+    expect(env.TEST_AUTH_APP_USER_WALLET_ADMIN_USER_ID).toBe('id-1');
+    expect(env.TEST_APP_USER_PARTY).toBe('party-1');
+  });
+
   test('drops an empty shell value so Compose reads the env file', () => {
     /** Checkout whose AUTH_MODE is set in a file and blank in the shell. */
     const project = {
@@ -102,5 +129,72 @@ describe('composeEnv', () => {
       settings: settingsFor('auth=oauth2,constraints=true,debug=false,pqsUser=off,pqsSv=off'),
     } satisfies Project;
     expect(composeEnv({ AUTH_MODE: '' }, project).AUTH_MODE).toBeUndefined();
+  });
+});
+
+/** Captured `make -n` argument lists for the console, shell, and install request. */
+const oneshot = JSON.parse(
+  readFileSync(new URL('./fixtures/make-oneshot-args.json', import.meta.url), 'utf8'),
+) as Record<string, string[]>;
+
+/**
+ * Settings for one console, shell, or install-request fixture key.
+ * Constraints default to on, matching the Makefile.
+ */
+function oneshotSettings(key: string): Settings {
+  /** `name=value` pairs from the fixture key. */
+  const parts = Object.fromEntries(key.split(',').map((item) => item.split('=')));
+  return {
+    authMode: parts.auth === 'oauth2' ? 'oauth2' : 'shared-secret',
+    partyHint: undefined,
+    testMode: undefined,
+    resourceConstraints: parts.constraints !== 'false',
+    debug: false,
+    pqsAppUser: false,
+    pqsSv: false,
+    splice: '0.8.4',
+    dockerNetwork: 'quickstart',
+    modulesDir: '<project>/docker/modules',
+    localnetDir: '<project>/docker/modules/localnet',
+    extraComposeFiles: [],
+    extraEnvFiles: [],
+  };
+}
+
+/**
+ * Stack options for a fixture key.
+ * The console uses the app stack. The shell and install request use their own files.
+ */
+function oneshotCall(key: string): ComposeCall {
+  /** Target name from the fixture key. */
+  const target = key
+    .split(',')
+    .find((item) => item.startsWith('target='))
+    ?.slice('target='.length);
+  if (target === 'shell') return { stack: 'daml-shell', constraints: false };
+  if (target === 'install-request') return { stack: 'install-request', constraints: false };
+  return {};
+}
+
+describe('composeArgs console, shell, and install request', () => {
+  test('matches make -n up to the run subcommand', () => {
+    for (const [key, expected] of Object.entries(oneshot)) {
+      /** Index of `run`. The container name is added by the command, not by composeArgs. */
+      const runAt = expected.indexOf('run');
+      /** Arguments our builder produces, wrapped the way Make invokes Compose. */
+      const actual = ['docker', 'compose', ...composeArgs(oneshotSettings(key), oneshotCall(key))];
+      expect(actual, key).toEqual(expected.slice(0, runAt));
+    }
+  });
+
+  test('appends extra env files after the shell env file', () => {
+    /** Shared-secret shell settings plus one user env file. */
+    const settings = oneshotSettings('target=shell,auth=shared-secret');
+    settings.extraEnvFiles = ['./mine.env'];
+    /** Built argument list. */
+    const args = composeArgs(settings, { stack: 'daml-shell' });
+    expect(args.indexOf('./mine.env')).toBeGreaterThan(
+      args.indexOf(`${settings.modulesDir}/daml-shell/compose.env`),
+    );
   });
 });

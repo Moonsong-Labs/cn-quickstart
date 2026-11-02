@@ -21,12 +21,18 @@ export function projectCleaner(): { dirs: string[]; cleanup(): Promise<void> } {
 /**
  * Create a throwaway quickstart checkout with `.env`, `docker/modules`, and a Daml manifest.
  * `envLocal` is written as `.env.local` when given. The Daml manifest exists so `dpmBuild` can read it.
+ * When `nested` is true, the checkout is `repo/quickstart` under the temp root, so a path two
+ * directories above it (the sibling Splice checkout) stays inside that root.
  */
-export async function tempProject(dirs: string[], envLocal?: string): Promise<string> {
-  /** Parent of the checkout, so a `.bun-version` can sit beside it when a test wants one. */
-  const root = join(tmpdir(), `qs-phase2-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+export async function tempProject(
+  dirs: string[],
+  envLocal?: string,
+  nested = false,
+): Promise<string> {
+  /** Temp root `cleanup` deletes. With `nested`, the checkout's parent is `repo/` under this root. */
+  const root = join(tmpdir(), `qs-project-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   /** The checkout itself. This is what `--project` points at. */
-  const dir = join(root, 'quickstart');
+  const dir = nested ? join(root, 'repo', 'quickstart') : join(root, 'quickstart');
   await mkdir(join(dir, 'docker', 'modules'), { recursive: true });
   await mkdir(join(dir, 'daml', 'licensing'), { recursive: true });
   await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.8.4\nDOCKER_NETWORK=quickstart\n');

@@ -1,8 +1,11 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
+import type { Command } from 'commander';
+import { Argument } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
 import { definedEnv, loggedRun } from '../lib/exec.ts';
+import type { CommandDeps } from '../lib/register.ts';
 import { step } from '../lib/step.ts';
 import { aside, paint } from '../lib/style.ts';
 
@@ -78,4 +81,18 @@ export async function runOpen(ctx: CommandContext, name?: string): Promise<numbe
     }
     return status;
   });
+}
+
+/**
+ * Register `qs open`.
+ * An omitted name lists the UIs instead of opening one.
+ */
+export function registerOpen(program: Command, deps: CommandDeps): void {
+  deps
+    .addSharedOptions(program.command('open'))
+    .description('Open a Quickstart UI in the browser')
+    .addArgument(new Argument('[name]', 'UI to open').choices([...OPEN_NAMES]))
+    .action(async (name: string | undefined, _local: unknown, command: Command) => {
+      await deps.run(command, (ctx) => runOpen(ctx, name));
+    });
 }

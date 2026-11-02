@@ -1,12 +1,15 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
+import type { Command } from 'commander';
+import { Argument } from 'commander';
 import { compose } from '../lib/compose.ts';
 import type { CommandContext } from '../lib/context.ts';
 import { ensureDocker } from '../lib/docker.ts';
 import { dpmBuild } from '../lib/dpm.ts';
 import { definedEnv, loggedRun } from '../lib/exec.ts';
 import { type Project, projectFromContext, requireEnvLocal } from '../lib/project.ts';
+import type { CommandDeps } from '../lib/register.ts';
 import { step } from '../lib/step.ts';
 import { aside } from '../lib/style.ts';
 import { runSetup } from './setup.ts';
@@ -124,4 +127,20 @@ export async function runBuild(ctx: CommandContext, target?: BuildTarget): Promi
     }
   }
   return 0;
+}
+
+/**
+ * Register `qs build`.
+ * With no target, the pieces run in order and a failure stops the rest.
+ */
+export function registerBuild(program: Command, deps: CommandDeps): void {
+  deps
+    .addSharedOptions(program.command('build'))
+    .description('Build the frontend, Daml, backend, and images')
+    .addArgument(
+      new Argument('[target]', 'Piece to build').choices(['frontend', 'backend', 'daml', 'images']),
+    )
+    .action(async (target: BuildTarget | undefined, _local: unknown, command: Command) => {
+      await deps.run(command, (ctx) => runBuild(ctx, target));
+    });
 }

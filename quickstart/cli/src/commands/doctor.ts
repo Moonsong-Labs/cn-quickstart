@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Command } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
 import {
   compareVersions,
@@ -16,6 +17,7 @@ import { dpmExecutable } from '../lib/dpm.ts';
 import type { Captured } from '../lib/exec.ts';
 import { resolveProjectRoot } from '../lib/paths.ts';
 import { readProject } from '../lib/project.ts';
+import type { CommandDeps } from '../lib/register.ts';
 import { step } from '../lib/step.ts';
 import { paint } from '../lib/style.ts';
 
@@ -180,4 +182,17 @@ async function javaCheck(ctx: CommandContext): Promise<Check> {
     };
   }
   return { kind: 'ok', name: 'JDK', detail: String(major) };
+}
+
+/**
+ * Register `qs doctor`.
+ * The checks run against the real tools, including under `--dry-run`.
+ */
+export function registerDoctor(program: Command, deps: CommandDeps): void {
+  deps
+    .addSharedOptions(program.command('doctor'))
+    .description('Check Docker, Compose, and the local tools')
+    .action(async (_local: unknown, command: Command) => {
+      await deps.run(command, runDoctor);
+    });
 }

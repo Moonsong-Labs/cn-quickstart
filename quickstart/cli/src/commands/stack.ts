@@ -4,6 +4,7 @@
 import type { Dirent } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { Argument, type Command, CommanderError } from 'commander';
 import { compose, composeArgs, composeEnv } from '../lib/compose.ts';
 import type { CommandContext } from '../lib/context.ts';
 import { ensureDocker } from '../lib/docker.ts';
@@ -11,9 +12,11 @@ import type { Captured } from '../lib/exec.ts';
 import { definedEnv, formatCommand, loggedRun } from '../lib/exec.ts';
 import { composeProject, type Project, projectFromContext } from '../lib/project.ts';
 import { askYesNo } from '../lib/prompts.ts';
+import type { CommandDeps } from '../lib/register.ts';
 import { step } from '../lib/step.ts';
 import { aside, bad, paint } from '../lib/style.ts';
 import { runBuild } from './build.ts';
+import { runCapture } from './capture.ts';
 import { openTargetUrl } from './open.ts';
 
 /**
@@ -169,12 +172,17 @@ async function restartService(ctx: CommandContext, name: string): Promise<number
   return composeReady(ctx, project, ['up', '-d', '--no-recreate', name]);
 }
 
-/** What `qs clean` deletes. `sweep` is the leftover containers, network, and volumes only. */
-export type CleanTarget = 'build' | 'docker' | 'sweep' | 'all';
+/**
+ * What `qs clean` deletes.
+ * `sweep` is the leftover containers, network, and volumes only.
+ * `console` and `shell` remove one named container and leave the stack running.
+ */
+export type CleanTarget = 'build' | 'docker' | 'sweep' | 'all' | 'console' | 'shell';
 
 /**
  * Delete build output, Docker state, leftover Docker objects, or all of them.
- * `all` asks for confirmation unless `yes`. Declining leaves everything in place and returns 0.
+ * `all` asks for confirmation unless `yes` or `--dry-run`. Declining leaves everything in place and returns 0.
+ * `console` and `shell` only remove that container. A `docker rm` failure is ignored.
  * `sweep` does not ask, matching `make clean-all-docker`.
  */
 export async function runClean(
@@ -182,7 +190,9 @@ export async function runClean(
   target: CleanTarget,
   yes: boolean,
 ): Promise<number> {
-  if (target === 'all' && !yes) {
+  if (target === 'console') return removeNamedContainer(ctx, 'canton-console');
+  if (target === 'shell') return removeNamedContainer(ctx, 'quickstart-daml-shell');
+  if (target === 'all' && !yes && !ctx.dryRun) {
     if (process.stdin.isTTY !== true) {
       throw new Error('Pass --yes to remove containers and volumes without a prompt.');
     }
@@ -277,6 +287,24 @@ async function buildOutputDirs(projectDir: string): Promise<string[]> {
 }
 
 /**
+ * Remove one leftover container by name.
+ * `docker rm` status is ignored, matching the Makefile's `|| true`. A stopped daemon returns 1.
+ * `.env.local` is not required. The container is not part of the Compose project.
+ */
+async function removeNamedContainer(ctx: CommandContext, name: string): Promise<number> {
+  /** Checkout used as the working directory. Missing setup must not block `docker rm`. */
+  const project = projectFromContext(ctx);
+  /** Daemon check. Skipped for `--dry-run`. */
+  const docker = await ensureDocker(ctx);
+  if (docker !== 0) return docker;
+  await loggedRun(ctx.io, ctx.runner, ['docker', 'rm', '-f', name], {
+    cwd: project.dir,
+    env: definedEnv(ctx.env),
+  });
+  return 0;
+}
+
+/**
  * Remove the shell and console containers, then `docker compose down -v`.
  * `docker rm` errors are ignored, matching the Makefile's `|| true`.
  */
@@ -329,7 +357,7 @@ async function sweepGroups(ctx: CommandContext, project: Project): Promise<numbe
     await loggedRun(
       ctx.io,
       ctx.runner,
-      ['docker', 'network', 'ls', '-q', '--filter', `name=${network}`],
+      ['docker', 'network', 'ls', '-q', '--filter', `name=^${network}$`],
       { cwd: project.dir, env: definedEnv(ctx.env) },
     );
     await loggedRun(
@@ -362,14 +390,14 @@ async function sweepGroups(ctx: CommandContext, project: Project): Promise<numbe
     if (status !== 0) return status;
   }
   ctx.io.note(`${paint('bold', `Removing network ${network}`)}\n`);
-  /** Network ids whose name contains `network`. */
+  /** Network ids whose name is exactly `network`. The filter is anchored so a longer name is kept. */
   const networks = await idList(ctx, project.dir, [
     'docker',
     'network',
     'ls',
     '-q',
     '--filter',
-    `name=${network}`,
+    `name=^${network}$`,
   ]);
   if (networks.length === 0) ctx.io.note(`${aside('(none)')}\n`);
   else {
@@ -413,4 +441,121 @@ async function idList(ctx: CommandContext, cwd: string, cmd: string[]): Promise<
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+}
+
+/**
+ * Register the stack commands: start, stop, restart, status, logs, compose, and clean.
+ * `logs --capture` follows container events. `clean console` and `clean shell` remove one container.
+ */
+export function registerStack(program: Command, deps: CommandDeps): void {
+  /** A subcommand that already has the shared flags. */
+  const sub = (name: string) => deps.addSharedOptions(program.command(name));
+
+  sub('start')
+    .description('Build, then start the stack')
+    .option('--no-build', 'Start the containers without building first')
+    .action(async (_local: unknown, command: Command) => {
+      /** True when `--no-build` was set. Commander stores the positive name `build` as false. */
+      const noBuild = command.opts<{ build?: boolean }>().build === false;
+      await deps.run(command, (ctx) => runStart(ctx, noBuild));
+    });
+
+  sub('stop')
+    .description('Stop the stack')
+    .action(async (_local: unknown, command: Command) => {
+      await deps.run(command, runStop);
+    });
+
+  sub('restart')
+    .description('Restart the stack, or one of backend, frontend, or a service')
+    .argument(
+      '[target]',
+      'backend, frontend, or a Compose service. Service names are checked when the command runs',
+    )
+    .action(async (target: string | undefined, _local: unknown, command: Command) => {
+      await deps.run(command, (ctx) => runRestart(ctx, target));
+    });
+
+  sub('status')
+    .description('Show the Compose services')
+    .action(async (_local: unknown, command: Command) => {
+      await deps.run(command, runStatus);
+    });
+
+  sub('logs')
+    .description('Show service logs')
+    .option('-f, --follow', 'Keep streaming logs')
+    .option('--capture', 'Follow container events and write them under logs/')
+    .argument('[services...]', 'Services to show. Omit to show all of them')
+    .action(async (services: string[], _local: unknown, command: Command) => {
+      /** True when `-f` or `--follow` was set. */
+      const follow = command.opts<{ follow?: boolean }>().follow === true;
+      /** True when `--capture` was set. It replaces the Compose log stream. */
+      const capture = command.opts<{ capture?: boolean }>().capture === true;
+      if (capture && (follow || services.length > 0)) {
+        throw new CommanderError(
+          2,
+          'qs.usage',
+          '--capture cannot be combined with -f or service names.',
+        );
+      }
+      await deps.run(command, (ctx) =>
+        capture ? runCapture(ctx) : runLogs(ctx, follow, services),
+      );
+    });
+
+  sub('compose')
+    .description('Run docker compose with the quickstart files')
+    .allowUnknownOption()
+    .passThroughOptions()
+    .argument('[args...]', 'Arguments passed through to docker compose')
+    .addHelpText('after', () =>
+      [
+        '',
+        aside('Put qs flags before the compose arguments: qs compose --dry-run config.'),
+        aside('Set QS_EXTRA_COMPOSE_FILES or QS_EXTRA_ENV_FILES in .env.local'),
+        aside('to append your own files. Separate paths with colons.'),
+      ].join('\n'),
+    )
+    .action(async (args: string[], _local: unknown, command: Command) => {
+      await deps.run(command, (ctx) => runCompose(ctx, args));
+    });
+
+  sub('clean')
+    .description('Remove build output, Compose state, or leftover Docker objects')
+    .addArgument(
+      new Argument('<target>', 'What to remove').choices([
+        'build',
+        'docker',
+        'sweep',
+        'all',
+        'console',
+        'shell',
+      ]),
+    )
+    .option('--yes', 'Skip the confirmation prompt. Only all asks')
+    .addHelpText('after', () => {
+      /**
+       * One help row. The name is coloured and padded so the details line up.
+       */
+      const row = (name: string, detail: string) =>
+        `${paint('yellow', name.padEnd(8))}${aside(detail)}`;
+      return [
+        '',
+        row('build', 'Gradle output, frontend/dist, and each package .daml/dist'),
+        row(
+          'docker',
+          'Compose containers and their volumes, plus the shell and console containers',
+        ),
+        row('sweep', 'Containers on the project network, that network, and volumes named after it'),
+        row('all', 'build, then docker, then sweep. Asks first unless --yes'),
+        row('console', 'The canton-console container, leaving the stack running'),
+        row('shell', 'The quickstart-daml-shell container, leaving the stack running'),
+      ].join('\n');
+    })
+    .action(async (target: CleanTarget, _local: unknown, command: Command) => {
+      /** True when `--yes` was set. An absent flag leaves the confirmation prompt in place. */
+      const yes = command.opts<{ yes?: boolean }>().yes === true;
+      await deps.run(command, (ctx) => runClean(ctx, target, yes));
+    });
 }
