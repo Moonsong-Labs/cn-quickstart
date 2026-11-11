@@ -39,11 +39,13 @@ test(
 
     const canActAs = rights.some(
       ({ kind }) =>
-        kind && 'CanActAs' in kind && kind.CanActAs.value.party === application.appProviderParty,
+        kind && 'CanActAs' in kind && kind.CanActAs.value.party === application.appProvider.partyId,
     );
     const canReadAs = rights.some(
       ({ kind }) =>
-        kind && 'CanReadAs' in kind && kind.CanReadAs.value.party === application.appProviderParty,
+        kind &&
+        'CanReadAs' in kind &&
+        kind.CanReadAs.value.party === application.appProvider.partyId,
     );
 
     expect(canActAs).toBe(true);
@@ -63,7 +65,7 @@ test(
       {
         activeAtOffset: offset,
         eventFormat: {
-          filtersByParty: { [application.appProviderParty]: {} },
+          filtersByParty: { [application.appProvider.partyId]: {} },
           verbose: false,
         },
       },
@@ -103,7 +105,7 @@ test(
     ).toBe(true);
 
     const request = {
-      provider: application.appProviderParty,
+      provider: application.appProvider.partyId,
       user,
       meta: { values: { integrationTest: randomUUID() } },
     } satisfies AppInstallRequest;
@@ -136,7 +138,7 @@ test(
     expect(matching[0].contractId).not.toBe('');
     expect(AppInstallRequest.decoder.runWithException(matching[0].createArgument)).toEqual(request);
     expect(matching[0].signatories).toEqual([user]);
-    expect(matching[0].observers).toContain(application.appProviderParty);
+    expect(matching[0].observers).toContain(application.appProvider.partyId);
   },
   INTEGRATION_TIMEOUT_MS,
 );
@@ -146,7 +148,7 @@ test(
   async () => {
     const { app, pqs } = await createApplication();
     try {
-      expect(app.decorator.application.appProviderParty).toBe(application.appProviderParty);
+      expect(app.decorator.application.appProvider.partyId).toBe(application.appProvider.partyId);
       expect(app.decorator.ledger.ledgerUserId).toBe(connection.ledgerUserId);
       const health = await app.handle(new Request('http://localhost/health'));
       expect(health.status).toBe(200);

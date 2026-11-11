@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { readApplicationConfig } from '../src/config/application';
+import { AuthMode } from '../src/config/auth-mode';
 
 test('Reads and trims the App Provider party independently of Ledger API settings', () => {
   expect(readApplicationConfig({ APP_PROVIDER_PARTY: ' provider::test ' })).toEqual({
-    appProviderParty: 'provider::test',
+    authMode: AuthMode.SharedSecret,
+    appProvider: { tenantId: 'AppProvider', internal: true, partyId: 'provider::test' },
   });
 });
 

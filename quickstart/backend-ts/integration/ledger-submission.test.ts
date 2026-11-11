@@ -25,7 +25,7 @@ beforeAll(async () => {
   if (!url || !ledgerUserId || !token || !party)
     throw new Error('Missing integration App User identity');
   userParty = party;
-  providerParty = readApplicationConfig().appProviderParty;
+  providerParty = readApplicationConfig().appProvider.partyId;
   provider = await connectLedger();
   user = {
     ledgerUserId,

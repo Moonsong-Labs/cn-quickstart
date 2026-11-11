@@ -5,3 +5,38 @@ export enum AuthMode {
   /** Obtains and renews service tokens through OAuth2 client credentials. */
   OAuth2 = 'oauth2',
 }
+
+type Environment = Readonly<Record<string, string | undefined>>;
+
+export function readAuthMode(env: Environment): AuthMode {
+  const mode = env.AUTH_MODE ?? AuthMode.SharedSecret;
+  if (mode === AuthMode.SharedSecret || mode === AuthMode.OAuth2) return mode;
+  throw new Error(`AUTH_MODE must be ${AuthMode.SharedSecret} or ${AuthMode.OAuth2}`);
+}
+
+export function readProviderIssuer(env: Environment) {
+  const allowHttpValue = env.LEDGER_OAUTH_ALLOW_HTTP ?? 'false';
+  if (allowHttpValue !== 'true' && allowHttpValue !== 'false') {
+    throw new Error('LEDGER_OAUTH_ALLOW_HTTP must be true or false');
+  }
+  const allowHttp = allowHttpValue === 'true';
+  let issuer: URL;
+  try {
+    issuer = new URL(env.AUTH_APP_PROVIDER_ISSUER_URL?.trim() ?? '');
+  } catch {
+    throw new Error('AUTH_APP_PROVIDER_ISSUER_URL must be an absolute HTTP or HTTPS URL');
+  }
+  if (
+    (issuer.protocol !== 'https:' && !(allowHttp && issuer.protocol === 'http:')) ||
+    issuer.username ||
+    issuer.password ||
+    issuer.search ||
+    issuer.hash
+  ) {
+    throw new Error(
+      'OAuth issuer must use HTTPS, or HTTP with LEDGER_OAUTH_ALLOW_HTTP=true, without credentials, query, or fragment',
+    );
+  }
+
+  return { issuer, allowHttp };
+}

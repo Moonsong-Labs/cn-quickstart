@@ -43,7 +43,7 @@ let userParty: string;
 
 // Every command and query uses real OAuth identities, participants and generated bindings.
 beforeAll(async () => {
-  providerParty = readApplicationConfig().appProviderParty;
+  providerParty = readApplicationConfig().appProvider.partyId;
   provider = await connectLedger();
   const {
     APP_USER_LEDGER_API_URL: url,

@@ -1,4 +1,4 @@
-import { AuthMode } from './auth-mode';
+import { AuthMode, readAuthMode, readProviderIssuer } from './auth-mode';
 
 /** Bounds each Ledger HTTP request; canceling the request does not roll back a submitted command. */
 export const LEDGER_REQUEST_TIMEOUT_MS = 10_000;
@@ -73,37 +73,11 @@ export type LedgerAuthConfig = { method: 'static'; token: string } | ClientCrede
  * queries, and fragments are rejected. Invalid or missing settings throw before connection.
  */
 export function readLedgerAuthConfig(env: Environment = process.env): LedgerAuthConfig {
-  const mode = env.AUTH_MODE ?? AuthMode.SharedSecret;
+  const mode = readAuthMode(env);
   if (mode === AuthMode.SharedSecret) {
     return { method: 'static', token: required(env, 'APP_PROVIDER_BACKEND_USER_TOKEN') };
   }
-  if (mode !== AuthMode.OAuth2) {
-    throw new Error(`AUTH_MODE must be ${AuthMode.SharedSecret} or ${AuthMode.OAuth2}`);
-  }
-
-  const allowHttpValue = env.LEDGER_OAUTH_ALLOW_HTTP ?? 'false';
-  if (allowHttpValue !== 'true' && allowHttpValue !== 'false') {
-    throw new Error('LEDGER_OAUTH_ALLOW_HTTP must be true or false');
-  }
-  const allowHttp = allowHttpValue === 'true';
-  let issuer: URL;
-  try {
-    issuer = new URL(required(env, 'AUTH_APP_PROVIDER_ISSUER_URL'));
-  } catch {
-    throw new Error('AUTH_APP_PROVIDER_ISSUER_URL must be an absolute HTTP or HTTPS URL');
-  }
-  if (
-    (issuer.protocol !== 'https:' && !(allowHttp && issuer.protocol === 'http:')) ||
-    issuer.username ||
-    issuer.password ||
-    issuer.search ||
-    issuer.hash
-  ) {
-    throw new Error(
-      'OAuth issuer must use HTTPS, or HTTP with LEDGER_OAUTH_ALLOW_HTTP=true, without credentials, query, or fragment',
-    );
-  }
-
+  const { issuer, allowHttp } = readProviderIssuer(env);
   const clientSecret = env.AUTH_APP_PROVIDER_BACKEND_SECRET;
   if (!clientSecret?.trim())
     throw new Error('AUTH_APP_PROVIDER_BACKEND_SECRET is required for Ledger API access');
