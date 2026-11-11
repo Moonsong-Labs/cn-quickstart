@@ -24,12 +24,12 @@ export type ComposeCall = {
  * Keycloak's file is included only for `oauth2`.
  */
 function baseEnvFiles(settings: Settings): string[] {
-  /** Built-in env files. `.env.local` is always listed; the caller checks that it exists. */
+  /** Loads the selected local configuration after the checkout defaults. */
   const envFiles = [
     '--env-file',
     '.env',
     '--env-file',
-    '.env.local',
+    settings.localEnvFile ?? '.env.local',
     '--env-file',
     `${settings.localnetDir}/compose.env`,
     '--env-file',

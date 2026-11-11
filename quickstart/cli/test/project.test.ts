@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { composeArgs } from '../src/lib/compose.ts';
 import { loadProject, readProject } from '../src/lib/project.ts';
 import { projectCleaner, tempProject } from './project-fixture.ts';
 
@@ -31,6 +32,20 @@ describe('readProject', () => {
     expect(project.settings.partyHint).toBe('App-User-1');
     expect(project.settings.splice).toBe('0.8.4');
     expect(project.settings.resourceConstraints).toBe(true);
+  });
+
+  test('uses the integration env for both profile selection and Compose interpolation', async () => {
+    /** A developer checkout whose local profile differs from the test network. */
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\nDEBUG_ENABLED=true\n');
+    /** Explicit fixture passed to Compose in place of the developer configuration. */
+    const fixture = join(dir, 'integration.env');
+    await writeFile(fixture, 'AUTH_MODE=oauth2\n');
+    /** Both CLI settings and Compose must use the same file. */
+    const project = readProject(dir, {}, fixture);
+    expect(project.settings.debug).toBe(false);
+    expect(project.settings.authMode).toBe('oauth2');
+    expect(composeArgs(project.settings)).toContain(fixture);
+    expect(composeArgs(project.settings)).not.toContain('.env.local');
   });
 
   test('ignores an empty shell value and uses the file', async () => {

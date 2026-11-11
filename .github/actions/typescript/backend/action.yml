@@ -5,25 +5,77 @@ runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup/bun
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: ./.github/actions/setup/install-dpm
     - name: Check backend
       shell: bash
       working-directory: quickstart/backend-ts
       run: |
         bun run lint
         bun run format:check
-        bun run test
         bun run build
+        bun run test
     - name: Build backend image
       shell: bash
       run: docker build -f quickstart/backend-ts/Dockerfile -t cn-quickstart-backend:ci .
     - name: Verify backend image
       shell: bash
       run: |
-        container_id=$(docker run -d -p 127.0.0.1::8081 cn-quickstart-backend:ci)
-        trap 'docker logs "$container_id"; docker rm -f "$container_id"' EXIT
+        # Isolates the backend and mock Ledger from other containers.
+        network_id=$(docker network create "backend-smoke-${RANDOM}-${RANDOM}")
+        # Records the mock Ledger container for cleanup after partial startup.
+        ledger_id=
+        # Records the backend container for diagnostics and cleanup.
+        container_id=
+        # Prints backend diagnostics and removes any created containers and their network.
+        cleanup() {
+          if [ -n "$container_id" ]; then
+            docker logs "$container_id" || true
+            docker rm -f "$container_id"
+          fi
+          if [ -n "$ledger_id" ]; then
+            docker rm -f "$ledger_id"
+          fi
+          docker network rm "$network_id"
+        }
+        trap cleanup EXIT
+        ledger_id=$(docker run -d --network "$network_id" --network-alias ledger -p 127.0.0.1::8081 --entrypoint bun cn-quickstart-backend:ci -e '
+          Bun.serve({
+            port: Number(process.env.PORT),
+            /** Serves public version discovery and an authenticated smoke-test identity. */
+            fetch(request) {
+              /** Selects the mock endpoint from the incoming request URL. */
+              const path = new URL(request.url).pathname;
+              if (path === "/v2/version")
+                return Response.json({ version: "3.5.2" });
+              if (request.headers.get("authorization") !== "Bearer smoke-token")
+                return new Response(null, { status: 401 });
+              return path === "/v2/authenticated-user"
+                ? Response.json({ user: { id: "smoke-user", isDeactivated: false } })
+                : new Response(null, { status: 404 });
+            }
+          });
+        ')
+        # Resolves the mock Ledger port published on the runner for readiness checks.
+        ledger_address=$(docker port "$ledger_id" 8081/tcp)
+        curl --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --retry-max-time 30 --max-time 5 -H 'Authorization: Bearer smoke-token' "http://$ledger_address/v2/version" > /dev/null
+        container_id=$(docker run -d --network "$network_id" -p 127.0.0.1::8081 \
+          -e AUTH_MODE=shared-secret \
+          -e LEDGER_API_URL=http://ledger:8081 \
+          -e LEDGER_API_ALLOW_HTTP=true \
+          -e LEDGER_API_USER_ID=smoke-user \
+          -e APP_PROVIDER_BACKEND_USER_TOKEN=smoke-token \
+          -e APP_PROVIDER_PARTY=smoke-provider \
+          cn-quickstart-backend:ci)
+        # Resolves the backend port published on the runner for HTTP checks.
         address=$(docker port "$container_id" 8081/tcp)
+        # Captures the health payload for exact JSON validation after startup.
         response=$(curl --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --retry-max-time 30 --max-time 5 "http://$address/health")
         printf '%s' "$response" | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"status": "ok"}'
+        # Captures the docs status to verify documentation is disabled in production.
         docs_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 5 "http://$address/openapi")
         test "$docs_status" = 404
         test "$(docker exec "$container_id" id -u)" != 0

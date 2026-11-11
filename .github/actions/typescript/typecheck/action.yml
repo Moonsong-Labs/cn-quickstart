@@ -1,13 +1,22 @@
 name: Typecheck
 description: >-
-  Generates the frontend OpenAPI client, then type-checks the CLI, the
-  frontend, and the integration tests. Does not emit JavaScript.
+  Generates frontend API types and backend Daml bindings, then type-checks
+  all TypeScript workspaces.
 
 runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup/bun
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: ./.github/actions/setup/install-dpm
     - shell: bash
       run: bun run --filter frontend gen:openapi
+    - name: Generate Daml bindings
+      shell: bash
+      working-directory: quickstart/backend-ts
+      run: bun run codegen:daml
     - shell: bash
       run: bun run typecheck

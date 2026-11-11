@@ -12,6 +12,8 @@ import { resolveProjectRoot } from './paths.ts';
  * A decision flag is true only for the same literal the Makefile compares.
  */
 export type Settings = {
+  /** Overrides the local Compose env file for isolated runs. Defaults to .env.local. */
+  localEnvFile?: string;
   /** `oauth2` adds Keycloak. Any other value, including unset, leaves it out. */
   authMode: 'oauth2' | 'shared-secret' | undefined;
   /** Party hint from the files or the environment. Empty when setup has not been run. */
@@ -120,16 +122,20 @@ function colonList(value: string | undefined): string[] {
 
 /**
  * Read the checkout at `dir`. Does not require `SPLICE_VERSION`.
- * `.env` is required by project detection. `.env.local` is optional and overlays `.env`.
+ * Reads the selected local env file (normally `.env.local`) over the checkout defaults.
  * A non-empty value in `env` overrides both files.
  * `${NAME}` and `$(NAME)` are expanded the way Make expands an included env file,
  * so `LOCALNET_DIR=${MODULES_DIR}/localnet` is a real path. `$$` is a literal `$`.
  */
-export function readProject(dir: string, env: Record<string, string | undefined>): Project {
+export function readProject(
+  dir: string,
+  env: Record<string, string | undefined>,
+  localEnvFile = '.env.local',
+): Project {
   /** Parsed `.env`. The project marker guarantees the file exists. */
   const fileEnv = parseDotEnv(readOptional(join(dir, '.env')) ?? '');
-  /** `.env.local` text, or null when setup has not created it yet. */
-  const localText = readOptional(join(dir, '.env.local'));
+  /** Local overrides, or null if the selected file does not exist. */
+  const localText = readOptional(resolve(dir, localEnvFile));
   if (localText !== null) {
     for (const [key, value] of parseDotEnv(localText)) fileEnv.set(key, value);
   }
@@ -204,6 +210,7 @@ export function readProject(dir: string, env: Record<string, string | undefined>
     fileKeys: new Set(fileEnv.keys()),
     hasEnvLocal: localText !== null,
     settings: {
+      localEnvFile,
       authMode: authRaw === 'oauth2' || authRaw === 'shared-secret' ? authRaw : undefined,
       partyHint: firstNonEmpty(pick('PARTY_HINT')),
       testMode: testRaw === 'on' || testRaw === 'off' ? testRaw : undefined,

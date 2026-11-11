@@ -36,8 +36,7 @@ chmod +x "${yq}"
   '.spec.components |= with_entries(
     select(   .key == "damlc"
            or .key == "daml-script"
-           or .key == "codegen-js"
-           or .key == "codegen-java"
+           or .key == "codegen"
            or .key == "canton-enterprise"
            or .key == "upgrade-check"
            )

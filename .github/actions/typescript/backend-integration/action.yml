@@ -1,0 +1,16 @@
+name: Backend integration tests
+description: Starts an OAuth2 LocalNet, runs the backend ledger tests, and cleans up.
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup/bun
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: ./.github/actions/setup/install-dpm
+    - name: Test backend against LocalNet
+      shell: bash
+      working-directory: quickstart/backend-ts
+      run: bun run test:integration

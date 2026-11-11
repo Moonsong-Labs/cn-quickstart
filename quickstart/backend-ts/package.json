@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@canton-network/core-ledger-client": "2.0.0",
+    "@canton-network/core-ledger-client-types": "2.0.0",
+    "@daml/types": "3.5.2",
     "@elysiajs/openapi": "1.4.15",
-    "elysia": "1.4.30"
+    "@mojotech/json-type-validation": "3.1.0",
+    "elysia": "1.4.30",
+    "openid-client": "6.8.8"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",
@@ -15,13 +20,16 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
-    "test": "bun test",
+    "test": "bun test ./test",
     "typecheck": "tsc --noEmit",
-    "build": "bun run typecheck && bun build src/server.ts --target bun --outdir dist --sourcemap=external",
+    "build": "bun run codegen:daml && bun run build:bundle",
     "start:prod": "bun dist/server.js",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test:integration": "bun --no-env-file integration/run.ts",
+    "codegen:daml": "cd ../daml/licensing && dpm build && rm -rf ../../backend-ts/build/generated-daml-bindings && dpm codegen-js && cd ../../backend-ts && bun --no-env-file scripts/link-daml-bindings.ts",
+    "build:bundle": "bun run typecheck && bun build src/server.ts --target bun --outdir dist --sourcemap=external"
   }
 }

@@ -38,6 +38,9 @@ jobs:
       ts: ${{ steps.resolve.outputs.ts }}
       daml: ${{ steps.resolve.outputs.daml }}
       stack: ${{ steps.resolve.outputs.stack }}
+      ledger: ${{ steps.resolve.outputs.ledger }}
+      # Daml inputs of the generated bindings the backend compiles against.
+      bindings: ${{ steps.resolve.outputs.bindings }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -72,21 +75,49 @@ jobs:
               - 'quickstart/.env'
               - 'quickstart/Makefile'
               - '.github/workflows/ci.yml'
+            ledger:
+              - 'quickstart/backend-ts/**'
+              - 'quickstart/daml/**'
+              - 'quickstart/docker/**'
+              - 'quickstart/config/**'
+              - 'quickstart/compose.yaml'
+              - 'quickstart/.env'
+              - 'quickstart/Makefile'
+              - 'package.json'
+              - 'bun.lock'
+              - '.bun-version'
+              - '.github/actions/setup/bun/**'
+              - '.github/actions/setup/install-dpm/**'
+              - '.github/actions/typescript/backend-integration/**'
+              - '.github/workflows/ci.yml'
+            # Licensing, its DAR dependencies, and the DPM install that
+            # generates the JS bindings. Typecheck and the backend build
+            # consume those bindings, so they run on these changes too.
+            bindings:
+              - 'quickstart/daml/licensing/**'
+              - 'quickstart/daml/dars/**'
+              - '.github/actions/setup/install-dpm/**'
       - id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
           TS: ${{ steps.filter.outputs.ts }}
           DAML: ${{ steps.filter.outputs.daml }}
           STACK: ${{ steps.filter.outputs.stack }}
+          LEDGER: ${{ steps.filter.outputs.ledger }}
+          BINDINGS: ${{ steps.filter.outputs.bindings }}
         run: |
           if [ "${EVENT_NAME}" != "pull_request" ]; then
             echo "ts=true" >> "${GITHUB_OUTPUT}"
             echo "daml=true" >> "${GITHUB_OUTPUT}"
             echo "stack=true" >> "${GITHUB_OUTPUT}"
+            echo "ledger=true" >> "${GITHUB_OUTPUT}"
+            echo "bindings=true" >> "${GITHUB_OUTPUT}"
           else
             echo "ts=${TS}" >> "${GITHUB_OUTPUT}"
             echo "daml=${DAML}" >> "${GITHUB_OUTPUT}"
             echo "stack=${STACK}" >> "${GITHUB_OUTPUT}"
+            echo "ledger=${LEDGER}" >> "${GITHUB_OUTPUT}"
+            echo "bindings=${BINDINGS}" >> "${GITHUB_OUTPUT}"
           fi
 
   lint:
@@ -102,7 +133,9 @@ jobs:
   typecheck:
     name: Typecheck
     needs: [changes]
-    if: needs.changes.outputs.ts == 'true'
+    # Also runs for a bindings-only change, which regenerates the Daml
+    # modules the backend typechecks against.
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.bindings == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -132,7 +165,8 @@ jobs:
   backend:
     name: Backend build and test
     needs: [changes]
-    if: needs.changes.outputs.ts == 'true'
+    # Also runs for a bindings-only change, which the backend build compiles in.
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.bindings == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -167,9 +201,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/integration/test
 
+  backend-integration:
+    name: Backend LocalNet integration test
+    # Pull requests run this only when the ledger client, the licensing
+    # DAR, or the LocalNet files it boots have changed. A push or a manual
+    # run always runs it. A skip counts as success for ci-ok.
+    needs: [changes]
+    if: needs.changes.outputs.ledger == 'true'
+    runs-on: ${{ vars.INTEGRATION_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    env:
+      COMPOSE_ANSI: never
+      COMPOSE_PROGRESS: plain
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/typescript/backend-integration
+
   ci-ok:
     name: All checks
-    needs: [changes, lint, typecheck, cli-test, frontend-build, backend, daml, integration-test]
+    needs:
+      [
+        changes,
+        lint,
+        typecheck,
+        cli-test,
+        frontend-build,
+        backend,
+        daml,
+        integration-test,
+        backend-integration,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:

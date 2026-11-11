@@ -11,6 +11,8 @@
   },
   "include": [
     "src",
-    "test"
+    "test",
+    "integration",
+    "scripts"
   ]
 }

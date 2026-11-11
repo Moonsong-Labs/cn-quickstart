@@ -2,14 +2,15 @@ import { expect, test } from 'bun:test';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3_1 } from 'openapi-types';
 import { createApp } from '../src/app';
+import { appDependencies } from './fixtures/dependencies';
 
-/** App with docs forced on, so these assertions do not follow `NODE_ENV`. */
-function appWithDocs() {
-  return createApp({ port: 8081, apiDocsEnabled: true });
-}
+// Keep documentation assertions independent of NODE_ENV.
+const docsConfig = { port: 8081, apiDocsEnabled: true };
 
 test('OpenAPI describes the health endpoint and its response', async () => {
-  const response = await appWithDocs().handle(new Request('http://localhost/openapi/json'));
+  const response = await createApp(appDependencies, docsConfig).handle(
+    new Request('http://localhost/openapi/json'),
+  );
 
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({
@@ -39,7 +40,10 @@ test('OpenAPI describes the health endpoint and its response', async () => {
 });
 
 test('Serves documentation from independent application instances', async () => {
-  for (const app of [appWithDocs(), appWithDocs()]) {
+  for (const app of [
+    createApp(appDependencies, docsConfig),
+    createApp(appDependencies, docsConfig),
+  ]) {
     const response = await app.handle(new Request('http://localhost/openapi'));
 
     expect(response.status).toBe(200);
@@ -52,7 +56,7 @@ test('Serves documentation from independent application instances', async () => 
 });
 
 test('omits API docs when they are disabled', async () => {
-  const app = createApp({ port: 8081, apiDocsEnabled: false });
+  const app = createApp(appDependencies, { port: 8081, apiDocsEnabled: false });
   const docs = await app.handle(new Request('http://localhost/openapi'));
   const spec = await app.handle(new Request('http://localhost/openapi/json'));
   const health = await app.handle(new Request('http://localhost/health'));
@@ -63,7 +67,9 @@ test('omits API docs when they are disabled', async () => {
 });
 
 test('Generated document is valid OpenAPI', async () => {
-  const response = await appWithDocs().handle(new Request('http://localhost/openapi/json'));
+  const response = await createApp(appDependencies, docsConfig).handle(
+    new Request('http://localhost/openapi/json'),
+  );
   const document = (await response.json()) as OpenAPIV3_1.Document;
 
   await SwaggerParser.validate(document, { resolve: { external: false } });

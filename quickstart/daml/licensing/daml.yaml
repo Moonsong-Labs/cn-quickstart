@@ -17,3 +17,8 @@ data-dependencies:
 build-options:
   - --ghc-option=-Wunused-binds
   - --ghc-option=-Wunused-matches
+
+codegen:
+  js:
+    output-directory: ../../backend-ts/build/generated-daml-bindings
+    npm-scope: cn-quickstart
