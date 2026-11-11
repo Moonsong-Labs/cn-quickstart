@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type { ApplicationConfig } from './config/application';
 import { type Config, loadConfig } from './config/env';
 import { createApiDocumentation } from './http/plugins/openapi';
+import { featureFlagRoutes } from './http/routes/feature-flags';
 import { healthRoutes } from './http/routes/health';
 import type { connectLedger } from './integrations/ledger/connect';
 
@@ -15,7 +16,7 @@ export interface AppDependencies {
 
 /**
  * Accepts dependencies first and decorates the app with ledger and application settings.
- * Registers health routes and includes API documentation when configuration enables it.
+ * Registers HTTP routes and includes API documentation when configuration enables it.
  */
 export function createApp(dependencies: AppDependencies, config: Config = loadConfig()) {
   const app = new Elysia()
@@ -23,5 +24,5 @@ export function createApp(dependencies: AppDependencies, config: Config = loadCo
     .decorate('application', dependencies.application)
     .decorate('pqs', dependencies.pqs);
   if (config.apiDocsEnabled) app.use(createApiDocumentation());
-  return app.use(healthRoutes);
+  return app.use(healthRoutes).use(featureFlagRoutes(dependencies.application.authMode));
 }
