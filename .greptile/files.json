@@ -1,0 +1,8 @@
+{
+  "files": [
+    {
+      "path": "REVIEW.md",
+      "description": "What to look for in each area, how to rate severity, and how to show a bug. Follow it on every review."
+    }
+  ]
+}

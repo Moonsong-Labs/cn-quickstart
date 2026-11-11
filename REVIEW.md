@@ -1,6 +1,6 @@
 # Review guidelines
 
-What reviewers of this repository should pay attention to, by area. CodeRabbit reads this file on every review, and the challenger bot uses it to sort findings. Add a line here when the same review comment comes up twice.
+What reviewers of this repository should pay attention to, by area. AI reviewers read this file on every review, and the challenger bot uses it to sort findings. Add a line here when the same review comment comes up twice.
 
 ## Severity
 

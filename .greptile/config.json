@@ -1,0 +1,34 @@
+{
+  "strictness": 2,
+  "commentTypes": ["logic", "syntax"],
+  "autoReview": ["open", "push", "rebase"],
+  "triggerOnDrafts": false,
+  "ignoreKeywords": "WIP\nDO NOT REVIEW\n🚧",
+  "ignorePatterns": "**/bun.lock\n**/openapi.d.ts\n**/*.dar\nquickstart/daml/external-test-sources/**\nsdk/docs/images/**\n**/*.png\n**/*.svg\n**/*.drawio\nquickstart/gradle/wrapper/**\nquickstart/gradlew\nquickstart/gradlew.bat",
+  "shouldUpdateDescription": false,
+  "autoApprove": {
+    "enabled": false
+  },
+  "statusCheck": true,
+  "statusCommentsEnabled": true,
+  "fixWithAI": true,
+  "summarySection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "issuesTableSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": false
+  },
+  "confidenceScoreSection": {
+    "included": true,
+    "collapsible": true,
+    "defaultOpen": true
+  },
+  "sequenceDiagramSection": {
+    "included": false
+  },
+  "instructions": "Be brief and concrete. Lead each comment with its severity (Blocker, Should fix, or Nit) and the consequence. Skip praise, restated diffs, and formatting or import order. Follow REVIEW.md. A finding is input for a person. Do not approve the pull request."
+}
