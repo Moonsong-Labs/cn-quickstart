@@ -71,7 +71,7 @@ beforeAll(async () => {
       '--env',
       'POSTGRES_DB=java_backward_compatibility',
       '--health-cmd',
-      'pg_isready -U java_backward_compatibility -d java_backward_compatibility',
+      'pg_isready -h 127.0.0.1 -U java_backward_compatibility -d java_backward_compatibility',
       '--health-interval',
       '1s',
       '--health-timeout',
