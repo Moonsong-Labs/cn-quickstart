@@ -1,5 +1,6 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterEach, expect, mock, spyOn, test } from 'bun:test';
 import { execFile } from 'node:child_process';
+import { Pool } from 'pg';
 import { createApplication } from '../src/bootstrap';
 
 const STARTUP_PROCESS_TIMEOUT_MS = 5_000;
@@ -24,14 +25,22 @@ function environment(server: ReturnType<typeof Bun.serve>): NodeJS.ProcessEnv {
     LEDGER_API_ALLOW_HTTP: 'true',
     LEDGER_API_USER_ID: 'backend-service',
     APP_PROVIDER_BACKEND_USER_TOKEN: TOKEN,
+    POSTGRES_HOST: 'localhost',
+    POSTGRES_DATABASE: 'pqs-app-provider',
+    POSTGRES_USERNAME: 'cnadmin',
+    POSTGRES_PASSWORD: 'pqs-test-password',
   };
 }
 
 afterEach(async () => {
+  mock.restore();
   await Promise.all(servers.splice(0).map((server) => server.stop(true)));
 });
 
 test('Waits for the Ledger API before creating the app and exposes its dependencies', async () => {
+  const query = spyOn(Pool.prototype, 'query').mockResolvedValue({
+    rows: [],
+  } as never);
   const requested = Promise.withResolvers<void>();
   const identity = Promise.withResolvers<void>();
   const requests: { path: string; authorization: string | null }[] = [];
@@ -54,7 +63,7 @@ test('Waits for the Ledger API before creating the app and exposes its dependenc
   await requested.promise;
   expect(initialized).toBe(false);
   identity.resolve();
-  const { app, config } = await startup;
+  const { app, config, pqs } = await startup;
 
   expect(requests).toEqual([
     { path: '/v2/version', authorization: `Bearer ${TOKEN}` },
@@ -63,8 +72,12 @@ test('Waits for the Ledger API before creating the app and exposes its dependenc
   expect(config).toEqual({ port: 8081, apiDocsEnabled: false });
   expect(app.decorator.ledger.ledgerUserId).toBe('backend-service');
   expect(app.decorator.application.appProviderParty).toBe('provider-party');
+  expect(app.decorator.pqs).toBe(pqs);
+  expect(query).toHaveBeenCalledTimes(1);
   expect((await app.decorator.ledger.client.get('/v2/version')).version).toBe('3.5.2');
   expect((await app.handle(new Request('http://localhost/health'))).status).toBe(200);
+  await pqs.end();
+  query.mockRestore();
 });
 
 test('Rejects invalid startup settings before contacting the Ledger API', async () => {
@@ -76,6 +89,7 @@ test('Rejects invalid startup settings before contacting the Ledger API', async 
   for (const [overrides, message] of [
     [{ PORT: '0' }, 'PORT must be an integer'],
     [{ APP_PROVIDER_PARTY: undefined }, 'APP_PROVIDER_PARTY is required'],
+    [{ POSTGRES_HOST: undefined }, 'POSTGRES_HOST is required'],
     [{ LEDGER_API_URL: undefined }, 'LEDGER_API_URL is required'],
     [{ APP_PROVIDER_BACKEND_USER_TOKEN: undefined }, 'APP_PROVIDER_BACKEND_USER_TOKEN is required'],
   ] as const) {
@@ -84,6 +98,26 @@ test('Rejects invalid startup settings before contacting the Ledger API', async 
     );
   }
   expect(requests).toBe(0);
+});
+
+test('Closes the PQS pool when its startup connectivity check fails', async () => {
+  const databaseError = new Error('database failure containing credentials');
+  const query = spyOn(Pool.prototype, 'query').mockRejectedValue(databaseError as never);
+  const end = spyOn(Pool.prototype, 'end').mockResolvedValue(undefined as never);
+  const server = serve((request) =>
+    new URL(request.url).pathname === '/v2/version'
+      ? Response.json({ version: '3.5.2' })
+      : Response.json({ user: { id: 'backend-service', isDeactivated: false } }),
+  );
+
+  await expect(createApplication(environment(server))).rejects.toMatchObject({
+    message: 'Failed to verify PQS database',
+    cause: databaseError,
+  });
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(end).toHaveBeenCalledTimes(1);
+  query.mockRestore();
+  end.mockRestore();
 });
 
 test('Rejects startup when the participant rejects authentication', async () => {
@@ -185,7 +219,11 @@ test(
         const port = reservation.port;
         await reservation.stop(true);
         /** Runs the actual entry point; successful startup must survive beyond its watchdog deadline. */
-        const script = `await import(${JSON.stringify(new URL('../src/server.ts', import.meta.url).href)});
+        const script = `import { spyOn } from 'bun:test';
+      import { Pool } from 'pg';
+      spyOn(Pool.prototype, 'query').mockResolvedValue({ rows: [] });
+      spyOn(Pool.prototype, 'end').mockResolvedValue(undefined);
+      await import(${JSON.stringify(new URL('../src/server.ts', import.meta.url).href)});
       setTimeout(() => process.kill(process.pid, 'SIGTERM'), ${HEALTHY_SERVER_LIFETIME_MS}).unref();`;
         try {
           /** Captures exit status and output; the process deadline catches leaked pending requests. */

@@ -26,6 +26,7 @@ template AppInstall with
     signatory provider, user
 
     -- | Create a license.
+    -- | TODO: Use a UUID instead of `licenseNum` as part of the key and validate uniqueness at the key level.
     choice AppInstall_CreateLicense : AppInstall_CreateLicense_Result
       with
         params : LicenseParams -- ^ Parameters of the license to be created.

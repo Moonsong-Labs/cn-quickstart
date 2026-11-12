@@ -39,6 +39,7 @@ jobs:
       daml: ${{ steps.resolve.outputs.daml }}
       stack: ${{ steps.resolve.outputs.stack }}
       ledger: ${{ steps.resolve.outputs.ledger }}
+      java_backend: ${{ steps.filter.outputs.java_backend }}
       # Daml inputs of the generated bindings the backend compiles against.
       bindings: ${{ steps.resolve.outputs.bindings }}
     steps:
@@ -83,6 +84,11 @@ jobs:
               - 'quickstart/compose.yaml'
               - 'quickstart/.env'
               - 'quickstart/Makefile'
+              - 'quickstart/cli/package.json'
+              - 'quickstart/frontend/package.json'
+              - 'quickstart/integration-test/package.json'
+              - 'tsconfig.base.json'
+              - '.dockerignore'
               - 'package.json'
               - 'bun.lock'
               - '.bun-version'
@@ -97,6 +103,14 @@ jobs:
               - 'quickstart/daml/licensing/**'
               - 'quickstart/daml/dars/**'
               - '.github/actions/setup/install-dpm/**'
+            java_backend:
+              - 'quickstart/backend/**'
+              - 'quickstart/buildSrc/**'
+              - 'quickstart/gradle/**'
+              - 'quickstart/gradle*'
+              - 'quickstart/*.gradle.kts'
+              - 'quickstart/daml/**'
+              - 'quickstart/.env'
       - id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -165,8 +179,7 @@ jobs:
   backend:
     name: Backend build and test
     needs: [changes]
-    # Also runs for a bindings-only change, which the backend build compiles in.
-    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.bindings == 'true'
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.bindings == 'true' || needs.changes.outputs.java_backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

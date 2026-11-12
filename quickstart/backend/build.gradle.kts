@@ -151,6 +151,14 @@ tasks.getByName("compileJava").dependsOn(
     "openApiGenerateAllocation"
 )
 
+tasks.register<JavaExec>("runPqsBackwardCompatibility") {
+    group = "verification"
+    description = "Checks Java PQS behavior during the TypeScript migration."
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.digitalasset.quickstart.pqs.PqsBackwardCompatibility")
+}
+
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:3.24.0"

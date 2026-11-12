@@ -17,6 +17,18 @@ import Splice.Api.Token.HoldingV1
 import Splice.Api.Token.AllocationRequestV1
 import Splice.Api.Token.AllocationV1 as Api.Token.AllocationV1
 
+data LicenseKey = LicenseKey with
+    provider : Party
+    user : Party
+    licenseNum : Int
+  deriving (Eq, Show)
+
+data LicenseRenewalRequestKey = LicenseRenewalRequestKey with
+    provider : Party
+    user : Party
+    requestId : Text
+  deriving (Eq, Show)
+
 -- | Parameters determining the license behavior.
 data LicenseParams = LicenseParams
   with
@@ -38,9 +50,13 @@ template License
   where
     signatory provider, user
 
+    key LicenseKey with provider; user; licenseNum : LicenseKey
+    maintainer key.provider
+
     -- | Renews this license by collecting a fee from the user
     --   via the token standard. The actual settlement flow
     --   is defined by the corresponding LicenseRenewalRequest.
+    -- | TODO: Check if the `requestId` is unique for this provider and user.
     nonconsuming choice License_Renew : ContractId LicenseRenewalRequest
       with
         requestId : Text
@@ -103,6 +119,9 @@ template LicenseRenewalRequest
 
   where
     signatory user, provider
+
+    key LicenseRenewalRequestKey with provider; user; requestId : LicenseRenewalRequestKey
+    maintainer key.provider
 
     -- | Completes the renewal by finalizing the token-standard-based fee
     --   transfer via Allocation and creating the new license state.

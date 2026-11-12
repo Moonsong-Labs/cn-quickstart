@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import type { Pool } from 'pg';
 import type { ApplicationConfig } from './config/application';
 import { type Config, loadConfig } from './config/env';
 import { createApiDocumentation } from './http/plugins/openapi';
@@ -9,6 +10,7 @@ import type { connectLedger } from './integrations/ledger/connect';
 export interface AppDependencies {
   ledger: Awaited<ReturnType<typeof connectLedger>>;
   application: ApplicationConfig;
+  pqs: Pool;
 }
 
 /**
@@ -18,7 +20,8 @@ export interface AppDependencies {
 export function createApp(dependencies: AppDependencies, config: Config = loadConfig()) {
   const app = new Elysia()
     .decorate('ledger', dependencies.ledger)
-    .decorate('application', dependencies.application);
+    .decorate('application', dependencies.application)
+    .decorate('pqs', dependencies.pqs);
   if (config.apiDocsEnabled) app.use(createApiDocumentation());
   return app.use(healthRoutes);
 }

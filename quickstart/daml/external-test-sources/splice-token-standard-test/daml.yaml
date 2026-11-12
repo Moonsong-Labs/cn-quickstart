@@ -33,6 +33,7 @@ data-dependencies:
   - ../../external-test-dars/splice-util-0.1.4.dar
   - ../../dars/splice-amulet-0.1.14.dar
 build-options:
+  - --target=2.3
   - --ghc-option=-Wunused-binds
   - --ghc-option=-Wunused-matches
 codegen:

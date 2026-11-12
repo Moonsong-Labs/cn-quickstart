@@ -1,4 +1,5 @@
 import { LedgerClient } from '@canton-network/core-ledger-client';
+import { Pool } from 'pg';
 import type { AppDependencies } from '../../src/app';
 import { createStaticTokenProvider } from '../../src/integrations/ledger/token-provider';
 
@@ -14,4 +15,5 @@ export const appDependencies: AppDependencies = {
     ledgerUserId,
   },
   application: { appProviderParty: 'test-provider' },
+  pqs: new Pool({ host: 'postgres.invalid', ssl: false }),
 };

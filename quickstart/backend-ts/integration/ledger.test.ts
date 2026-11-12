@@ -144,12 +144,18 @@ test(
 test(
   'Initializes the application with its LocalNet service connection',
   async () => {
-    const { app } = await createApplication();
-
-    expect(app.decorator.application.appProviderParty).toBe(application.appProviderParty);
-    expect(app.decorator.ledger.ledgerUserId).toBe(connection.ledgerUserId);
-    const health = await app.handle(new Request('http://localhost/health'));
-    expect(health.status).toBe(200);
+    const { app, pqs } = await createApplication();
+    try {
+      expect(app.decorator.application.appProviderParty).toBe(application.appProviderParty);
+      expect(app.decorator.ledger.ledgerUserId).toBe(connection.ledgerUserId);
+      const health = await app.handle(new Request('http://localhost/health'));
+      expect(health.status).toBe(200);
+      expect((await pqs.query('SELECT current_database() AS name')).rows[0].name).toBe(
+        process.env.POSTGRES_DATABASE,
+      );
+    } finally {
+      await pqs.end();
+    }
   },
   INTEGRATION_TIMEOUT_MS,
 );
