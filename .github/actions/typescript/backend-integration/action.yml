@@ -10,7 +10,38 @@ runs:
         distribution: temurin
         java-version: '21'
     - uses: ./.github/actions/setup/install-dpm
+    - name: Build backend image
+      shell: bash
+      run: docker build -f quickstart/backend-ts/Dockerfile -t cn-quickstart-backend:ci .
     - name: Test backend against LocalNet
       shell: bash
       working-directory: quickstart/backend-ts
-      run: bun run test:integration
+      run: |
+        bun --no-env-file - <<'TS'
+        import assert from 'node:assert/strict';
+        import { $ } from 'bun';
+        import { run, runIntegration } from './integration/run.ts';
+
+        // Check the image while the test participant and its populated PQS are still running.
+        await runIntegration(async (project, credentialsFile) => {
+          const container = `${project}-backend`;
+          await $`docker run -d --name ${container} --network ${project + '-default'} --env-file ${credentialsFile} -p 127.0.0.1::8081 cn-quickstart-backend:ci`;
+          try {
+            const address = (await $`docker port ${container} 8081/tcp`.text()).trim();
+            const response = await run(['curl', '--fail', '--silent', '--show-error',
+              '--retry', '15', '--retry-all-errors', '--retry-delay', '1', '--retry-max-time', '30',
+              '--max-time', '5', `http://${address}/health`], { capture: true });
+            assert.deepEqual(JSON.parse(response), { status: 'ok' });
+
+            // The production image disables API docs and runs as an unprivileged user.
+            const docs = await $`curl -sS -o /dev/null -w '%{http_code}' --max-time 5 ${'http://' + address + '/openapi'}`.text();
+            assert.equal(docs, '404');
+            assert.notEqual((await $`docker exec ${container} id -u`.text()).trim(), '0');
+            await $`docker stop --timeout 10 ${container}`;
+            assert.equal((await $`docker inspect -f '{{.State.ExitCode}}' ${container}`.text()).trim(), '0');
+          } finally {
+            await $`docker logs ${container}`.nothrow();
+            await $`docker rm -f ${container}`;
+          }
+        });
+        TS

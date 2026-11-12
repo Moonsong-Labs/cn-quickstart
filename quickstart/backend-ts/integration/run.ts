@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -215,13 +215,16 @@ export async function run(
  * Attempts to save logs on failure. Signals exit with code 130; cleanup failures retain
  * temporary configuration for manual recovery.
  */
-async function main() {
+export async function runIntegration(
+  checkImage?: (project: string, credentialsFile: string) => Promise<void>,
+) {
   const project = `qs-ledger-it-${randomUUID().slice(0, 8)}`;
   const testContainer = `${project}-tests`;
   const directory = await mkdtemp(join(tmpdir(), `${project}-`));
   const composeFile = join(directory, 'compose.json');
   const services = [
     'postgres',
+    'pqs-app-provider',
     'keycloak',
     'nginx-keycloak',
     'canton',
@@ -359,8 +362,24 @@ async function main() {
     ) as { party: string; token: string; userId: string };
     if (!appUser.party || !appUser.token || !appUser.userId)
       throw new Error('Missing App User identity after onboarding');
+    const postgresEnvironment = Object.fromEntries(
+      [
+        'POSTGRES_HOST',
+        'POSTGRES_PORT',
+        'POSTGRES_DATABASE',
+        'POSTGRES_USERNAME',
+        'POSTGRES_PASSWORD',
+      ].map((name) => {
+        const value = backendEnvironment[name];
+        if (!value) throw new Error(`Missing ${name} in rendered backend configuration`);
+        return [name, value];
+      }),
+    );
     const tokenEnvironment = {
+      ...postgresEnvironment,
       APP_USER_LEDGER_API_URL: 'http://canton:2975',
+      APP_USER_WALLET_API_URL: 'http://splice:2903',
+      TOKEN_REGISTRY_URL: backendEnvironment.REGISTRY_BASE_URI,
       APP_USER_PARTY: appUser.party,
       APP_USER_TOKEN: appUser.token,
       APP_USER_LEDGER_USER_ID: appUser.userId,
@@ -384,6 +403,11 @@ async function main() {
     );
     const bunVersion = (await readFile(join(repository, '.bun-version'), 'utf8')).trim();
 
+    // Java migration comparisons require a host JDK and run through their own command.
+    const testFiles = (await readdir(join(backend, 'integration')))
+      .filter((name) => name.endsWith('.test.ts'))
+      .sort()
+      .map((name) => `./integration/${name}`);
     console.info('Running ledger tests against the provisioned participants...');
     await run([
       'docker',
@@ -404,9 +428,10 @@ async function main() {
       'bun',
       '--no-env-file',
       'test',
-      './integration',
+      ...testFiles,
       ...process.argv.slice(2),
     ]);
+    await checkImage?.(project, credentialsFile);
   } catch (error) {
     cleaningUp = true;
     exitCode = error instanceof CommandError ? error.code : EXIT_CODE_FAILURE;
@@ -466,4 +491,4 @@ async function main() {
   process.exitCode = interrupted ? EXIT_CODE_INTERRUPTED : exitCode;
 }
 
-if (import.meta.main) await main();
+if (import.meta.main) await runIntegration();

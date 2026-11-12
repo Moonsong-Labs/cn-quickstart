@@ -1,0 +1,113 @@
+module Licensing.Scripts.TestContractKeys where
+
+import Daml.Script
+import DA.Assert
+import DA.Time
+import DA.List (sortOn)
+
+import Licensing.AppInstall
+import Licensing.License
+import Splice.Api.Token.AllocationRequestV1
+import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+import Splice.Api.Token.MetadataV1
+
+createInstall : Party -> Party -> Script (ContractId AppInstall)
+createInstall provider user = do
+  requestCid <- submit user $ createCmd AppInstallRequest with
+    provider
+    user
+    meta = emptyMetadata
+  submit provider $ exerciseCmd requestCid AppInstallRequest_Accept with
+    installMeta = emptyMetadata
+    meta = emptyMetadata
+
+createLicense : Party -> ContractId AppInstall -> Script (ContractId License)
+createLicense provider installCid = do
+  result <- submit provider $ exerciseCmd installCid AppInstall_CreateLicense with
+    params = LicenseParams with meta = emptyMetadata
+  pure result.licenseId
+
+testLicenseKeys : Script ()
+testLicenseKeys = script do
+  provider <- allocateParty "provider"
+  user <- allocateParty "user"
+  outsider <- allocateParty "outsider"
+
+  install1 <- createInstall provider user
+  firstCid <- createLicense provider install1
+  install2 <- createInstall provider user
+  secondCid <- createLicense provider install2
+
+  let key = LicenseKey with provider; user; licenseNum = 1
+  matches <- queryAllByKey @License user key
+  sortOn show (map fst matches) === sortOn show [firstCid, secondCid]
+  providerMatches <- queryAllByKey @License provider key
+  sortOn show (map fst providerMatches) === sortOn show [firstCid, secondCid]
+  queryAllByKey @License outsider key >>= (=== [])
+  queryAllByKey @License user (LicenseKey with provider = outsider; user; licenseNum = 1) >>= (=== [])
+  queryAllByKey @License user (LicenseKey with provider; user = outsider; licenseNum = 1) >>= (=== [])
+  queryAllByKey @License user (LicenseKey with provider; user; licenseNum = 2) >>= (=== [])
+
+testLicenseKeyRemovedOnArchiveAndReusable : Script ()
+testLicenseKeyRemovedOnArchiveAndReusable = script do
+  provider <- allocateParty "provider"
+  user <- allocateParty "user"
+  installCid <- createInstall provider user
+  oldCid <- createLicense provider installCid
+  let key = LicenseKey with provider; user; licenseNum = 1
+
+  passTime (seconds 1)
+  now <- getTime
+  submit provider $ exerciseCmd oldCid License_Expire with
+    actor = provider
+    meta = emptyMetadata
+  queryAllByKey @License user key >>= (=== [])
+
+  newCid <- submit [provider, user] $ createCmd License with
+    provider
+    user
+    expiresAt = now
+    licenseNum = 1
+    params = LicenseParams with meta = emptyMetadata
+  assertMsg "Recreation must allocate a new contract ID" (newCid /= oldCid)
+  active <- queryAllByKey @License user key
+  map fst active === [newCid]
+
+testRenewalRequestKeys : Script ()
+testRenewalRequestKeys = script do
+  provider <- allocateParty "provider"
+  user <- allocateParty "user"
+  outsider <- allocateParty "outsider"
+  installCid <- createInstall provider user
+  _ <- createLicense provider installCid
+  now <- getTime
+  let licenseKey = LicenseKey with provider; user; licenseNum = 1
+      instrumentId = InstrumentId with admin = provider; id = "key-test"
+      makeRequest requestId = submit provider $ exerciseByKeyCmd @License licenseKey License_Renew with
+        requestId
+        licenseFeeInstrumentId = instrumentId
+        licenseFeeAmount = 1.0
+        licenseExtensionDuration = days 1
+        requestedAt = now
+        prepareUntil = now `addRelTime` hours 1
+        settleBefore = now `addRelTime` hours 2
+        description = "Key test"
+
+  firstCid <- makeRequest "request-1"
+  secondCid <- makeRequest "request-1"
+  otherRequestCid <- makeRequest "request-2"
+
+  let duplicateKey = LicenseRenewalRequestKey with provider; user; requestId = "request-1"
+  duplicateMatches <- queryAllByKey @LicenseRenewalRequest user duplicateKey
+  sortOn show (map fst duplicateMatches) === sortOn show [firstCid, secondCid]
+  otherMatches <- queryAllByKey @LicenseRenewalRequest user (LicenseRenewalRequestKey with provider; user; requestId = "request-2")
+  map fst otherMatches === [otherRequestCid]
+  queryAllByKey @LicenseRenewalRequest outsider duplicateKey >>= (=== [])
+  queryAllByKey @LicenseRenewalRequest user (duplicateKey with provider = outsider) >>= (=== [])
+  queryAllByKey @LicenseRenewalRequest user (duplicateKey with user = outsider) >>= (=== [])
+  submit provider $ exerciseCmd (toInterfaceContractId @AllocationRequest secondCid)
+    AllocationRequest_Withdraw with
+      extraArgs = ExtraArgs with context = emptyChoiceContext; meta = emptyMetadata
+  remaining <- queryAllByKey @LicenseRenewalRequest user duplicateKey
+  map fst remaining === [firstCid]
+  queryContractId provider secondCid >>= (=== None)

@@ -10,11 +10,13 @@
     "@elysiajs/openapi": "1.4.15",
     "@mojotech/json-type-validation": "3.1.0",
     "elysia": "1.4.30",
-    "openid-client": "6.8.8"
+    "openid-client": "6.8.8",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",
     "@types/bun": "1.3.3",
+    "@types/pg": "8.23.1",
     "openapi-types": "12.1.3"
   },
   "scripts": {
@@ -30,6 +32,7 @@
     "format:check": "biome format .",
     "test:integration": "bun --no-env-file integration/run.ts",
     "codegen:daml": "cd ../daml/licensing && dpm build && rm -rf ../../backend-ts/build/generated-daml-bindings && dpm codegen-js && cd ../../backend-ts && bun --no-env-file scripts/link-daml-bindings.ts",
-    "build:bundle": "bun run typecheck && bun build src/server.ts --target bun --outdir dist --sourcemap=external"
+    "build:bundle": "bun run typecheck && bun build src/server.ts --target bun --outdir dist --sourcemap=external",
+    "test:integration:backward-compatibility": "bun --no-env-file test ./integration/backward-compatibility"
   }
 }

@@ -8,29 +8,30 @@ const BACKEND_STARTUP_TIMEOUT_MS = 30_000;
 
 /** Authenticates against the Ledger before listening and registers orderly shutdown handlers. */
 async function main() {
-  // Authenticate before accepting HTTP requests.
-  const { app, config } = await createApplication();
-  app.listen(config.port);
-  console.info(`Backend listening on port ${app.server?.port}`);
-
-  /**
-   * True once shutdown has begun. A second signal while `app.stop()` is in
-   * progress must not start another shutdown.
-   */
+  const { app, config, pqs } = await createApplication();
+  try {
+    app.listen(config.port);
+  } catch (error) {
+    await pqs.end();
+    throw error;
+  }
   let stopping = false;
-
-  /**
-   * Closes the listener, waits for in-flight requests, then exits 0.
-   * A call made after shutdown has started returns without doing anything.
-   * Handles SIGTERM, which Docker and orchestrators send to process 1, and
-   * SIGINT from Ctrl+C.
-   */
   async function shutdown(signal: 'SIGTERM' | 'SIGINT') {
     if (stopping) return;
     stopping = true;
     console.info(`Received ${signal}, shutting down`);
-    await app.stop();
-    process.exit(0);
+    let exitCode = 0;
+    try {
+      try {
+        await app.stop();
+      } finally {
+        await pqs.end();
+      }
+    } catch {
+      console.error('Backend shutdown failed');
+      exitCode = 1;
+    }
+    process.exit(exitCode);
   }
 
   process.on('SIGTERM', () => {
@@ -39,6 +40,8 @@ async function main() {
   process.on('SIGINT', () => {
     void shutdown('SIGINT');
   });
+
+  console.info(`Backend listening on port ${app.server?.port}`);
 }
 
 /** Forces exit on stalled startup so pending SDK connections cannot keep the process alive. */

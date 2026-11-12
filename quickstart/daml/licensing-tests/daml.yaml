@@ -21,5 +21,6 @@ data-dependencies:
 - ../dars/splice-api-token-transfer-instruction-v1-1.0.0.dar
 - ../dars/splice-api-token-allocation-instruction-v1-1.0.0.dar
 build-options:
+  - --target=2.3
   - --ghc-option=-Wunused-binds
   - --ghc-option=-Wunused-matches

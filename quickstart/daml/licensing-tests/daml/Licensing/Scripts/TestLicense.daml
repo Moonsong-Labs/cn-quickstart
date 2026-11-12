@@ -222,6 +222,11 @@ testLicenseTokenStandard = script do
   -----------------------------------------------------
   ((registry, userParty, providerParty), licenseCid) <- setupLicenseTest
   WalletClient.checkBalance userParty registry.instrumentId initialUserBalance
+  Some originalLicense <- queryContractId providerParty licenseCid
+  let licenseKey = LicenseKey with
+        provider = providerParty
+        user = userParty
+        licenseNum = originalLicense.licenseNum
 
   -----------------------------------------------------
   -- 2. Provider initiates a renewal request
@@ -265,6 +270,12 @@ testLicenseTokenStandard = script do
   [newLicenseUser] <- query @License userParty
   [newLicenseProvider] <- query @License providerParty
   newLicenseUser === newLicenseProvider
+  assertMsg "Renewal must replace the license contract ID" (newLicenseProvider._1 /= licenseCid)
+  queryAllByKey @License providerParty licenseKey >>= (=== [newLicenseProvider])
+  queryContractId providerParty licenseCid >>= (=== None)
+  queryAllByKey @LicenseRenewalRequest providerParty
+    (LicenseRenewalRequestKey with provider = providerParty; user = userParty; requestId = "req-id-1")
+    >>= (=== [])
   -- Confirm it is extended exactly 365 days
   now <- getTime
   let expectedExpiry = addRelTime now extension

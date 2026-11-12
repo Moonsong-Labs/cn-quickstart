@@ -31,6 +31,17 @@ participant and onboarded App Provider. For shared-secret mode, set
 `APP_PROVIDER_BACKEND_USER_TOKEN` to the onboarding token. For OAuth2, set
 `AUTH_MODE=oauth2` and fill in the issuer and backend client credentials listed in the example.
 
+Supply the PQS PostgreSQL settings before starting. The database must already
+exist. Startup verifies the Ledger identity and database connection before opening HTTP.
+
+PostgreSQL uses the Java backend's `POSTGRES_HOST`, `POSTGRES_PORT`,
+`POSTGRES_DATABASE`, `POSTGRES_USERNAME`, and `POSTGRES_PASSWORD` variables.
+Host, database, username, and password are required. Port defaults to `5432`.
+`POSTGRES_POOL_MAX` defaults to `10`, and `POSTGRES_CONNECTION_TIMEOUT_MS` defaults
+to `5000`. Both must be positive integers. Passwords are preserved verbatim.
+LocalNet uses plaintext by default. Set `PGSSLMODE=verify-full` to require TLS with certificate verification.
+The process closes HTTP requests before draining the pool on SIGINT or SIGTERM.
+
 Generate the bindings and start the backend with automatic restarts:
 
 ```bash
@@ -78,7 +89,7 @@ docker build -f Dockerfile -t cn-quickstart-backend ../..
 docker run --rm --env-file .env -p 127.0.0.1:8081:8081 cn-quickstart-backend
 ```
 
-Use a Ledger URL (and OAuth issuer, if applicable) reachable from the container.
+Use database, Ledger API, and OAuth issuer hostnames reachable from the container.
 On Docker Desktop, use `host.docker.internal` for services published on the host.
 
 The image runs the bundled backend as an unprivileged user. Override the listening
