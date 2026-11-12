@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import type { LedgerCommonSchemas } from '@canton-network/core-ledger-client-types';
 import { ContractId } from '@daml/types';
-import { Pool } from 'pg';
+import { DatabaseError, Pool } from 'pg';
 import {
   AllocationRequest,
   type AllocationRequestView,
@@ -32,6 +32,7 @@ const TEST_TIMEOUT_MS = 30_000;
 // Participant ingestion can lag behind confirmation on the submitting participant.
 const VISIBILITY_TIMEOUT_MS = 10_000;
 const VISIBILITY_POLL_INTERVAL_MS = 100;
+const PQS_STARTUP_TIMEOUT_MS = 120_000;
 const PQS_VISIBILITY_TIMEOUT_MS = 30_000;
 const GRPC_PERMISSION_DENIED = 7;
 const GRPC_NOT_FOUND = 5;
@@ -59,6 +60,38 @@ beforeAll(async () => {
   });
   user = { client, ledgerUserId };
 }, TEST_TIMEOUT_MS);
+
+// The participant can confirm a license while Scribe is still indexing onboarding transactions.
+// Without this startup wait, that backlog can exhaust the first contract's visibility timeout.
+beforeAll(async () => {
+  // Capture the ledger end once: later transactions should not move the startup target.
+  const { offset } = await provider.client.get('/v2/state/ledger-end');
+  if (offset === undefined) throw new Error('Ledger API did not return a ledger-end offset');
+  const pool = new Pool(readPostgresConfig());
+  const deadline = Date.now() + PQS_STARTUP_TIMEOUT_MS;
+  let checkpoint: string | null = null;
+  try {
+    while (Date.now() < deadline) {
+      const { rows } = await pool
+        .query<{ offset: string }>(
+          'SELECT "offset" FROM __watermark WHERE "offset" IS NOT NULL AND ix IS NOT NULL',
+        )
+        .catch((error: unknown) => {
+          // A fresh database has no watermark table until Scribe runs its migrations.
+          if (error instanceof DatabaseError && error.code === '42P01') return { rows: [] };
+          throw error;
+        });
+      checkpoint = rows[0]?.offset ?? null;
+      if (checkpoint !== null && BigInt(checkpoint) >= BigInt(offset)) return;
+      await Bun.sleep(500);
+    }
+    throw new Error(
+      `PQS startup timed out at checkpoint ${checkpoint}, expected at least ${offset}`,
+    );
+  } finally {
+    await pool.end();
+  }
+}, PQS_STARTUP_TIMEOUT_MS + TEST_TIMEOUT_MS);
 
 /**
  * Returns active created events for a template visible to a party at the supplied
@@ -90,29 +123,16 @@ async function snapshot(
   );
 }
 
+// After startup, each new contract still takes time to reach PQS after ledger confirmation.
 async function waitForPqs(pool: Pool, contractIds: string[]) {
   const deadline = Date.now() + PQS_VISIBILITY_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const { rows } = await pool.query<{ watermark_table: string | null }>(
-      "SELECT to_regclass('__watermark')::text AS watermark_table",
+    // An active contract may also appear through one or more interface views.
+    const contracts = await pool.query(
+      'SELECT DISTINCT contract_id FROM active() WHERE contract_id = ANY($1::text[])',
+      [contractIds],
     );
-    if (rows[0]?.watermark_table) {
-      // Scribe recreates active() during migrations. A non-null ingestion checkpoint
-      // in its stable watermark table means the fresh test database is initialized.
-      const checkpoint = await pool.query<{ ready: boolean }>(`
-        SELECT EXISTS (
-          SELECT 1 FROM __watermark WHERE "offset" IS NOT NULL AND ix IS NOT NULL
-        ) AS ready
-      `);
-      if (checkpoint.rows[0]?.ready) {
-        // Unfiltered PQS results include interface views with the same contract ID.
-        const contracts = await pool.query(
-          'SELECT DISTINCT contract_id FROM active() WHERE contract_id = ANY($1::text[])',
-          [contractIds],
-        );
-        if (contracts.rows.length === contractIds.length) return;
-      }
-    }
+    if (contracts.rows.length === contractIds.length) return;
     await Bun.sleep(VISIBILITY_POLL_INTERVAL_MS);
   }
   throw new Error('Contracts did not become active in PQS');
