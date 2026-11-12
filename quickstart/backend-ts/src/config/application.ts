@@ -17,7 +17,9 @@ export function readApplicationConfig(
     partyId: appProviderParty,
   } as const;
   const authMode = readAuthMode(env);
-  if (authMode === AuthMode.SharedSecret) return { appProvider, authMode };
+  if (authMode === AuthMode.SharedSecret) {
+    return { appProvider: { ...appProvider, users: ['app-provider'] }, authMode };
+  }
 
   const { issuer } = readProviderIssuer(env);
   const clientId = env.AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID?.trim();
