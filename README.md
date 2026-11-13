@@ -22,7 +22,6 @@ The CN Quickstart is a rapidly evolving work in progress.
 
 You can find Quickstart documentation in the Canton Network documentation portal.
 
-- [Quickstart Installation](https://docs.canton.network/appdev/quickstart/prerequisites)
 - [Exploring The Demo](https://docs.canton.network/appdev/quickstart/running-the-demo)
 - [FAQ](https://docs.canton.network/appdev/faq)
 - [Quickstart Reference](https://docs.canton.network/sdks-tools/reference-projects/cn-quickstart#cn-quickstart)
@@ -35,15 +34,71 @@ This project is rapidly enhanced, so please check back often for updates.
 
 ## Setup
 
-See the [Quickstart Installation Guide](https://docs.canton.network/appdev/quickstart/index) for installation and setup directions.
+Install these tools on the host before the first build. You also need `make`. CI installs the same Bun version, JDK, and dpm, and `make build` runs Gradle and `dpm` on the host. The supported setup is this host install. Leave the Nix flake unused, and do not run `direnv allow`.
+
+The published [Quickstart installation guide](https://docs.canton.network/appdev/quickstart/prerequisites) documents a Nix install. The toolchain for this repository is the host install below.
+
+### Docker
+
+Install Docker Engine 27.0.0 or newer and Docker Compose 2.27.0 or newer (`docker compose version`), and leave the daemon running. `qs doctor` rejects an older Docker client or an older Compose release. Give Docker at least 8 GB of memory. Install instructions are in the [Docker Engine documentation](https://docs.docker.com/engine/install/).
+
+### Bun
+
+From the repository root, install the Bun version pinned in `.bun-version`. `qs doctor` warns when `bun` is missing from `PATH` or `bun --version` differs from that file.
+
+```bash
+curl -fsSL https://bun.sh/install | bash -s "bun-v$(tr -d '[:space:]' < .bun-version)"
+```
+
+The installer places the `bun` binary in `~/.bun/bin`. Add that directory to `PATH` when the installer asks, then open a new shell and check the version:
+
+```bash
+bun --version
+```
+
+### JDK 21
+
+Install a JDK 21 on the host and put `java` on `PATH`. CI installs Eclipse Temurin 21. `make build` runs `./gradlew` on the host. The wrapper is Gradle 8.8 (`quickstart/gradle/wrapper/gradle-wrapper.properties`), which runs on JDK 21 and JDK 22. `qs doctor` runs `java -version` and warns when Java is missing or the major version is outside that range.
+
+When `JAVA_HOME` is set, point it at this JDK. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise looks up `java` on `PATH`.
+
+Eclipse Temurin 21 builds are listed at <https://adoptium.net/temurin/releases/?version=21>.
+
+```bash
+java -version
+```
+
+### dpm
+
+Install dpm 3.5.2 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
+
+```bash
+curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.5.2
+```
+
+The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the version:
+
+```bash
+dpm --version
+```
+
+### Check the install
+
+From `quickstart/`, with `bun` already on `PATH`:
+
+```bash
+make check-docker
+```
+
+That target runs `qs doctor` through `bun` (`quickstart/Makefile`). Without `bun` on `PATH`, `make` stops before doctor starts. When doctor runs, a Docker or Compose failure exits non-zero. A missing Bun, dpm, or JDK is a warning, and `make build` needs all three.
 
 ## Quickstart
 
-To start the application:
+To start the application, from the repository root, with the tools above on `PATH`:
 
 ```bash
-# In the local repository directory
-$ direnv allow
+# Host tools from the Setup section must already be on PATH.
+# Do not run direnv allow. That enters the unsupported Nix shell.
 # The CLI imports these workspace packages. Install them before entering quickstart.
 $ bun install --frozen-lockfile
 $ cd quickstart
@@ -75,7 +130,7 @@ If a container fails to start, there are a few things to try:
 - Ensure Docker Compose is configured to allocate enough memory. The recommended minimum total memory is 8 GB.
 - Start fresh with `make clean-all` and then manually delete all Docker images and volumes.
 
-**Note**: The CN Quickstart uses Java SDK version `Eclipse Temurin JDK version 21` which runs within the Docker container.  This information is specified in `quickstart/compose.yaml` and `.env`.
+**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks `dpm`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
 
 If you need assistance, please follow these directions to gather the log information needed for debugging:
 1. `make setup`             # optional
