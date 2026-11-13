@@ -109,3 +109,45 @@ test('Only admins can list the configured provider and registered tenants', asyn
   // A registered user can sign in but cannot see the tenant directory.
   expect((await list(await login('alice'))).status).toBe(403);
 });
+
+test('Deleting an external tenant revokes every session even after re-registration', async () => {
+  const { app, login, register, list } = setup();
+  const remove = (cookie: string, id: string) =>
+    app.handle(
+      new Request(`http://localhost/admin/tenant-registrations/${id}`, {
+        method: 'DELETE',
+        headers: { cookie },
+      }),
+    );
+  const user = (cookie: string) =>
+    app.handle(new Request('http://localhost/user', { headers: { cookie } }));
+  const tenant = { tenantId: 'AppUser', partyId: 'customer::123', users: ['alice', 'bob'] };
+  const admin = await login('app-provider');
+  expect((await register(admin, tenant)).status).toBe(201);
+  const sessions = [await login('alice'), await login('alice'), await login('bob')];
+  expect(new Set(sessions).size).toBe(3);
+
+  // Rejected deletes must leave both the provider and the external users active.
+  expect((await remove('', 'AppUser')).status).toBe(401);
+  expect((await remove(sessions[0], 'AppUser')).status).toBe(403);
+  expect((await remove(admin, 'AppProvider')).status).toBe(403);
+  for (const cookie of sessions) expect((await user(cookie)).status).toBe(200);
+  expect(await login('app-provider')).not.toBe('');
+
+  const deleted = await remove(admin, 'AppUser');
+  expect(deleted.status).toBe(204);
+  expect(await deleted.text()).toBe('');
+  const missing = await remove(admin, 'AppUser');
+  expect(missing.status).toBe(404);
+  expect(await missing.json()).toEqual({ message: 'No tenant found for tenantId = AppUser.' });
+  expect(await (await list(admin)).json()).toEqual([
+    expect.objectContaining({ tenantId: 'AppProvider' }),
+  ]);
+  expect(await login('alice')).toBe('');
+  for (const cookie of sessions) expect((await user(cookie)).status).toBe(401);
+
+  // Reusing the same tenant ID and usernames requires a fresh login.
+  expect((await register(admin, tenant)).status).toBe(201);
+  for (const cookie of sessions) expect((await user(cookie)).status).toBe(401);
+  expect((await user(await login('alice'))).status).toBe(200);
+});

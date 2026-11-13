@@ -14,6 +14,12 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
     sessions.delete(id);
   }
 
+  function revokeTenantSessions(tenant: Tenant) {
+    for (const [id, session] of sessions) {
+      if (tenant.users.includes(session.username)) invalidate(id);
+    }
+  }
+
   function sessionUser(id: unknown) {
     const session = typeof id === 'string' ? sessions.get(id) : undefined;
     if (!session || session.expires <= Date.now()) return null;
@@ -61,7 +67,7 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
       },
       { detail: { operationId: 'getAuthenticatedUser', tags: ['Auth'] } },
     )
-    .use(tenantRegistrationRoutes(tenants, sessionUser))
+    .use(tenantRegistrationRoutes(tenants, sessionUser, revokeTenantSessions))
     .post('/logout', ({ cookie: { JSESSIONID }, redirect }) => {
       if (typeof JSESSIONID.value === 'string') invalidate(JSESSIONID.value);
       JSESSIONID.set({ value: '', path: '/', httpOnly: true, maxAge: 0 });

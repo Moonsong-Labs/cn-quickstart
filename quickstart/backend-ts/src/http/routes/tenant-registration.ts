@@ -11,6 +11,7 @@ function problem(status: number, message: string) {
 export function tenantRegistrationRoutes(
   tenants: Tenant[],
   sessionUser: (id: unknown) => ReturnType<typeof resolveSharedSecretUser>,
+  revokeTenantSessions: (tenant: Tenant) => void,
 ) {
   return new Elysia({ name: 'shared-secret-tenant-registration' })
     .guard({
@@ -37,6 +38,19 @@ export function tenantRegistrationRoutes(
           issuerUrl: null,
         })),
       { detail: { operationId: 'listTenantRegistrations', tags: ['Admin'] } },
+    )
+    .delete(
+      '/admin/tenant-registrations/:tenantId',
+      ({ params: { tenantId } }) => {
+        const index = tenants.findIndex((tenant) => tenant.tenantId === tenantId);
+        if (index === -1) return problem(404, `No tenant found for tenantId = ${tenantId}.`);
+        const tenant = tenants[index];
+        if (tenant.internal) return problem(403, 'Cannot delete an internal tenant');
+        revokeTenantSessions(tenant);
+        tenants.splice(index, 1);
+        return new Response(null, { status: 204 });
+      },
+      { detail: { operationId: 'deleteTenantRegistration', tags: ['Admin'] } },
     )
     .post(
       '/admin/tenant-registrations',
