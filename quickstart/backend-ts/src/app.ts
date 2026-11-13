@@ -31,7 +31,7 @@ export function createApp(dependencies: AppDependencies, config: Config = loadCo
   if (application.authMode === AuthMode.SharedSecret) {
     app.use(sharedSecretRoutes([application.appProvider]));
   } else {
-    app.use(oidcRoutes(application.appProvider.tenantId, application.oidc));
+    app.use(oidcRoutes(application.appProvider, application.oidc));
   }
   return app.use(healthRoutes).use(featureFlagRoutes(dependencies.application.authMode));
 }

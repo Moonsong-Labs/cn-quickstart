@@ -1,31 +1,22 @@
 import { Elysia } from 'elysia';
+import { Sessions } from '../../auth/sessions';
 import { resolveSharedSecretUser, type Tenant } from '../../auth/shared-secret-user';
 
 import { tenantRegistrationRoutes } from './tenant-registration';
 
-const idleTimeout = 30 * 60 * 1000;
-
+/** Registers shared-secret login, session, and tenant administration endpoints. */
 export function sharedSecretRoutes(tenants: Tenant[]) {
-  const sessions = new Map<string, { username: string; expires: number; timer: NodeJS.Timeout }>();
+  const sessions = new Sessions<string>();
 
-  function invalidate(id: string) {
-    const session = sessions.get(id);
-    if (session) clearTimeout(session.timer);
-    sessions.delete(id);
-  }
-
+  /** Ends every session belonging to a user of the removed tenant. */
   function revokeTenantSessions(tenant: Tenant) {
-    for (const [id, session] of sessions) {
-      if (tenant.users.includes(session.username)) invalidate(id);
-    }
+    sessions.revokeWhere((username) => tenant.users.includes(username));
   }
 
+  /** Resolves an active session to its user and current tenant permissions. */
   function sessionUser(id: unknown) {
-    const session = typeof id === 'string' ? sessions.get(id) : undefined;
-    if (!session || session.expires <= Date.now()) return null;
-    session.expires = Date.now() + idleTimeout;
-    session.timer.refresh();
-    return resolveSharedSecretUser(session.username, tenants);
+    const username = sessions.read(id);
+    return username === null ? null : resolveSharedSecretUser(username, tenants);
   }
 
   return new Elysia({ name: 'shared-secret' })
@@ -37,10 +28,7 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
         if (form?.password || !resolveSharedSecretUser(username, tenants)) {
           return redirect('/login?error', 302);
         }
-        if (typeof JSESSIONID.value === 'string') invalidate(JSESSIONID.value);
-        const id = crypto.randomUUID();
-        const timer = setTimeout(() => sessions.delete(id), idleTimeout).unref();
-        sessions.set(id, { username, expires: Date.now() + idleTimeout, timer });
+        const id = sessions.open(username, JSESSIONID.value);
         JSESSIONID.set({
           value: id,
           path: '/',
@@ -69,7 +57,7 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
     )
     .use(tenantRegistrationRoutes(tenants, sessionUser, revokeTenantSessions))
     .post('/logout', ({ cookie: { JSESSIONID }, redirect }) => {
-      if (typeof JSESSIONID.value === 'string') invalidate(JSESSIONID.value);
+      sessions.invalidate(JSESSIONID.value);
       JSESSIONID.set({ value: '', path: '/', httpOnly: true, maxAge: 0 });
       return redirect('/', 302);
     });

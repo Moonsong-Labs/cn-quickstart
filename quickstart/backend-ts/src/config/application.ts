@@ -2,7 +2,7 @@ import { AuthMode, readAuthMode, readProviderIssuer } from './auth-mode';
 
 export type ApplicationConfig = ReturnType<typeof readApplicationConfig>;
 
-/** Trims APP_PROVIDER_PARTY and throws when it is missing or blank. */
+/** Loads the AppProvider tenant and validates the settings for the selected authentication mode. */
 export function readApplicationConfig(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
@@ -36,5 +36,17 @@ export function readApplicationConfig(
   ) {
     throw new Error('OIDC_PUBLIC_ORIGIN must be an HTTP or HTTPS origin');
   }
-  return { appProvider, authMode, oidc: { issuer, clientId, publicOrigin: publicOrigin.origin } };
+  return {
+    appProvider,
+    authMode,
+    oidc: {
+      issuer,
+      clientId,
+      testProfile:
+        env.TEST_MODE === 'on' ||
+        env.SPRING_PROFILES_ACTIVE?.split(',').some((profile) => profile.trim() === 'test') ===
+          true,
+      publicOrigin: publicOrigin.origin,
+    },
+  };
 }

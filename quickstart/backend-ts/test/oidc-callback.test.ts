@@ -1,0 +1,143 @@
+import { expect, test } from 'bun:test';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { createApp } from '../src/app';
+import { readApplicationConfig } from '../src/config/application';
+import { appDependencies } from './fixtures/dependencies';
+
+test('Only a verified, single-use AppProvider callback opens an admin session', async () => {
+  const trusted = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const other = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const publicKey = {
+    ...trusted.publicKey.export({ format: 'jwk' }),
+    kid: 'provider',
+    alg: 'RS256',
+  };
+  const codes = new Map<string, { nonce: string; challenge: string; wrongKey: boolean }>();
+  let exchanges = 0;
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    /** Serves discovery, signing keys, and the token exchange for the test provider. */
+    async fetch(request) {
+      const { origin, pathname } = new URL(request.url);
+      if (pathname === '/.well-known/openid-configuration')
+        return Response.json({
+          issuer: origin,
+          authorization_endpoint: `${origin}/authorize`,
+          token_endpoint: `${origin}/token`,
+          jwks_uri: `${origin}/keys`,
+        });
+      if (pathname === '/keys') return Response.json({ keys: [publicKey] });
+      if (pathname !== '/token') return new Response(null, { status: 404 });
+      exchanges++;
+      const form = new URLSearchParams(await request.text());
+      const code = form.get('code') ?? '';
+      const grant = codes.get(code);
+      codes.delete(code);
+      if (
+        !grant ||
+        form.get('client_id') !== 'browser' ||
+        form.get('redirect_uri') !== 'https://app.example/login/oauth2/code/AppProvider' ||
+        createHash('sha256')
+          .update(form.get('code_verifier') ?? '')
+          .digest('base64url') !== grant.challenge
+      )
+        return Response.json({ error: 'invalid_grant' }, { status: 400 });
+      const now = Math.floor(Date.now() / 1000);
+      const payload = [
+        { alg: 'RS256', kid: 'provider' },
+        {
+          iss: origin,
+          aud: 'browser',
+          sub: 'alice',
+          name: 'Alice',
+          iat: now,
+          exp: now + 60,
+          nonce: grant.nonce,
+          party_id: 'test-party',
+        },
+      ]
+        .map((part) => Buffer.from(JSON.stringify(part)).toString('base64url'))
+        .join('.');
+      const signature = sign(
+        'RSA-SHA256',
+        Buffer.from(payload),
+        grant.wrongKey ? other.privateKey : trusted.privateKey,
+      );
+      return Response.json({
+        token_type: 'Bearer',
+        access_token: 'test-access',
+        id_token: `${payload}.${signature.toString('base64url')}`,
+      });
+    },
+  });
+  try {
+    for (const scenario of [
+      'success',
+      'profile',
+      'state',
+      'nonce',
+      'signature',
+      'pkce',
+      'missing-cookie',
+    ]) {
+      const application = readApplicationConfig({
+        AUTH_MODE: 'oauth2',
+        APP_PROVIDER_PARTY: 'configured-party',
+        AUTH_APP_PROVIDER_ISSUER_URL: server.url.origin,
+        AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID: 'browser',
+        OIDC_PUBLIC_ORIGIN: 'https://app.example',
+        LEDGER_OAUTH_ALLOW_HTTP: 'true',
+        TEST_MODE: scenario === 'profile' ? 'on' : 'off',
+      });
+      const app = createApp({ ...appDependencies, application });
+      /** Sends a browser request through the app with the cookie from the previous step. */
+      const get = (path: string, cookie = '') =>
+        app.handle(new Request(`http://internal${path}`, { headers: { cookie } }));
+      const login = await get('/oauth2/authorization/AppProvider');
+      const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0];
+      const params = new URL(login.headers.get('location') ?? '').searchParams;
+      const code = crypto.randomUUID();
+      codes.set(code, {
+        nonce: scenario === 'nonce' ? 'wrong' : (params.get('nonce') ?? ''),
+        challenge: scenario === 'pkce' ? 'wrong' : (params.get('code_challenge') ?? ''),
+        wrongKey: scenario === 'signature',
+      });
+      const callback = `/login/oauth2/code/AppProvider?${new URLSearchParams({ code, state: scenario === 'state' ? 'wrong' : (params.get('state') ?? '') })}`;
+      const before = exchanges;
+      const response = await get(callback, scenario === 'missing-cookie' ? '' : cookie);
+      expect(response.status).toBe(302);
+      const session = response.headers
+        .getSetCookie()
+        .find((header) => header.startsWith('JSESSIONID='))
+        ?.split(';')[0];
+      if (scenario === 'success' || scenario === 'profile') {
+        expect(response.headers.get('location')).toBe('/');
+        expect(session).toBeTruthy();
+        const party = scenario === 'profile' ? 'test-party' : 'configured-party';
+        const user = await get('/user', session);
+        expect(user.status).toBe(200);
+        expect(await user.json()).toEqual({
+          name: 'Alice',
+          party,
+          isAdmin: true,
+          roles: ['ROLE_ADMIN', 'AppProvider', party],
+          walletUrl: null,
+        });
+      } else {
+        expect(response.headers.get('location')).toBe('/login?error');
+        expect(session).toBeUndefined();
+        expect((await get('/user', cookie)).status).toBe(401);
+      }
+      expect(exchanges - before).toBe(['missing-cookie', 'state'].includes(scenario) ? 0 : 1);
+      // Replaying a consumed attempt must fail before the provider is contacted.
+      if (scenario !== 'missing-cookie') {
+        const count = exchanges;
+        expect((await get(callback, cookie)).headers.get('location')).toBe('/login?error');
+        expect(exchanges).toBe(count);
+      }
+    }
+  } finally {
+    server.stop(true);
+  }
+});
