@@ -44,6 +44,8 @@ To start the application:
 ```bash
 # In the local repository directory
 $ direnv allow
+# The CLI imports these workspace packages. Install them before entering quickstart.
+$ bun install --frozen-lockfile
 $ cd quickstart
 
 # Setup your quickstart environment
