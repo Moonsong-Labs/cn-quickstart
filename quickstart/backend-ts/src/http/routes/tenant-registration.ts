@@ -12,57 +12,8 @@ export function tenantRegistrationRoutes(
   tenants: Tenant[],
   sessionUser: (id: unknown) => ReturnType<typeof resolveSharedSecretUser>,
 ) {
-  return new Elysia({ name: 'shared-secret-tenant-registration' }).post(
-    '/admin/tenant-registrations',
-    ({ body }) => {
-      const { tenantId, partyId, users, walletUrl, issuerUrl, clientId } = body;
-      if (!tenantId?.trim()) return problem(400, 'Tenant Id is required');
-      if (!partyId?.trim()) return problem(400, 'Party Id is required');
-      if (!users?.length)
-        return problem(400, 'At least one User is required in shared-secret mode');
-      if (tenants.some((tenant) => tenant.tenantId === tenantId))
-        return problem(409, 'TenantId already exists');
-
-      const names = new Set(
-        tenants.flatMap((tenant) => tenant.users.map((name) => name.toLowerCase())),
-      );
-      for (const user of users) {
-        if (!user.trim() || names.has(user.toLowerCase())) {
-          console.error('Tenant registration failed: empty or duplicate local username');
-          return problem(500, 'Internal Server Error');
-        }
-        names.add(user.toLowerCase());
-      }
-      for (const uri of [issuerUrl, walletUrl]) {
-        if (
-          uri?.trim() &&
-          (/\s|[<>"{}|\\^`]|%(?![0-9a-f]{2})/i.test(uri) || !URL.canParse(uri, 'http://localhost'))
-        ) {
-          console.error('Tenant registration failed: invalid URI');
-          return problem(500, 'Internal Server Error');
-        }
-      }
-      tenants.push({
-        tenantId,
-        partyId,
-        users,
-        internal: false,
-        walletUrl: walletUrl ?? undefined,
-      });
-      return Response.json(
-        {
-          tenantId,
-          partyId,
-          users,
-          internal: false,
-          walletUrl: walletUrl?.trim() ? walletUrl : null,
-          clientId: clientId ?? null,
-          issuerUrl: issuerUrl?.trim() ? issuerUrl : null,
-        },
-        { status: 201 },
-      );
-    },
-    {
+  return new Elysia({ name: 'shared-secret-tenant-registration' })
+    .guard({
       transform: ({ cookie: { JSESSIONID } }) => {
         const user = sessionUser(JSESSIONID.value);
         if (!user) throw problem(401, 'Unauthorized');
@@ -72,15 +23,82 @@ export function tenantRegistrationRoutes(
         if (error instanceof Response) return error;
         if (code === 'VALIDATION' || code === 'PARSE') return problem(400, 'Invalid request');
       },
-      body: t.Object({
-        tenantId: t.Optional(t.String()),
-        partyId: t.Optional(t.String()),
-        users: t.Optional(t.Array(t.String())),
-        walletUrl: t.Optional(t.Nullable(t.String())),
-        issuerUrl: t.Optional(t.Nullable(t.String())),
-        clientId: t.Optional(t.Nullable(t.String())),
-      }),
-      detail: { operationId: 'createTenantRegistration', tags: ['Admin'] },
-    },
-  );
+    })
+    .get(
+      '/admin/tenant-registrations',
+      () =>
+        tenants.map(({ tenantId, partyId, users, internal, walletUrl }) => ({
+          tenantId,
+          partyId,
+          users,
+          internal,
+          walletUrl: walletUrl ?? null,
+          clientId: null,
+          issuerUrl: null,
+        })),
+      { detail: { operationId: 'listTenantRegistrations', tags: ['Admin'] } },
+    )
+    .post(
+      '/admin/tenant-registrations',
+      ({ body }) => {
+        const { tenantId, partyId, users, walletUrl, issuerUrl, clientId } = body;
+        if (!tenantId?.trim()) return problem(400, 'Tenant Id is required');
+        if (!partyId?.trim()) return problem(400, 'Party Id is required');
+        if (!users?.length)
+          return problem(400, 'At least one User is required in shared-secret mode');
+        if (tenants.some((tenant) => tenant.tenantId === tenantId))
+          return problem(409, 'TenantId already exists');
+
+        const names = new Set(
+          tenants.flatMap((tenant) => tenant.users.map((name) => name.toLowerCase())),
+        );
+        for (const user of users) {
+          if (!user.trim() || names.has(user.toLowerCase())) {
+            console.error('Tenant registration failed: empty or duplicate local username');
+            return problem(500, 'Internal Server Error');
+          }
+          names.add(user.toLowerCase());
+        }
+        for (const uri of [issuerUrl, walletUrl]) {
+          if (
+            uri?.trim() &&
+            (/\s|[<>"{}|\\^`]|%(?![0-9a-f]{2})/i.test(uri) ||
+              !URL.canParse(uri, 'http://localhost'))
+          ) {
+            console.error('Tenant registration failed: invalid URI');
+            return problem(500, 'Internal Server Error');
+          }
+        }
+        tenants.push({
+          tenantId,
+          partyId,
+          users,
+          internal: false,
+          walletUrl: walletUrl ?? undefined,
+        });
+        return Response.json(
+          {
+            tenantId,
+            partyId,
+            users,
+            internal: false,
+            walletUrl: walletUrl?.trim() ? walletUrl : null,
+            clientId: clientId ?? null,
+            issuerUrl: issuerUrl?.trim() ? issuerUrl : null,
+          },
+          { status: 201 },
+        );
+      },
+      {
+        body: t.Object({
+          tenantId: t.Optional(t.String()),
+          partyId: t.Optional(t.String()),
+          users: t.Optional(t.Array(t.String())),
+          walletUrl: t.Optional(t.Nullable(t.String())),
+          issuerUrl: t.Optional(t.Nullable(t.String())),
+          clientId: t.Optional(t.Nullable(t.String())),
+        }),
+        detail: { operationId: 'createTenantRegistration', tags: ['Admin'] },
+      },
+    );
 }

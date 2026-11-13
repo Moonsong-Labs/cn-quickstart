@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { createApp } from '../src/app';
 import { appDependencies } from './fixtures/dependencies';
 
-test('Only admins can onboard a tenant and failed registration reserves no users or tenant ID', async () => {
+function setup() {
   const app = createApp(appDependencies);
   const login = async (username: string) => {
     const response = await app.handle(
@@ -21,6 +21,13 @@ test('Only admins can onboard a tenant and failed registration reserves no users
         body: JSON.stringify(data),
       }),
     );
+  const list = (cookie: string) =>
+    app.handle(new Request('http://localhost/admin/tenant-registrations', { headers: { cookie } }));
+  return { app, login, register, list };
+}
+
+test('Only admins can onboard a tenant and failed registration reserves no users or tenant ID', async () => {
+  const { app, login, register } = setup();
   const tenant = {
     tenantId: 'AppUser',
     partyId: 'customer::123',
@@ -59,4 +66,46 @@ test('Only admins can onboard a tenant and failed registration reserves no users
     isAdmin: false,
   });
   expect((await register(cookie, { ...tenant, tenantId: 'other' })).status).toBe(403);
+});
+
+test('Only admins can list the configured provider and registered tenants', async () => {
+  const { login, register, list } = setup();
+  expect((await list('')).status).toBe(401);
+  const admin = await login('app-provider');
+  const provider = {
+    tenantId: 'AppProvider',
+    partyId: 'test-provider',
+    internal: true,
+    users: ['app-provider'],
+    walletUrl: null,
+    issuerUrl: null,
+    clientId: null,
+  };
+
+  // Only the configured provider exists before onboarding.
+  const initial = await list(admin);
+  expect(initial.status).toBe(200);
+  expect(await initial.json()).toEqual([provider]);
+
+  const tenant = {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    walletUrl: 'http://wallet.localhost:2000',
+    users: ['alice', 'bob'],
+  };
+  expect((await register(admin, tenant)).status).toBe(201);
+  const response = await list(admin);
+  expect(response.status).toBe(200);
+  const registrations = await response.json();
+  expect(registrations).toHaveLength(2);
+  expect(registrations).toContainEqual(provider);
+  expect(registrations).toContainEqual({
+    ...tenant,
+    internal: false,
+    issuerUrl: null,
+    clientId: null,
+  });
+
+  // A registered user can sign in but cannot see the tenant directory.
+  expect((await list(await login('alice'))).status).toBe(403);
 });
