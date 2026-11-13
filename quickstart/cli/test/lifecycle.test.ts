@@ -220,7 +220,12 @@ describe('runClean', () => {
   });
 
   test('--yes sweeps containers, the network, and volumes', async () => {
+    /**
+     * Captures in order: docker info before each `down`, docker info before the sweep,
+     * then container, network, and project volume ids. The install-request list is empty.
+     */
     const fake = fakeRunner([
+      { code: 0 },
       { code: 0 },
       { code: 0 },
       { stdout: 'abc\n' },
@@ -234,7 +239,89 @@ describe('runClean', () => {
     expect(args).toContain('network=quickstart');
     expect(args).toContain('name=^quickstart$');
     expect(args).toContain('name=^quickstart');
+    expect(args).toContain('name=^create-app-install-request');
+    expect(args).toContain('docker/create-app-install-request/compose.yaml');
     expect(args).toContain('abc');
+  });
+
+  test('clean docker removes the install-request stack volumes', async () => {
+    const fake = fakeRunner([{ code: 0 }]);
+    const { context } = await ctx(fake.runner);
+    expect(await runClean(context, 'docker', false)).toBe(0);
+    /** Both `down -v` commands. `docker rm` and the info probes are the other calls. */
+    const downs = fake.calls.filter((call) => call.cmd.includes('down'));
+    expect(downs).toHaveLength(2);
+    expect(downs[0]?.cmd.slice(-2)).toEqual(['down', '-v']);
+    expect(downs[0]?.cmd).not.toContain('docker/create-app-install-request/compose.yaml');
+    expect(downs[1]?.cmd).toContain('docker/create-app-install-request/compose.yaml');
+    expect(downs[1]?.cmd.slice(-2)).toEqual(['down', '-v']);
+  });
+
+  test('clean docker stops when the app stack down fails', async () => {
+    /** Commands issued. The install-request `down` must not be among them. */
+    const calls: string[][] = [];
+    const runner: Runner = {
+      run(cmd) {
+        calls.push(cmd);
+        return Promise.resolve(cmd.includes('down') ? 1 : 0);
+      },
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      lines() {
+        return (async function* empty() {})();
+      },
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    const { context } = await ctx(runner);
+    expect(await runClean(context, 'docker', false)).toBe(1);
+    expect(calls.filter((cmd) => cmd.includes('down'))).toHaveLength(1);
+    expect(
+      calls.some((cmd) => cmd.includes('docker/create-app-install-request/compose.yaml')),
+    ).toBe(false);
+  });
+
+  test('sweep removes install-request volumes when the project volumes are absent', async () => {
+    /**
+     * Captures: docker info, no containers, no network, no project volumes,
+     * then the leftover install-request volume.
+     */
+    const fake = fakeRunner([
+      { code: 0 },
+      { stdout: '' },
+      { stdout: '' },
+      { stdout: '' },
+      { stdout: 'create-app-install-request_onboarding\n' },
+    ]);
+    const { context, noted } = await ctx(fake.runner);
+    expect(await runClean(context, 'sweep', false)).toBe(0);
+    /** Anchored name filters, in the order the sweep prints them. */
+    const filters = fake.calls.flatMap((call) =>
+      call.cmd.filter((arg) => arg.startsWith('name=^')),
+    );
+    expect(filters).toEqual([
+      'name=^quickstart$',
+      'name=^quickstart',
+      'name=^create-app-install-request',
+    ]);
+    expect(
+      fake.calls.some((call) => call.cmd.includes('create-app-install-request_onboarding')),
+    ).toBe(true);
+    expect(noted()).toContain('Removing volumes named create-app-install-request');
+    expect(noted()).toContain('(none)');
+  });
+
+  test('sweep --dry-run lists install-request volumes and deletes nothing', async () => {
+    const fake = fakeRunner();
+    const { context } = await ctx(fake.runner);
+    context.dryRun = true;
+    expect(await runClean(context, 'sweep', false)).toBe(0);
+    /** Every argument of the printed commands. A dry run must not remove anything. */
+    const args = fake.calls.flatMap((call) => call.cmd);
+    expect(args).toContain('name=^create-app-install-request');
+    expect(args).not.toContain('rm');
   });
 
   test('clean console does not need .env.local', async () => {

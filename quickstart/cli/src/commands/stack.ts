@@ -5,7 +5,7 @@ import type { Dirent } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { Argument, type Command, CommanderError } from 'commander';
-import { compose, composeArgs, composeEnv } from '../lib/compose.ts';
+import { type ComposeCall, compose, composeArgs, composeEnv } from '../lib/compose.ts';
 import type { CommandContext } from '../lib/context.ts';
 import { ensureDocker } from '../lib/docker.ts';
 import type { Captured } from '../lib/exec.ts';
@@ -22,16 +22,18 @@ import { openTargetUrl } from './open.ts';
 /**
  * Docker preflight, then `compose`.
  * The preflight is skipped for `--dry-run`. A stopped daemon returns 1 before Compose runs.
+ * `opts` chooses the stack. Omitting it runs the app stack.
  */
 async function composeReady(
   ctx: CommandContext,
   project: Project,
   args: string[],
+  opts?: ComposeCall,
 ): Promise<number> {
   /** Daemon check. Zero when Docker is ready or this is a dry run. */
   const docker = await ensureDocker(ctx);
   if (docker !== 0) return docker;
-  return compose(ctx, project, args);
+  return compose(ctx, project, args, opts);
 }
 
 /**
@@ -213,7 +215,7 @@ export async function runClean(
     if (status !== 0) return status;
   }
   if (target === 'docker' || target === 'all') {
-    /** Compose volumes, then the shell and console containers that live outside the project. */
+    /** App and install-request volumes, plus the shell and console containers. */
     const status = await cleanDocker(ctx);
     if (status !== 0) return status;
   }
@@ -305,8 +307,10 @@ async function removeNamedContainer(ctx: CommandContext, name: string): Promise<
 }
 
 /**
- * Remove the shell and console containers, then `docker compose down -v`.
+ * Remove the shell and console containers, then `docker compose down -v`
+ * for the app stack and the install-request stack.
  * `docker rm` errors are ignored, matching the Makefile's `|| true`.
+ * The install-request project has its own volume, which the app stack's `down -v` does not see.
  */
 async function cleanDocker(ctx: CommandContext): Promise<number> {
   /** Checkout whose volumes are removed. */
@@ -325,13 +329,21 @@ async function cleanDocker(ctx: CommandContext): Promise<number> {
           env: definedEnv(ctx.env),
         },
       );
-      return composeReady(ctx, project, ['down', '-v']);
+      /** App stack. A failure leaves the install-request volume in place. */
+      const app = await composeReady(ctx, project, ['down', '-v']);
+      if (app !== 0) return app;
+      /** Install-request stack. Constraint files belong to the app stack only. */
+      return composeReady(ctx, project, ['down', '-v'], {
+        stack: 'install-request',
+        constraints: false,
+      });
     },
   );
 }
 
 /**
- * Remove leftover containers, the project network, and volumes named after it.
+ * Remove leftover containers, the project network, and volumes named after
+ * the project or the install-request stack.
  * An empty group prints `(none)` and is not an error.
  */
 async function cleanSweep(ctx: CommandContext): Promise<number> {
@@ -343,12 +355,15 @@ async function cleanSweep(ctx: CommandContext): Promise<number> {
 }
 
 /**
- * Remove containers, the project network, and volumes named after it.
+ * Remove containers, the project network, and volumes named after the project
+ * or the install-request stack.
  * An empty group prints `(none)` and is not an error. The step heading is printed by `cleanSweep`.
  */
 async function sweepGroups(ctx: CommandContext, project: Project): Promise<number> {
   /** Network name from `.env`, or `quickstart`. */
   const network = project.settings.dockerNetwork;
+  /** Prefix of install-request volumes. The app stack's `down` does not remove them. */
+  const installRequest = 'create-app-install-request';
   if (ctx.dryRun) {
     await loggedRun(ctx.io, ctx.runner, ['docker', 'ps', '-aq', '--filter', `network=${network}`], {
       cwd: project.dir,
@@ -364,6 +379,12 @@ async function sweepGroups(ctx: CommandContext, project: Project): Promise<numbe
       ctx.io,
       ctx.runner,
       ['docker', 'volume', 'ls', '-q', '--filter', `name=^${network}`],
+      { cwd: project.dir, env: definedEnv(ctx.env) },
+    );
+    await loggedRun(
+      ctx.io,
+      ctx.runner,
+      ['docker', 'volume', 'ls', '-q', '--filter', `name=^${installRequest}`],
       { cwd: project.dir, env: definedEnv(ctx.env) },
     );
     return 0;
@@ -408,14 +429,31 @@ async function sweepGroups(ctx: CommandContext, project: Project): Promise<numbe
     if (status !== 0) return status;
   }
   ctx.io.note(`${paint('bold', `Removing volumes named ${network}`)}\n`);
-  /** Volume names matching the Makefile's anchored filter. */
+  /** Project volumes. A failure stops before the install-request volumes are touched. */
+  const projectVolumes = await removeVolumes(ctx, project, network);
+  if (projectVolumes !== 0) return projectVolumes;
+  ctx.io.note(`${paint('bold', `Removing volumes named ${installRequest}`)}\n`);
+  return removeVolumes(ctx, project, installRequest);
+}
+
+/**
+ * Remove Docker volumes whose names start with `prefix`.
+ * An empty list prints `(none)` and returns 0. The caller prints the heading.
+ * A failed `docker volume rm` returns its status.
+ */
+async function removeVolumes(
+  ctx: CommandContext,
+  project: Project,
+  prefix: string,
+): Promise<number> {
+  /** Names returned by the anchored `name=` filter. */
   const volumes = await idList(ctx, project.dir, [
     'docker',
     'volume',
     'ls',
     '-q',
     '--filter',
-    `name=^${network}`,
+    `name=^${prefix}`,
   ]);
   if (volumes.length === 0) {
     ctx.io.note(`${aside('(none)')}\n`);
@@ -545,9 +583,12 @@ export function registerStack(program: Command, deps: CommandDeps): void {
         row('build', 'Gradle output, frontend/dist, and each package .daml/dist'),
         row(
           'docker',
-          'Compose containers and their volumes, plus the shell and console containers',
+          'App and install-request containers and volumes, plus the shell and console containers',
         ),
-        row('sweep', 'Containers on the project network, that network, and volumes named after it'),
+        row(
+          'sweep',
+          'Containers on the project network, that network, and volumes named after it or the install request',
+        ),
         row('all', 'build, then docker, then sweep. Asks first unless --yes'),
         row('console', 'The canton-console container, leaving the stack running'),
         row('shell', 'The quickstart-daml-shell container, leaving the stack running'),
