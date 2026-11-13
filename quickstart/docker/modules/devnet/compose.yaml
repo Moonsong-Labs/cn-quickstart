@@ -135,7 +135,7 @@ services:
       - devnet
 
   pqs-app-provider:
-    image: ${SCRIBE_IMAGE:-europe-docker.pkg.dev/da-images/public/docker/scribe}:${SCRIBE_VERSION:-3.5.9}
+    image: ${SCRIBE_IMAGE:-europe-docker.pkg.dev/da-images/public/docker/scribe}:${SCRIBE_VERSION:-3.7.0}
     container_name: pqs-app-provider
     environment:
       # Connect directly to splice-node's participant gRPC API (bypassing nginx)

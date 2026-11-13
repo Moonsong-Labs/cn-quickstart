@@ -6,7 +6,7 @@
   "dependencies": {
     "@canton-network/core-ledger-client": "2.0.0",
     "@canton-network/core-ledger-client-types": "2.0.0",
-    "@daml/types": "3.5.2",
+    "@daml/types": "3.7.2",
     "@elysiajs/openapi": "1.4.15",
     "@mojotech/json-type-validation": "3.1.0",
     "elysia": "1.4.30",
