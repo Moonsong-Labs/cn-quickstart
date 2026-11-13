@@ -99,6 +99,8 @@ To start the application, from the repository root, with the tools above on `PAT
 ```bash
 # Host tools from the Setup section must already be on PATH.
 # Do not run direnv allow. That enters the unsupported Nix shell.
+# The CLI imports these workspace packages. Install them before entering quickstart.
+$ bun install --frozen-lockfile
 $ cd quickstart
 
 # Setup your quickstart environment
