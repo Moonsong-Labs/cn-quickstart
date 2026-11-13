@@ -84,13 +84,13 @@ dpm --version
 
 ### Check the install
 
-From `quickstart/`:
+From `quickstart/`, with `bun` already on `PATH`:
 
 ```bash
 make check-docker
 ```
 
-That target runs `qs doctor`. A Docker or Compose failure exits non-zero. A missing Bun, dpm, or JDK is a warning, and `make build` needs all three.
+That target runs `qs doctor` through `bun` (`quickstart/Makefile`). Without `bun` on `PATH`, `make` stops before doctor starts. When doctor runs, a Docker or Compose failure exits non-zero. A missing Bun, dpm, or JDK is a warning, and `make build` needs all three.
 
 ## Quickstart
 
@@ -128,7 +128,7 @@ If a container fails to start, there are a few things to try:
 - Ensure Docker Compose is configured to allocate enough memory. The recommended minimum total memory is 8 GB.
 - Start fresh with `make clean-all` and then manually delete all Docker images and volumes.
 
-**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21 (`java` on `PATH`). `qs doctor` checks that host JDK and `dpm`. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
+**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks `dpm`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
 
 If you need assistance, please follow these directions to gather the log information needed for debugging:
 1. `make setup`             # optional
