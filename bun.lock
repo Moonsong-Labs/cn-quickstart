@@ -15,7 +15,7 @@
       "dependencies": {
         "@canton-network/core-ledger-client": "2.0.0",
         "@canton-network/core-ledger-client-types": "2.0.0",
-        "@daml/types": "3.5.2",
+        "@daml/types": "3.7.2",
         "@elysiajs/openapi": "1.4.15",
         "@mojotech/json-type-validation": "3.1.0",
         "elysia": "1.4.30",
@@ -158,7 +158,7 @@
 
     "@cn-quickstart/cli": ["@cn-quickstart/cli@workspace:quickstart/cli"],
 
-    "@daml/types": ["@daml/types@3.5.2", "", { "dependencies": { "@mojotech/json-type-validation": "^3.1.0", "@types/lodash": "^4.5", "lodash": "^4.5" } }, "sha512-lWAXNOl1tdzodvDDw7XTv6dUZA0MeAQZtTklh+5kegNt1asKAhreppYkD+bogYU1DnMXUTeMgGmmMBZt1gZpJg=="],
+    "@daml/types": ["@daml/types@3.7.2", "", { "dependencies": { "@mojotech/json-type-validation": "^3.1.0", "@types/lodash": "^4.5", "lodash": "^4.5" } }, "sha512-fZShR9M1XQS024XB+SGYEVEx9MUhgaanP52cd+HNDXfyUV7cx9v3IRs4DXw9rhNg7vE0ECrlnHIY6R4Q68eodg=="],
 
     "@elysiajs/openapi": ["@elysiajs/openapi@1.4.15", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-HDtGIrWfFJk6UJS7qbgRmjifbSqnnRGDM3CsU/GVJkxLbEVEkNuQDf+Quh9fGbytSrJ8g4+tX9eVjshYhCH29w=="],
 

@@ -56,7 +56,7 @@ describe('runDoctor', () => {
     expect(await runDoctor(context)).toBe(0);
     expect(noted()).toContain('✓ Docker');
     expect(noted()).toContain('✓ Compose');
-    expect(noted()).toContain('0.8.4');
+    expect(noted()).toContain('0.10.2');
     expect(noted()).toContain('✓ JDK');
   });
 

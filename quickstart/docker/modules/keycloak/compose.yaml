@@ -22,7 +22,8 @@ x-vars:
 
 services:
   nginx-keycloak:
-    image: "nginx:${NGINX_VERSION}"
+    # LocalNet's NGINX_VERSION is a digest of nginx/nginx-unprivileged, which the official nginx repo does not have.
+    image: "nginx:${KEYCLOAK_NGINX_VERSION:-1.27.0}"
     container_name: nginx-keycloak
     volumes:
       - ${MODULES_DIR}/keycloak/conf/nginx.conf:/etc/nginx/nginx.conf

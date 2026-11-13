@@ -35,8 +35,8 @@ export async function tempProject(
   const dir = nested ? join(root, 'repo', 'quickstart') : join(root, 'quickstart');
   await mkdir(join(dir, 'docker', 'modules'), { recursive: true });
   await mkdir(join(dir, 'daml', 'licensing'), { recursive: true });
-  await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.8.4\nDOCKER_NETWORK=quickstart\n');
-  await writeFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'sdk-version: 3.5.2\n');
+  await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.10.2\nDOCKER_NETWORK=quickstart\n');
+  await writeFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'sdk-version: 3.7.1\n');
   if (envLocal !== undefined) await writeFile(join(dir, '.env.local'), envLocal);
   dirs.push(root);
   return dir;
