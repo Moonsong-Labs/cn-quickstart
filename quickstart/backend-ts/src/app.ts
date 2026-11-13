@@ -6,6 +6,7 @@ import { type Config, loadConfig } from './config/env';
 import { createApiDocumentation } from './http/plugins/openapi';
 import { featureFlagRoutes } from './http/routes/feature-flags';
 import { healthRoutes } from './http/routes/health';
+import { oidcRoutes } from './http/routes/oidc';
 import { sharedSecretRoutes } from './http/routes/shared-secret';
 import type { connectLedger } from './integrations/ledger/connect';
 
@@ -29,6 +30,8 @@ export function createApp(dependencies: AppDependencies, config: Config = loadCo
   const { application } = dependencies;
   if (application.authMode === AuthMode.SharedSecret) {
     app.use(sharedSecretRoutes([application.appProvider]));
+  } else {
+    app.use(oidcRoutes(application.appProvider.tenantId, application.oidc));
   }
   return app.use(healthRoutes).use(featureFlagRoutes(dependencies.application.authMode));
 }
