@@ -1,4 +1,4 @@
-type Tenant = {
+export type Tenant = {
   tenantId: string;
   partyId: string;
   internal: boolean;
