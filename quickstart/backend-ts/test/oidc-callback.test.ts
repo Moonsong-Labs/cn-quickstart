@@ -130,6 +130,27 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
           walletUrl: null,
         });
 
+        // The browser session grants admin access, but cannot rescue an invalid bearer.
+        const path = '/admin/tenant-registrations';
+        const listed = await get(path, session);
+        expect(listed.status).toBe(200);
+        expect(await listed.json()).toEqual([
+          {
+            tenantId: 'AppProvider',
+            partyId: 'configured-party',
+            internal: true,
+            clientId: 'browser',
+            issuerUrl: server.url.href,
+            walletUrl: null,
+            users: null,
+          },
+        ]);
+        const denied = await app.handle(
+          new Request(`http://internal${path}`, {
+            headers: { cookie: session ?? '', authorization: 'Bearer invalid' },
+          }),
+        );
+        expect(denied.status).toBe(401);
         const xsrf = response.headers
           .getSetCookie()
           .find((header) => header.startsWith('XSRF-TOKEN='));
