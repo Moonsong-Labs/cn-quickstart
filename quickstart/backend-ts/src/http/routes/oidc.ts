@@ -11,7 +11,17 @@ export function oidcRoutes(
   options: NonNullable<ApplicationConfig['oidc']>,
 ) {
   const registrationId = provider.tenantId;
-  const sessions = new Sessions<{ name: string | null; party: string }>();
+  const sessions = new Sessions<{
+    name: string | null;
+    party: string;
+    csrf: string;
+    idToken: string;
+  }>();
+  const cookieOptions = {
+    path: '/',
+    sameSite: 'lax',
+    secure: options.publicOrigin.startsWith('https:'),
+  } as const;
   const callbackPath = `/login/oauth2/code/${registrationId}`;
   const loginPath = `/oauth2/authorization/${registrationId}`;
   const redirectUri = new URL(callbackPath, options.publicOrigin).href;
@@ -88,69 +98,95 @@ export function oidcRoutes(
         return status(500, { message: 'Internal Server Error' });
       }
     })
-    .get(callbackPath, async ({ request, cookie: { OIDC_LOGIN, JSESSIONID }, redirect }) => {
-      const id = OIDC_LOGIN.value;
-      const attempt = typeof id === 'string' ? attempts.get(id) : undefined;
-      if (typeof id === 'string') attempts.delete(id);
-      OIDC_LOGIN.set({
-        value: '',
-        path: '/login/oauth2/code',
-        httpOnly: true,
-        maxAge: 0,
-        sameSite: 'lax',
-        secure: options.publicOrigin.startsWith('https:'),
-      });
-      if (!attempt || attempt.expires <= Date.now() || !configuration)
-        return redirect('/login?error', 302);
-
-      // Consume the attempt before the exchange so concurrent callbacks cannot reuse it.
-      const url = new URL(redirectUri);
-      url.search = new URL(request.url).search;
-      try {
-        const tokens = await oidc.authorizationCodeGrant(await configuration, url, {
-          expectedState: attempt.state,
-          expectedNonce: attempt.nonce,
-          pkceCodeVerifier: attempt.verifier,
-          idTokenExpected: true,
-        });
-        const claims = tokens.claims();
-        if (!claims) return redirect('/login?error', 302);
-        const party =
-          options.testProfile && typeof claims.party_id === 'string'
-            ? claims.party_id
-            : provider.partyId;
-        const session = sessions.open(
-          { name: typeof claims.name === 'string' ? claims.name : null, party },
-          JSESSIONID.value,
-        );
-        JSESSIONID.set({
-          value: session,
-          path: '/',
+    .get(
+      callbackPath,
+      async ({ request, cookie: { OIDC_LOGIN, JSESSIONID, 'XSRF-TOKEN': xsrf }, redirect }) => {
+        const id = OIDC_LOGIN.value;
+        const attempt = typeof id === 'string' ? attempts.get(id) : undefined;
+        if (typeof id === 'string') attempts.delete(id);
+        OIDC_LOGIN.set({
+          value: '',
+          path: '/login/oauth2/code',
           httpOnly: true,
+          maxAge: 0,
           sameSite: 'lax',
           secure: options.publicOrigin.startsWith('https:'),
         });
-        return redirect('/', 302);
-      } catch (error) {
-        console.warn(
-          'OIDC callback rejected',
-          error instanceof Error ? error.name : 'unknown error',
-        );
-        return redirect('/login?error', 302);
-      }
-    })
+        if (!attempt || attempt.expires <= Date.now() || !configuration)
+          return redirect('/login?error', 302);
+
+        // Consume the attempt before the exchange so concurrent callbacks cannot reuse it.
+        const url = new URL(redirectUri);
+        url.search = new URL(request.url).search;
+        try {
+          const tokens = await oidc.authorizationCodeGrant(await configuration, url, {
+            expectedState: attempt.state,
+            expectedNonce: attempt.nonce,
+            pkceCodeVerifier: attempt.verifier,
+            idTokenExpected: true,
+          });
+          const claims = tokens.claims();
+          if (!claims || !tokens.id_token) return redirect('/login?error', 302);
+          const party =
+            options.testProfile && typeof claims.party_id === 'string'
+              ? claims.party_id
+              : provider.partyId;
+          // The frontend echoes the readable cookie in X-XSRF-TOKEN on logout.
+          const csrf = crypto.randomUUID();
+          const session = sessions.open(
+            {
+              name: typeof claims.name === 'string' ? claims.name : null,
+              party,
+              csrf,
+              idToken: tokens.id_token,
+            },
+            JSESSIONID.value,
+          );
+          JSESSIONID.set({ ...cookieOptions, value: session, httpOnly: true });
+          xsrf.set({ ...cookieOptions, value: csrf, httpOnly: false });
+          return redirect('/', 302);
+        } catch (error) {
+          console.warn(
+            'OIDC callback rejected',
+            error instanceof Error ? error.name : 'unknown error',
+          );
+          return redirect('/login?error', 302);
+        }
+      },
+    )
     .get(
       '/user',
       ({ cookie: { JSESSIONID }, status }) => {
         const user = sessions.read(JSESSIONID.value);
         if (!user) return status(401, null);
         return {
-          ...user,
+          name: user.name,
+          party: user.party,
           roles: ['ROLE_ADMIN', registrationId, user.party],
           isAdmin: true,
           walletUrl: null,
         };
       },
       { detail: { operationId: 'getAuthenticatedUser', tags: ['Auth'] } },
+    )
+    .post(
+      '/logout',
+      async ({ cookie: { JSESSIONID, 'XSRF-TOKEN': xsrf }, headers, redirect, status }) => {
+        const session = sessions.read(JSESSIONID.value);
+        if (!session || xsrf.value !== session.csrf || headers['x-xsrf-token'] !== session.csrf) {
+          return status(403, null);
+        }
+        // Revoke local access even when the provider has no logout endpoint.
+        sessions.invalidate(JSESSIONID.value);
+        JSESSIONID.set({ ...cookieOptions, value: '', httpOnly: true, maxAge: 0 });
+        xsrf.set({ ...cookieOptions, value: '', httpOnly: false, maxAge: 0 });
+        const config = await configuration;
+        if (!config?.serverMetadata().end_session_endpoint) return redirect('/', 302);
+        return redirect(
+          oidc.buildEndSessionUrl(config, { id_token_hint: session.idToken }).href,
+          302,
+        );
+      },
+      { parse: 'none' },
     );
 }

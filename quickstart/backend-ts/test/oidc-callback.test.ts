@@ -14,6 +14,8 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
   };
   const codes = new Map<string, { nonce: string; challenge: string; wrongKey: boolean }>();
   let exchanges = 0;
+  let advertiseLogout = false;
+  let issuedIdToken = '';
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -25,6 +27,7 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
           issuer: origin,
           authorization_endpoint: `${origin}/authorize`,
           token_endpoint: `${origin}/token`,
+          ...(advertiseLogout ? { end_session_endpoint: `${origin}/end-session` } : {}),
           jwks_uri: `${origin}/keys`,
         });
       if (pathname === '/keys') return Response.json({ keys: [publicKey] });
@@ -64,10 +67,11 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
         Buffer.from(payload),
         grant.wrongKey ? other.privateKey : trusted.privateKey,
       );
+      issuedIdToken = `${payload}.${signature.toString('base64url')}`;
       return Response.json({
         token_type: 'Bearer',
         access_token: 'test-access',
-        id_token: `${payload}.${signature.toString('base64url')}`,
+        id_token: issuedIdToken,
       });
     },
   });
@@ -81,6 +85,7 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
       'pkce',
       'missing-cookie',
     ]) {
+      advertiseLogout = scenario === 'success';
       const application = readApplicationConfig({
         AUTH_MODE: 'oauth2',
         APP_PROVIDER_PARTY: 'configured-party',
@@ -124,6 +129,51 @@ test('Only a verified, single-use AppProvider callback opens an admin session', 
           roles: ['ROLE_ADMIN', 'AppProvider', party],
           walletUrl: null,
         });
+
+        const xsrf = response.headers
+          .getSetCookie()
+          .find((header) => header.startsWith('XSRF-TOKEN='));
+        expect(xsrf).toBeTruthy();
+        expect(xsrf).not.toContain('HttpOnly');
+        const csrfCookie = xsrf?.split(';')[0] ?? '';
+        const token = csrfCookie.slice('XSRF-TOKEN='.length);
+        /** Reproduces the frontend's empty JSON POST with the browser cookies. */
+        const logout = (cookie: string, csrf?: string) =>
+          app.handle(
+            new Request('http://internal/logout', {
+              method: 'POST',
+              headers: {
+                cookie,
+                'content-type': 'application/json',
+                ...(csrf ? { 'X-XSRF-TOKEN': csrf } : {}),
+              },
+            }),
+          );
+        const cookies = `${session}; ${csrfCookie}`;
+        for (const denied of [
+          await logout(cookies),
+          await logout(cookies, 'incorrect'),
+          await logout(session ?? '', token),
+          await logout(`${session}; XSRF-TOKEN=other`, 'other'),
+        ]) {
+          expect(denied.status).toBe(403);
+          expect(denied.headers.has('set-cookie')).toBe(false);
+        }
+        expect((await get('/user', session)).status).toBe(200);
+        const ended = await logout(cookies, token);
+        expect(ended.status).toBe(302);
+        if (advertiseLogout) {
+          const target = new URL(ended.headers.get('location') ?? '');
+          expect(target.origin + target.pathname).toBe(`${server.url.origin}/end-session`);
+          expect(target.searchParams.get('id_token_hint')).toBe(issuedIdToken);
+          expect(target.searchParams.has('post_logout_redirect_uri')).toBe(false);
+        } else expect(ended.headers.get('location')).toBe('/');
+        for (const name of ['JSESSIONID', 'XSRF-TOKEN']) {
+          expect(
+            ended.headers.getSetCookie().find((header) => header.startsWith(`${name}=`)),
+          ).toContain('Max-Age=0');
+        }
+        expect((await get('/user', session)).status).toBe(401);
       } else {
         expect(response.headers.get('location')).toBe('/login?error');
         expect(session).toBeUndefined();
