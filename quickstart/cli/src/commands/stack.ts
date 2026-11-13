@@ -362,8 +362,8 @@ async function cleanSweep(ctx: CommandContext): Promise<number> {
 async function sweepGroups(ctx: CommandContext, project: Project): Promise<number> {
   /** Network name from `.env`, or `quickstart`. */
   const network = project.settings.dockerNetwork;
-  /** Prefix of install-request volumes. The app stack's `down` does not remove them. */
-  const installRequest = 'create-app-install-request';
+  /** Volume prefix including Compose's `_`, so a longer project name is kept. */
+  const installRequest = 'create-app-install-request_';
   if (ctx.dryRun) {
     await loggedRun(ctx.io, ctx.runner, ['docker', 'ps', '-aq', '--filter', `network=${network}`], {
       cwd: project.dir,
