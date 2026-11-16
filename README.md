@@ -70,17 +70,19 @@ java -version
 
 ### dpm
 
-Install dpm 3.5.2 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
+The installer installs Daml SDK 3.5.2 through dpm. Put the `dpm` binary on `PATH`. 3.5.2 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
 
 ```bash
 curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.5.2
 ```
 
-The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the version:
+The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the active SDK version:
 
 ```bash
-dpm --version
+dpm version --active
 ```
+
+That prints `3.5.2`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set, and reports that CLI version.
 
 ### Check the install
 
