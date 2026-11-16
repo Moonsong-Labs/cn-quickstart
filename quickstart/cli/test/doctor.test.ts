@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { runDoctor } from '../src/commands/doctor.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import { dpmExecutable } from '../src/lib/dpm.ts';
-import type { Runner } from '../src/lib/exec.ts';
+import { type Runner, realRunner } from '../src/lib/exec.ts';
 import { scriptedIo } from './io.ts';
 import { projectCleaner, tempProject } from './project-fixture.ts';
 import { fakeRunner } from './runner.ts';
@@ -336,5 +336,72 @@ describe('runDoctor', () => {
       expect(noted()).toContain('3.5.2 (could not list installed SDKs)');
       expect(noted()).toContain('✓ JDK');
     }
+  });
+
+  test('warns when DPM_PATH is not executable and still prints the other checks', async () => {
+    const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    /** File `DPM_PATH` names. Mode 644 makes posix_spawn throw EACCES. */
+    const dpmPath = join(dir, 'dpm');
+    await writeFile(dpmPath, '');
+    await chmod(dpmPath, 0o644);
+    const io = scriptedIo([]);
+    const fake = fakeRunner([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    /** Live spawn for dpm only, so the test sees the real EACCES. */
+    const real = realRunner();
+    const runner: Runner = {
+      ...fake.runner,
+      capture(cmd, opts) {
+        if (cmd[0] === dpmPath) return real.capture(cmd, opts);
+        return fake.runner.capture(cmd, opts);
+      },
+    };
+    expect(
+      await runDoctor({
+        io: io.io,
+        env: { DPM_PATH: dpmPath },
+        cwd: dir,
+        cliDir: dir,
+        dryRun: false,
+        project: dir,
+        runner,
+      }),
+    ).toBe(0);
+    expect(io.noted()).toContain('! Daml SDK');
+    expect(io.noted()).toContain('! dpm CLI');
+    expect(io.noted()).toContain(`could not run ${dpmPath} (EACCES)`);
+    expect(io.noted()).not.toContain('not found on PATH');
+    expect(io.noted()).toContain('✓ Docker');
+    expect(io.noted()).toContain('✓ JDK');
+  });
+
+  test('warns when starting dpm throws without a code and still prints the other checks', async () => {
+    const { context, noted } = await ctx([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    /** Spawn that rejects before a status exists. Both dpm probes hit it. */
+    const runner: Runner = {
+      ...context.runner,
+      capture(cmd, opts) {
+        if (cmd[0] === 'dpm') return Promise.reject(new Error('spawn failed'));
+        return context.runner.capture(cmd, opts);
+      },
+    };
+    expect(await runDoctor({ ...context, runner })).toBe(0);
+    expect(noted()).toContain('could not run dpm');
+    expect(noted()).not.toContain('not found on PATH');
+    expect(noted()).toContain('! Daml SDK');
+    expect(noted()).toContain('! dpm CLI');
+    expect(noted()).toContain('✓ JDK');
   });
 });

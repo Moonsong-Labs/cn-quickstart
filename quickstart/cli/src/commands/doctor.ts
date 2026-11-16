@@ -170,7 +170,8 @@ const LICENSING_DIR = join('daml', 'licensing');
 /**
  * Advisory Daml SDK check.
  * `dpm version --active` runs in `daml/licensing`, the package `pinnedSdk` reads.
- * A missing dpm binary is a warning. Any other dpm failure is a warning with dpm's own text.
+ * A missing dpm binary is a warning. A spawn error such as EACCES is a warning too.
+ * Any other dpm failure is a warning with dpm's own text.
  * An active SDK that is not installed, or that differs from `sdk-version`, is also a warning.
  * A manifest read error stays a warning so the rest of the checklist still prints.
  */
@@ -179,8 +180,11 @@ async function dpmSdkCheck(ctx: CommandContext, projectDir: string): Promise<Che
   const bin = dpmExecutable(ctx.env);
   /** Licensing package. `dpm version --active` reads `sdk-version` from this directory. */
   const licensing = join(projectDir, LICENSING_DIR);
-  /** Active SDK. Status 127 means the executable is not on `PATH`. */
-  const result = await ctx.runner.capture([bin, 'version', '--active'], { cwd: licensing });
+  /** Active SDK. Status 127 means the executable is not on `PATH`. A throw is a spawn error. */
+  const captured = await captureDpm(ctx, [bin, 'version', '--active'], licensing);
+  if (!captured.ok) return { kind: 'warn', name: 'Daml SDK', detail: captured.detail };
+  /** Probe result, once dpm has started. */
+  const result = captured.result;
   if (result.code === 127) {
     return { kind: 'warn', name: 'Daml SDK', detail: 'not found on PATH' };
   }
@@ -251,6 +255,34 @@ function pinnedSdk(projectDir: string): PinnedSdk {
           : 'could not read daml/licensing/daml.yaml',
     };
   }
+}
+
+/** A finished dpm probe, or the warning detail when the process could not be started. */
+type DpmCapture = { ok: true; result: Captured } | { ok: false; detail: string };
+
+/**
+ * Run a dpm probe. ENOENT stays status 127 inside the runner.
+ * Any other spawn error, such as EACCES when `DPM_PATH` is not executable, is a detail.
+ * The caller turns that detail into a warning so the rest of the checklist still prints.
+ */
+async function captureDpm(ctx: CommandContext, cmd: string[], cwd: string): Promise<DpmCapture> {
+  try {
+    return { ok: true, result: await ctx.runner.capture(cmd, { cwd }) };
+  } catch (error) {
+    return { ok: false, detail: spawnFailure(cmd[0] ?? 'dpm', error) };
+  }
+}
+
+/**
+ * Checklist text for a dpm spawn error.
+ * The code is kept, so EACCES is not reported as a missing binary.
+ */
+function spawnFailure(bin: string, error: unknown): string {
+  /** `code` from the spawn error. Empty when the throw has none. */
+  const code =
+    error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : '';
+  if (code.length > 0) return `could not run ${bin} (${code})`;
+  return `could not run ${bin}`;
 }
 
 /**
@@ -341,12 +373,16 @@ function notInstalledDetail(have: string, pin: PinnedSdk): string {
 /**
  * Advisory dpm CLI check.
  * `dpm --version` prints the CLI, a different number from the Daml SDK.
+ * A spawn error is a warning, with the same detail as the SDK check.
  */
 async function dpmCliCheck(ctx: CommandContext): Promise<Check> {
   /** dpm binary. `DPM_PATH` replaces the `PATH` lookup when it is set. */
   const bin = dpmExecutable(ctx.env);
-  /** CLI version. A non-zero status means dpm did not answer, including when it is missing. */
-  const result = await ctx.runner.capture([bin, '--version'], { cwd: ctx.cwd });
+  /** CLI version. A throw is a spawn error, such as EACCES on a non-executable `DPM_PATH`. */
+  const captured = await captureDpm(ctx, [bin, '--version'], ctx.cwd);
+  if (!captured.ok) return { kind: 'warn', name: 'dpm CLI', detail: captured.detail };
+  /** Probe result, once dpm has started. */
+  const result = captured.result;
   if (result.code !== 0) {
     return { kind: 'warn', name: 'dpm CLI', detail: 'not found on PATH' };
   }
