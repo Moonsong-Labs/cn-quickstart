@@ -192,9 +192,9 @@ async function dpmSdkCheck(ctx: CommandContext, projectDir: string): Promise<Che
   if (have.length === 0) {
     return { kind: 'warn', name: 'Daml SDK', detail: 'could not read the version' };
   }
-  /** Install flag, or a failure when the listing could not be started. */
+  /** Install flag. Unknown covers a failed, malformed, or unmatched listing. */
   const install = await sdkInstalled(ctx, bin, licensing, have);
-  if (!install.listed) {
+  if (!install.listed || install.installed === null) {
     return {
       kind: 'warn',
       name: 'Daml SDK',
@@ -266,13 +266,17 @@ function activeSdkFailure(result: Captured): string {
   return text;
 }
 
-/** Result of `dpm version -o json`. `listed: false` means the command could not be started. */
+/**
+ * Result of `dpm version -o json`.
+ * `listed: false` means the command could not be started.
+ * `installed: null` means the listing ran but did not say whether this version is installed.
+ */
 type SdkInstall = { listed: true; installed: boolean | null } | { listed: false };
 
 /**
  * Whether `dpm version -o json` marks `version` active and installed.
- * `installed` is null when the listing ran but could not be read.
- * `listed: false` is a startup failure. That stays inside this result so doctor keeps printing.
+ * `installed` is null when the command fails, the JSON is unusable, or no active row matches.
+ * `listed: false` is a startup failure. Either unknown state is a warning, not a pass.
  * `dpm version --active` prints the pin even when that SDK is not installed.
  */
 async function sdkInstalled(
