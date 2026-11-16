@@ -13,7 +13,7 @@ import {
   MIN_DOCKER,
   plainVersion,
 } from '../lib/docker.ts';
-import { dpmExecutable } from '../lib/dpm.ts';
+import { damlSdkVersion, dpmExecutable } from '../lib/dpm.ts';
 import type { Captured } from '../lib/exec.ts';
 import { resolveProjectRoot } from '../lib/paths.ts';
 import { readProject } from '../lib/project.ts';
@@ -117,7 +117,8 @@ async function collectChecks(ctx: CommandContext): Promise<number> {
   }
 
   checks.push(await toolVersion(ctx, 'Bun', ['bun', '--version'], pinnedBun(dir)));
-  checks.push(await toolVersion(ctx, 'dpm', [dpmExecutable(ctx.env), '--version'], null));
+  checks.push(await dpmSdkCheck(ctx, dir));
+  checks.push(await dpmCliCheck(ctx));
   checks.push(await javaCheck(ctx));
 
   for (const check of checks) report(ctx, check);
@@ -161,6 +162,94 @@ async function toolVersion(
     return { kind: 'warn', name, detail: `${have} (pinned ${expected} in .bun-version)` };
   }
   return { kind: 'ok', name, detail: have };
+}
+
+/**
+ * Advisory Daml SDK check.
+ * `dpm version --active` prints the SDK dpm builds with. A missing dpm is a warning.
+ * A version other than `sdk-version` in `daml/licensing/daml.yaml` is also a warning.
+ */
+async function dpmSdkCheck(ctx: CommandContext, projectDir: string): Promise<Check> {
+  /** dpm binary. `DPM_PATH` replaces the `PATH` lookup when it is set. */
+  const bin = dpmExecutable(ctx.env);
+  /** Active SDK. A non-zero status means dpm did not answer, including when it is missing. */
+  const result = await ctx.runner.capture([bin, 'version', '--active'], { cwd: ctx.cwd });
+  if (result.code !== 0) {
+    return { kind: 'warn', name: 'Daml SDK', detail: 'not found on PATH' };
+  }
+  /** First line. `dpm version --active` prints the version alone. */
+  const have = (result.stdout || result.stderr).trim().split(/\r?\n/)[0] ?? '';
+  if (have.length === 0) {
+    return { kind: 'warn', name: 'Daml SDK', detail: 'could not read the version' };
+  }
+  /** SDK the packages were written for, or null when the manifest cannot be read. */
+  const expected = pinnedSdk(projectDir);
+  if (expected === null) {
+    return {
+      kind: 'warn',
+      name: 'Daml SDK',
+      detail: `${have} (sdk-version not found in daml/licensing/daml.yaml)`,
+    };
+  }
+  if (have !== expected) {
+    return {
+      kind: 'warn',
+      name: 'Daml SDK',
+      detail: `${have} (pinned ${expected} in daml/licensing/daml.yaml)`,
+    };
+  }
+  return { kind: 'ok', name: 'Daml SDK', detail: have };
+}
+
+/**
+ * `sdk-version` from `daml/licensing/daml.yaml`, or null when the file or the key is missing.
+ * A missing manifest stays a warning so the rest of the checklist still prints.
+ */
+function pinnedSdk(projectDir: string): string | null {
+  try {
+    return damlSdkVersion(projectDir);
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
+    if (
+      error instanceof Error &&
+      error.message === 'sdk-version not found in daml/licensing/daml.yaml'
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Advisory dpm CLI check.
+ * `dpm --version` prints the CLI, a different number from the Daml SDK.
+ */
+async function dpmCliCheck(ctx: CommandContext): Promise<Check> {
+  /** dpm binary. `DPM_PATH` replaces the `PATH` lookup when it is set. */
+  const bin = dpmExecutable(ctx.env);
+  /** CLI version. A non-zero status means dpm did not answer, including when it is missing. */
+  const result = await ctx.runner.capture([bin, '--version'], { cwd: ctx.cwd });
+  if (result.code !== 0) {
+    return { kind: 'warn', name: 'dpm CLI', detail: 'not found on PATH' };
+  }
+  /** Version number, without the `version:` prefix `dpm --version` prints. */
+  const have = dpmCliVersion(`${result.stdout}\n${result.stderr}`);
+  if (have.length === 0) {
+    return { kind: 'warn', name: 'dpm CLI', detail: 'could not read the version' };
+  }
+  return { kind: 'ok', name: 'dpm CLI', detail: have };
+}
+
+/**
+ * CLI version from `dpm --version`.
+ * The first line is `version:` followed by the number. A line without that prefix is unchanged.
+ */
+function dpmCliVersion(text: string): string {
+  /** First line. Later lines are the build id and the build date. */
+  const line = text.trim().split(/\r?\n/)[0] ?? '';
+  /** Number after `version:`. Absent when the line is already just the number. */
+  const match = /^version:\s*(\S+)/.exec(line);
+  return match?.[1] ?? line;
 }
 
 /**
