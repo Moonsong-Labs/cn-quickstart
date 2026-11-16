@@ -70,10 +70,10 @@ java -version
 
 ### dpm
 
-Install dpm 3.5.2 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
+Install dpm 3.7.1 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
 
 ```bash
-curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.5.2
+curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.7.1
 ```
 
 The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the version:
