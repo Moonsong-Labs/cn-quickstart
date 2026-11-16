@@ -1,6 +1,8 @@
 services:
   backend-service:
     ports:
-      - "5005:5005"  # Expose the debug port
+      # Published on 127.0.0.1 unless HOST_BIND_IP is set.
+      # The agent keeps address=*:5005 so Docker can reach it inside the container.
+      - "${HOST_BIND_IP:-127.0.0.1}:5005:5005"
     environment:
       - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
