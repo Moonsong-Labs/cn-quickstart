@@ -41,14 +41,19 @@ pkgs.stdenv.mkDerivation {
       $out/sdk-manifest.yaml
     DPM_HOME=$out $out/bin/dpm bootstrap $out
 
-    # damlc ide expects script-service.jar inside its own resources directory,
-    # but dpm installs it as a separate daml-script component. Those two
-    # components are not the SDK version: 3.7.1 ships them as 3.7.0.
+    # damlc ide loads script-service.jar from damlc-dist-dpm/resources, but dpm
+    # installs it in the daml-script component. Those components are 3.7.0
+    # inside the 3.7.1 SDK, so the paths are discovered on disk. Missing
+    # either path aborts the install.
     script_jar=$(find $out/cache/components/daml-script -name script-service.jar -print -quit)
-    resources=$(find $out/cache/components/damlc -type d -path '*/damlc-dist-dpm/lib/resources' -print -quit)
-    if [ -n "$script_jar" ] && [ -n "$resources" ]; then
-      ln -s "$script_jar" "$resources/script-service.jar"
+    resources=$(find $out/cache/components/damlc -type d -path '*/damlc-dist-dpm/resources' -print -quit)
+    if [ -z "$script_jar" ] || [ -z "$resources" ]; then
+      echo "damlc ide needs script-service.jar linked into damlc's resources directory." >&2
+      echo "script-service.jar: ''${script_jar:-missing}" >&2
+      echo "damlc resources: ''${resources:-missing}" >&2
+      exit 1
     fi
+    ln -s "$script_jar" "$resources/script-service.jar"
 
     rm -rf $out/oci-registry
     rm -rf $out/cache/oci-layout/*

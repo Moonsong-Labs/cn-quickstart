@@ -4,8 +4,9 @@
 #
 # The tarball is the one nix/dpm.nix fetches. Before bootstrap, the SDK
 # manifest is trimmed to the same components as that derivation. After
-# bootstrap, script-service.jar is linked into damlc's resources when the
-# daml-script component produced it. The install does not outlive the job.
+# bootstrap, script-service.jar is linked into damlc's resources directory,
+# which is where damlc ide looks for it. The install exits if that jar or
+# directory is missing. The install does not outlive the job.
 
 set -euo pipefail
 
@@ -46,12 +47,18 @@ chmod +x "${yq}"
 DPM_HOME="${dest}" "${dest}/bin/dpm" bootstrap "${dest}"
 
 # Component directories use the component version from the manifest, which
-# is 3.7.0 for damlc and daml-script inside the 3.7.1 SDK.
-script_jar="$(find "${dest}/cache/components/daml-script" -name script-service.jar -print -quit || true)"
-resources="$(find "${dest}/cache/components/damlc" -type d -path '*/damlc-dist-dpm/lib/resources' -print -quit || true)"
-if [ -n "${script_jar}" ] && [ -n "${resources}" ]; then
-  ln -sfn "${script_jar}" "${resources}/script-service.jar"
+# is 3.7.0 for damlc and daml-script inside the 3.7.1 SDK. damlc ide loads
+# script-service.jar from damlc-dist-dpm/resources; dpm leaves the jar in the
+# daml-script component, so the link below is what makes the IDE find it.
+script_jar="$(find "${dest}/cache/components/daml-script" -name script-service.jar -print -quit)"
+resources="$(find "${dest}/cache/components/damlc" -type d -path '*/damlc-dist-dpm/resources' -print -quit)"
+if [ -z "${script_jar}" ] || [ -z "${resources}" ]; then
+  echo "damlc ide needs script-service.jar linked into damlc's resources directory." >&2
+  echo "script-service.jar: ${script_jar:-missing}" >&2
+  echo "damlc resources: ${resources:-missing}" >&2
+  exit 1
 fi
+ln -sfn "${script_jar}" "${resources}/script-service.jar"
 
 echo "${dest}/bin" >> "${GITHUB_PATH}"
 {
