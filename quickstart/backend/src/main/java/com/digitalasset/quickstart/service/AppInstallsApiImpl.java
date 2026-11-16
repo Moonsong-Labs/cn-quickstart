@@ -16,6 +16,7 @@ import io.opentelemetry.instrumentation.annotations.WithSpan;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -100,7 +101,7 @@ public class AppInstallsApiImpl implements AppInstallsApi {
                     }
                     Metadata paramsMeta = new Metadata(createLicenseRequest.getParams().getMeta().getData());
                     LicenseParams params = new LicenseParams(paramsMeta);
-                    AppInstall_CreateLicense choice = new AppInstall_CreateLicense(params);
+                    AppInstall_CreateLicense choice = new AppInstall_CreateLicense(UUID.randomUUID().toString(), params);
                     return ledger.exerciseAndGetResult(contract.contractId, choice, commandId)
                             .thenApply(licenseContractId -> {
                                 AppInstallCreateLicenseResult result = new AppInstallCreateLicenseResult();

@@ -205,6 +205,7 @@ public class LicenseApiImpl implements LicensesApi {
         var paramsApi = new LicenseParams();
         licenseApi.setParams(paramsApi.meta(metaApi.data(lp.getParams.getMeta.getValues)));
         licenseApi.setExpiresAt(toOffsetDateTime(lp.getExpiresAt));
+        licenseApi.setUuid(lp.getUuid);
         licenseApi.setLicenseNum(lp.getLicenseNum.intValue());
         var renewalsApi = licenseContract.renewals().stream().map(renewalContract ->
                 toLicenseRenewalRequestAPI(renewalContract, now)
@@ -219,6 +220,7 @@ public class LicenseApiImpl implements LicensesApi {
         renewalApi.setContractId(renewalContract.renewal().contractId.getContractId);
         renewalApi.setProvider(rp.getProvider.getParty);
         renewalApi.setUser(rp.getUser.getParty);
+        renewalApi.setUuid(rp.getUuid);
         renewalApi.setLicenseNum(rp.getLicenseNum.intValue());
         renewalApi.setLicenseFeeAmount(rp.getLicenseFeeAmount);
         renewalApi.setDescription(rp.getDescription);

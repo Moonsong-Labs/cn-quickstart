@@ -679,6 +679,7 @@ components:
         - user
         - params
         - expiresAt
+        - uuid
         - licenseNum
         - isExpired
       properties:
@@ -693,6 +694,9 @@ components:
         expiresAt:
           type: string
           format: date-time
+        uuid:
+          type: string
+          description: Stable identifier of the license across renewals.
         licenseNum:
           type: integer
         isExpired:
@@ -748,6 +752,7 @@ components:
           - contractId
           - provider
           - user
+          - uuid
           - licenseNum
           - licenseFeeAmount
           - licenseFeeInstrument
@@ -766,6 +771,9 @@ components:
           type: string
         user:
           type: string
+        uuid:
+          type: string
+          description: Stable identifier of the license across renewals.
         licenseNum:
           type: integer
         licenseFeeAmount:
