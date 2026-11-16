@@ -164,60 +164,159 @@ async function toolVersion(
   return { kind: 'ok', name, detail: have };
 }
 
+/** Where the licensing package's `sdk-version` lives, relative to the quickstart root. */
+const LICENSING_DIR = join('daml', 'licensing');
+
 /**
  * Advisory Daml SDK check.
- * `dpm version --active` prints the SDK dpm builds with. A missing dpm is a warning.
- * A version other than `sdk-version` in `daml/licensing/daml.yaml` is also a warning.
+ * `dpm version --active` runs in `daml/licensing`, the package `pinnedSdk` reads.
+ * A missing dpm binary is a warning. Any other dpm failure is a warning with dpm's own text.
+ * An active SDK that is not installed, or that differs from `sdk-version`, is also a warning.
+ * A manifest read error stays a warning so the rest of the checklist still prints.
  */
 async function dpmSdkCheck(ctx: CommandContext, projectDir: string): Promise<Check> {
   /** dpm binary. `DPM_PATH` replaces the `PATH` lookup when it is set. */
   const bin = dpmExecutable(ctx.env);
-  /** Active SDK. A non-zero status means dpm did not answer, including when it is missing. */
-  const result = await ctx.runner.capture([bin, 'version', '--active'], { cwd: ctx.cwd });
-  if (result.code !== 0) {
+  /** Licensing package. `dpm version --active` reads `sdk-version` from this directory. */
+  const licensing = join(projectDir, LICENSING_DIR);
+  /** Active SDK. Status 127 means the executable is not on `PATH`. */
+  const result = await ctx.runner.capture([bin, 'version', '--active'], { cwd: licensing });
+  if (result.code === 127) {
     return { kind: 'warn', name: 'Daml SDK', detail: 'not found on PATH' };
   }
-  /** First line. `dpm version --active` prints the version alone. */
+  if (result.code !== 0) {
+    return { kind: 'warn', name: 'Daml SDK', detail: activeSdkFailure(result) };
+  }
+  /** First line. `dpm version --active` prints the version alone, installed or not. */
   const have = (result.stdout || result.stderr).trim().split(/\r?\n/)[0] ?? '';
   if (have.length === 0) {
     return { kind: 'warn', name: 'Daml SDK', detail: 'could not read the version' };
   }
-  /** SDK the packages were written for, or null when the manifest cannot be read. */
-  const expected = pinnedSdk(projectDir);
-  if (expected === null) {
-    return {
-      kind: 'warn',
-      name: 'Daml SDK',
-      detail: `${have} (sdk-version not found in daml/licensing/daml.yaml)`,
-    };
+  /** Whether `dpm version -o json` marks this version installed. Null when the listing is unusable. */
+  const installed = await sdkInstalled(ctx, bin, licensing, have);
+  /** Pin from `daml.yaml`, or the warning text when that file cannot be read. */
+  const pin = pinnedSdk(projectDir);
+  if (installed === false) {
+    return { kind: 'warn', name: 'Daml SDK', detail: notInstalledDetail(have, pin) };
   }
-  if (have !== expected) {
+  if (!pin.ok) {
+    return { kind: 'warn', name: 'Daml SDK', detail: `${have} (${pin.detail})` };
+  }
+  if (have !== pin.version) {
     return {
       kind: 'warn',
       name: 'Daml SDK',
-      detail: `${have} (pinned ${expected} in daml/licensing/daml.yaml)`,
+      detail: `${have} (pinned ${pin.version} in daml/licensing/daml.yaml)`,
     };
   }
   return { kind: 'ok', name: 'Daml SDK', detail: have };
 }
 
+/** `sdk-version` from the licensing manifest, or a warning detail when it cannot be read. */
+type PinnedSdk = { ok: true; version: string } | { ok: false; detail: string };
+
 /**
- * `sdk-version` from `daml/licensing/daml.yaml`, or null when the file or the key is missing.
- * A missing manifest stays a warning so the rest of the checklist still prints.
+ * `sdk-version` from `daml/licensing/daml.yaml`.
+ * A missing file, a missing key, or any other read error is a detail string.
+ * Nothing is rethrown, so one bad manifest does not drop the rest of the checklist.
  */
-function pinnedSdk(projectDir: string): string | null {
+function pinnedSdk(projectDir: string): PinnedSdk {
   try {
-    return damlSdkVersion(projectDir);
+    return { ok: true, version: damlSdkVersion(projectDir) };
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
     if (
       error instanceof Error &&
       error.message === 'sdk-version not found in daml/licensing/daml.yaml'
     ) {
-      return null;
+      return { ok: false, detail: 'sdk-version not found in daml/licensing/daml.yaml' };
     }
-    throw error;
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return { ok: false, detail: 'sdk-version not found in daml/licensing/daml.yaml' };
+    }
+    /** `code` from a Node `fs` error, such as `EACCES`. Empty for any other throw. */
+    const code =
+      error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : '';
+    return {
+      ok: false,
+      detail:
+        code.length > 0
+          ? `could not read daml/licensing/daml.yaml (${code})`
+          : 'could not read daml/licensing/daml.yaml',
+    };
   }
+}
+
+/**
+ * First error line from a failed `dpm version --active`.
+ * Drops a leading `Error:` so the checklist shows dpm's reason, not "not found on PATH".
+ */
+function activeSdkFailure(result: Captured): string {
+  /** stderr first. A usage dump on stdout is not the reason. */
+  const line = (result.stderr || result.stdout).trim().split(/\r?\n/)[0] ?? '';
+  /** Reason without the `Error:` prefix dpm prints. */
+  const text = line.replace(/^Error:\s*/, '');
+  if (text.length === 0) return `could not read the active SDK (exit ${result.code})`;
+  return text;
+}
+
+/**
+ * True when `dpm version -o json` marks `version` active and installed.
+ * False when that row is active and not installed. Null when the listing cannot be read.
+ * `dpm version --active` prints the pin even when that SDK is not installed.
+ */
+async function sdkInstalled(
+  ctx: CommandContext,
+  bin: string,
+  licensing: string,
+  version: string,
+): Promise<boolean | null> {
+  /** Version table, including an `installed` flag the `--active` line does not print. */
+  const listed = await ctx.runner.capture([bin, 'version', '-o', 'json'], { cwd: licensing });
+  if (listed.code !== 0) return null;
+  return installedFlag(listed.stdout, version);
+}
+
+/** One row of `dpm version -o json`. */
+type SdkRow = { version: string; installed?: boolean; active?: boolean };
+
+/**
+ * Whether `value` is an SDK row. The `installed` and `active` flags are optional.
+ */
+function isSdkRow(value: unknown): value is SdkRow {
+  if (value === null || typeof value !== 'object') return false;
+  return 'version' in value && typeof value.version === 'string';
+}
+
+/**
+ * Installation flag for the active row whose version is `version`.
+ * Returns null when the JSON is not a list or has no matching active row.
+ */
+function installedFlag(json: string, version: string): boolean | null {
+  try {
+    /** Parsed listing. Anything other than an array is ignored. */
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return null;
+    /** Active row for this version. A missing `installed` flag means it is not installed. */
+    const row = parsed.find(
+      (item) => isSdkRow(item) && item.version === version && item.active === true,
+    );
+    if (!isSdkRow(row)) return null;
+    return row.installed === true;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Warning text when the active SDK is not installed.
+ * A different pin, or a manifest that could not be read, is appended.
+ */
+function notInstalledDetail(have: string, pin: PinnedSdk): string {
+  if (!pin.ok) return `${have} is not installed (${pin.detail})`;
+  if (have !== pin.version) {
+    return `${have} is not installed (pinned ${pin.version} in daml/licensing/daml.yaml)`;
+  }
+  return `${have} is not installed`;
 }
 
 /**

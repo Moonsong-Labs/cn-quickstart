@@ -82,7 +82,7 @@ The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, 
 dpm version --active
 ```
 
-That prints `3.5.2`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when the active SDK differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
+That prints `3.5.2`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when that SDK is not installed or differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
 
 ### Check the install
 

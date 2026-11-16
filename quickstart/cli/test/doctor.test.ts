@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { writeFile } from 'node:fs/promises';
+import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runDoctor } from '../src/commands/doctor.ts';
 import type { CommandContext } from '../src/lib/context.ts';
@@ -13,6 +13,14 @@ import { fakeRunner } from './runner.ts';
 
 /** Temp checkouts for this file. */
 const cleaner = projectCleaner();
+
+/**
+ * `dpm version -o json` listing one active, installed SDK.
+ * `--active` prints the version either way, so the install flag comes from this listing.
+ */
+function installedJson(version: string): { stdout: string } {
+  return { stdout: `[{"version":"${version}","installed":true,"active":true}]\n` };
+}
 
 afterEach(() => cleaner.cleanup());
 
@@ -51,6 +59,7 @@ describe('runDoctor', () => {
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
       { stdout: '3.5.2\n' },
+      installedJson('3.5.2'),
       { stdout: 'version: 1.0.21\nbuild: abc\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -75,6 +84,7 @@ describe('runDoctor', () => {
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
       { stdout: '3.5.2\n' },
+      installedJson('3.5.2'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -90,12 +100,14 @@ describe('runDoctor', () => {
         runner: fake.runner,
       }),
     ).toBe(0);
-    expect(fake.calls.filter((call) => call.cmd[0] === '/opt/dpm').map((call) => call.cmd)).toEqual(
-      [
-        ['/opt/dpm', 'version', '--active'],
-        ['/opt/dpm', '--version'],
-      ],
-    );
+    const dpmCalls = fake.calls.filter((call) => call.cmd[0] === '/opt/dpm');
+    expect(dpmCalls.map((call) => call.cmd)).toEqual([
+      ['/opt/dpm', 'version', '--active'],
+      ['/opt/dpm', 'version', '-o', 'json'],
+      ['/opt/dpm', '--version'],
+    ]);
+    expect(dpmCalls[0]?.cwd).toBe(join(dir, 'daml', 'licensing'));
+    expect(dpmCalls[1]?.cwd).toBe(join(dir, 'daml', 'licensing'));
     expect(io.noted()).toContain('✓ Daml SDK');
     expect(io.noted()).toContain('3.5.2');
   });
@@ -131,6 +143,7 @@ describe('runDoctor', () => {
       { stdout: '5.5.0\n' },
       { stdout: '1.3.14\n' },
       { stdout: '3.5.2\n' },
+      installedJson('3.5.2'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "27.0.1"\n' },
     ]);
@@ -146,6 +159,7 @@ describe('runDoctor', () => {
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
       { stdout: '3.4.0\n' },
+      installedJson('3.4.0'),
       { stdout: '1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -167,6 +181,7 @@ describe('runDoctor', () => {
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
       { stdout: '3.5.2\n' },
+      installedJson('3.5.2'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -182,5 +197,77 @@ describe('runDoctor', () => {
       }),
     ).toBe(0);
     expect(io.noted()).toContain('sdk-version not found in daml/licensing/daml.yaml');
+  });
+
+  test('warns when the active SDK is not installed and still succeeds', async () => {
+    const { context, noted } = await ctx([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { stdout: '3.5.2\n' },
+      { stdout: '[{"version":"3.5.2","active":true}]\n' },
+      { stdout: 'version: 1.0.21\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    expect(await runDoctor(context)).toBe(0);
+    expect(noted()).toContain('! Daml SDK');
+    expect(noted()).toContain('3.5.2 is not installed');
+    expect(noted()).not.toContain('not found on PATH');
+    expect(noted()).toContain('✓ JDK');
+  });
+
+  test('reports a dpm error instead of a missing binary', async () => {
+    const { context, noted } = await ctx([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { code: 1, stderr: 'Error: no SDK version is active\n' },
+      { stdout: 'version: 1.0.21\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    expect(await runDoctor(context)).toBe(0);
+    expect(noted()).toContain('no SDK version is active');
+    expect(noted()).not.toContain('not found on PATH');
+    expect(noted()).toContain('✓ dpm CLI');
+    expect(noted()).toContain('✓ JDK');
+  });
+
+  test('warns when daml.yaml cannot be read and still prints the other checks', async () => {
+    const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
+    /** Manifest made unreadable. The same user then gets EACCES from readFileSync. */
+    const yaml = join(dir, 'daml', 'licensing', 'daml.yaml');
+    await chmod(yaml, 0o000);
+    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    const io = scriptedIo([]);
+    const fake = fakeRunner([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { stdout: '3.5.2\n' },
+      installedJson('3.5.2'),
+      { stdout: 'version: 1.0.21\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    try {
+      expect(
+        await runDoctor({
+          io: io.io,
+          env: {},
+          cwd: dir,
+          cliDir: dir,
+          dryRun: false,
+          project: dir,
+          runner: fake.runner,
+        }),
+      ).toBe(0);
+    } finally {
+      await chmod(yaml, 0o644);
+    }
+    expect(io.noted()).toContain('could not read daml/licensing/daml.yaml (EACCES)');
+    expect(io.noted()).toContain('✓ JDK');
+    expect(io.noted()).toContain('✓ Docker');
   });
 });
