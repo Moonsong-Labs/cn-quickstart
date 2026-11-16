@@ -70,17 +70,19 @@ java -version
 
 ### dpm
 
-Install dpm 3.7.1 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
+The installer installs Daml SDK 3.7.1 through dpm. Put the `dpm` binary on `PATH`. 3.7.1 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
 
 ```bash
 curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.7.1
 ```
 
-The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the version:
+The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the active SDK version:
 
 ```bash
-dpm --version
+dpm version --active
 ```
+
+That prints `3.7.1`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when that SDK is not installed or differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
 
 ### Check the install
 
@@ -130,7 +132,7 @@ If a container fails to start, there are a few things to try:
 - Ensure Docker Compose is configured to allocate enough memory. The recommended minimum total memory is 8 GB.
 - Start fresh with `make clean-all` and then manually delete all Docker images and volumes.
 
-**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks `dpm`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
+**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks the active Daml SDK with `dpm version --active`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
 
 If you need assistance, please follow these directions to gather the log information needed for debugging:
 1. `make setup`             # optional
