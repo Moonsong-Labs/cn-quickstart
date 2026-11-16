@@ -192,11 +192,18 @@ async function dpmSdkCheck(ctx: CommandContext, projectDir: string): Promise<Che
   if (have.length === 0) {
     return { kind: 'warn', name: 'Daml SDK', detail: 'could not read the version' };
   }
-  /** Whether `dpm version -o json` marks this version installed. Null when the listing is unusable. */
-  const installed = await sdkInstalled(ctx, bin, licensing, have);
+  /** Install flag, or a failure when the listing could not be started. */
+  const install = await sdkInstalled(ctx, bin, licensing, have);
+  if (!install.listed) {
+    return {
+      kind: 'warn',
+      name: 'Daml SDK',
+      detail: `${have} (could not list installed SDKs)`,
+    };
+  }
   /** Pin from `daml.yaml`, or the warning text when that file cannot be read. */
   const pin = pinnedSdk(projectDir);
-  if (installed === false) {
+  if (install.installed === false) {
     return { kind: 'warn', name: 'Daml SDK', detail: notInstalledDetail(have, pin) };
   }
   if (!pin.ok) {
@@ -259,9 +266,13 @@ function activeSdkFailure(result: Captured): string {
   return text;
 }
 
+/** Result of `dpm version -o json`. `listed: false` means the command could not be started. */
+type SdkInstall = { listed: true; installed: boolean | null } | { listed: false };
+
 /**
- * True when `dpm version -o json` marks `version` active and installed.
- * False when that row is active and not installed. Null when the listing cannot be read.
+ * Whether `dpm version -o json` marks `version` active and installed.
+ * `installed` is null when the listing ran but could not be read.
+ * `listed: false` is a startup failure. That stays inside this result so doctor keeps printing.
  * `dpm version --active` prints the pin even when that SDK is not installed.
  */
 async function sdkInstalled(
@@ -269,11 +280,15 @@ async function sdkInstalled(
   bin: string,
   licensing: string,
   version: string,
-): Promise<boolean | null> {
-  /** Version table, including an `installed` flag the `--active` line does not print. */
-  const listed = await ctx.runner.capture([bin, 'version', '-o', 'json'], { cwd: licensing });
-  if (listed.code !== 0) return null;
-  return installedFlag(listed.stdout, version);
+): Promise<SdkInstall> {
+  try {
+    /** Version table, including an `installed` flag the `--active` line does not print. */
+    const listed = await ctx.runner.capture([bin, 'version', '-o', 'json'], { cwd: licensing });
+    if (listed.code !== 0) return { listed: true, installed: null };
+    return { listed: true, installed: installedFlag(listed.stdout, version) };
+  } catch {
+    return { listed: false };
+  }
 }
 
 /** One row of `dpm version -o json`. */

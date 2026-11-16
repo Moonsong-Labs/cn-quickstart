@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { runDoctor } from '../src/commands/doctor.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import { dpmExecutable } from '../src/lib/dpm.ts';
+import type { Runner } from '../src/lib/exec.ts';
 import { scriptedIo } from './io.ts';
 import { projectCleaner, tempProject } from './project-fixture.ts';
 import { fakeRunner } from './runner.ts';
@@ -269,5 +270,45 @@ describe('runDoctor', () => {
     expect(io.noted()).toContain('could not read daml/licensing/daml.yaml (EACCES)');
     expect(io.noted()).toContain('✓ JDK');
     expect(io.noted()).toContain('✓ Docker');
+  });
+
+  test('warns when the SDK listing cannot be started and still prints the other checks', async () => {
+    const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    const io = scriptedIo([]);
+    const fake = fakeRunner([
+      { code: 0 },
+      { stdout: '29.8.2\n' },
+      { stdout: '5.5.0\n' },
+      { stdout: '1.3.3\n' },
+      { stdout: '3.5.2\n' },
+      { stdout: 'version: 1.0.21\n' },
+      { stderr: 'openjdk version "21.0.2"\n' },
+    ]);
+    /** Listing spawn. A non-ENOENT startup error is what `capture` rethrows. */
+    const runner: Runner = {
+      ...fake.runner,
+      capture(cmd, opts) {
+        if (cmd.includes('-o')) {
+          return Promise.reject(Object.assign(new Error('spawn EACCES'), { code: 'EACCES' }));
+        }
+        return fake.runner.capture(cmd, opts);
+      },
+    };
+    expect(
+      await runDoctor({
+        io: io.io,
+        env: {},
+        cwd: dir,
+        cliDir: dir,
+        dryRun: false,
+        project: dir,
+        runner,
+      }),
+    ).toBe(0);
+    expect(io.noted()).toContain('3.5.2 (could not list installed SDKs)');
+    expect(io.noted()).toContain('✓ Docker');
+    expect(io.noted()).toContain('✓ JDK');
+    expect(io.noted()).toContain('✓ dpm CLI');
   });
 });
