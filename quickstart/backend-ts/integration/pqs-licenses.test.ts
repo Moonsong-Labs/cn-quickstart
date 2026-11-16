@@ -16,6 +16,7 @@ const party = { provider: 'provider::test', user: 'user::test' };
 const licensePayload = (provider: string, user: string, licenseNum: string) => ({
   provider,
   user,
+  uuid: '00000000-0000-4000-8000-000000000001',
   licenseNum,
   expiresAt: '2026-10-30T00:00:00Z',
   params: { meta: { values: {} } },
@@ -30,6 +31,7 @@ const renewalPayload = (
   requestId,
   provider,
   user,
+  uuid: '00000000-0000-4000-8000-000000000001',
   licenseNum,
   licenseFeeAmount: '12.3400000000',
   licenseFeeInstrumentId: { admin: provider, id: 'test-instrument' },
@@ -153,8 +155,11 @@ beforeAll(async () => {
     },
     {
       template: template.license,
-      id: 'license-other-number',
-      payload: licensePayload('provider::test', 'user::test', '8'),
+      id: 'license-other-uuid',
+      payload: {
+        ...licensePayload('provider::test', 'user::test', '7'),
+        uuid: '00000000-0000-4000-8000-000000000002',
+      },
     },
     {
       template: template.license,
@@ -188,7 +193,7 @@ beforeAll(async () => {
       false,
     ],
     ['renewal-other-user', 'request-other-user', 'provider::test', 'other-user::test', '7', false],
-    ['renewal-other-number', 'request-other-number', 'provider::test', 'user::test', '8', false],
+    ['renewal-other-uuid', 'request-other-uuid', 'provider::test', 'user::test', '7', false],
     ['renewal-no-allocation', 'request-no-allocation', 'provider::test', 'user::test', '7', false],
     [
       'renewal-no-license',
@@ -202,6 +207,7 @@ beforeAll(async () => {
   ] as const;
   for (const [id, requestId, provider, user, licenseNum, archived] of renewals) {
     const payload = renewalPayload(requestId, provider, user, licenseNum);
+    if (id === 'renewal-other-uuid') payload.uuid = '00000000-0000-4000-8000-000000000002';
     await seed({ template: template.renewal, id, payload, archived });
     if (archived) continue;
     await seed({
@@ -232,8 +238,8 @@ beforeAll(async () => {
     allocationPayload('request-other-user', party.provider, 'other-user::test'),
   );
   await seedAllocation(
-    'allocation-other-number',
-    allocationPayload('request-other-number', party.provider, party.user),
+    'allocation-other-uuid',
+    allocationPayload('request-other-uuid', party.provider, party.user),
   );
   await seedAllocation(
     'allocation-archived',
@@ -272,8 +278,8 @@ test('finds active licenses by provider or user and groups duplicate keys by con
 
   expect(Object.keys(grouped).sort()).toEqual([
     'license-no-renewals',
-    'license-other-number',
     'license-other-user',
+    'license-other-uuid',
     'license-primary',
     'license-same-key',
   ]);
@@ -290,8 +296,8 @@ test('finds active licenses by provider or user and groups duplicate keys by con
   expect(grouped['license-other-user']).toEqual([
     { contractId: 'renewal-other-user', allocationCid: 'allocation-other-user' },
   ]);
-  expect(grouped['license-other-number']).toEqual([
-    { contractId: 'renewal-other-number', allocationCid: 'allocation-other-number' },
+  expect(grouped['license-other-uuid']).toEqual([
+    { contractId: 'renewal-other-uuid', allocationCid: 'allocation-other-uuid' },
   ]);
 });
 
@@ -456,12 +462,16 @@ test('compares large decimal amounts without losing integer precision', async ()
   await seed({
     template: template.license,
     id: licenseId,
-    payload: licensePayload(party.provider, party.user, licenseNum),
+    payload: {
+      ...licensePayload(party.provider, party.user, licenseNum),
+      uuid: '00000000-0000-4000-8000-000000000003',
+    },
   });
   await seed({
     template: template.renewal,
     id: renewalId,
     payload: renewalPayload(requestId, party.provider, party.user, licenseNum, {
+      uuid: '00000000-0000-4000-8000-000000000003',
       licenseFeeAmount: '9007199254740993.0000000000',
     }),
   });

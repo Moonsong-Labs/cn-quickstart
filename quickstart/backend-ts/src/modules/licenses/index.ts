@@ -41,7 +41,7 @@ export async function findActiveLicenses(
     LEFT JOIN active($2) renewal ON
       license.payload->>'provider' = renewal.payload->>'provider'
       AND license.payload->>'user' = renewal.payload->>'user'
-      AND license.payload->>'licenseNum' = renewal.payload->>'licenseNum'
+      AND license.payload->>'uuid' = renewal.payload->>'uuid'
     LEFT JOIN active($3) request ON request.contract_id = renewal.contract_id
     LEFT JOIN active($4) allocation ON
       allocation.payload->'allocation'->>'transferLegId' = 'licenseFeePayment'
