@@ -9,10 +9,15 @@ SHELL := /usr/bin/env bash
 
 QS := bun --no-env-file cli/src/main.ts
 SETUP_COMMAND := $(QS) setup
+# Parent of this Makefile. package.json and bun.lock live here, and qs imports those packages.
+REPO_ROOT := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/..)
+# Frozen install of that lockfile. setup and build run it before qs, which cannot start without the packages.
+INSTALL_WORKSPACE := cd "$(REPO_ROOT)" && bun install --frozen-lockfile
 
 # Build targets
 .PHONY: build
 build: ## Build frontend, backend, Daml model and docker images
+	$(INSTALL_WORKSPACE)
 	$(QS) build
 
 .PHONY: build-frontend
@@ -115,6 +120,7 @@ capture-logs: ## Monitor docker events and capture logs
 # Development environment
 .PHONY: setup
 setup: ## Configure the local development environment
+	$(INSTALL_WORKSPACE)
 	$(SETUP_COMMAND)
 
 .PHONY: integration-test
