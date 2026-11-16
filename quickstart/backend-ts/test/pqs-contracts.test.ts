@@ -59,7 +59,7 @@ const allocationRequestPayload = {
 const licenseKey = {
   provider: 'provider::test',
   user: 'user::test',
-  licenseNum: '9007199254740993',
+  uuid: '00000000-0000-4000-8000-000000000001',
 };
 
 test('lists active contracts by the encoded template key and decodes all matches', async () => {
@@ -69,7 +69,8 @@ test('lists active contracts by the encoded template key and decodes all matches
       payload: {
         provider: licenseKey.provider,
         user: licenseKey.user,
-        licenseNum: licenseKey.licenseNum,
+        uuid: licenseKey.uuid,
+        licenseNum: '9007199254740993',
         expiresAt: '2026-10-30T00:00:00Z',
         params: { meta: { values: {} } },
       },
@@ -79,7 +80,8 @@ test('lists active contracts by the encoded template key and decodes all matches
       payload: {
         provider: licenseKey.provider,
         user: licenseKey.user,
-        licenseNum: licenseKey.licenseNum,
+        uuid: licenseKey.uuid,
+        licenseNum: '9007199254740993',
         expiresAt: '2026-10-31T00:00:00Z',
         params: { meta: { values: {} } },
       },
@@ -102,7 +104,7 @@ test('lists active contracts by the encoded template key and decodes all matches
 test('rejects invalid and unkeyed contract keys before querying PQS', async () => {
   const { pool, query } = poolWithRows();
 
-  // @ts-expect-error License keys require provider, user, and licenseNum.
+  // @ts-expect-error License keys require provider, user, and uuid.
   await expect(listActiveByKey(pool, License, { provider: 'provider::test' })).rejects.toThrow(
     'Failed to encode PQS contract key',
   );
@@ -251,6 +253,7 @@ test('decodes renewal amounts, time values, and large integers without conversio
     requestId: 'renewal-1',
     provider: 'provider::test',
     user: 'user::test',
+    uuid: licenseKey.uuid,
     licenseNum: '9007199254740993',
     licenseFeeAmount: '123456789012345678.1234567890',
     licenseFeeInstrumentId: { admin: 'issuer::test', id: 'test-token' },
