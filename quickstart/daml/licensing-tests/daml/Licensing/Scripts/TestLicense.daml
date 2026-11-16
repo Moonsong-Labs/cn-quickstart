@@ -72,6 +72,7 @@ setupLicenseTest = script do
   -- Provider creates a new License for the user
   licenseResult <- submit providerParty $
     exerciseCmd installCid AppInstall_CreateLicense with
+      uuid = "00000000-0000-4000-8000-000000000010"
       params = LicenseParams with
         meta = emptyMetadata
   let licenseCid = licenseResult.licenseId
@@ -226,7 +227,7 @@ testLicenseTokenStandard = script do
   let licenseKey = LicenseKey with
         provider = providerParty
         user = userParty
-        licenseNum = originalLicense.licenseNum
+        uuid = originalLicense.uuid
 
   -----------------------------------------------------
   -- 2. Provider initiates a renewal request
@@ -271,6 +272,7 @@ testLicenseTokenStandard = script do
   [newLicenseProvider] <- query @License providerParty
   newLicenseUser === newLicenseProvider
   assertMsg "Renewal must replace the license contract ID" (newLicenseProvider._1 /= licenseCid)
+  newLicenseProvider._2.uuid === originalLicense.uuid
   queryAllByKey @License providerParty licenseKey >>= (=== [newLicenseProvider])
   queryContractId providerParty licenseCid >>= (=== None)
   queryAllByKey @LicenseRenewalRequest providerParty
@@ -280,6 +282,85 @@ testLicenseTokenStandard = script do
   now <- getTime
   let expectedExpiry = addRelTime now extension
   newLicenseUser._2.expiresAt === expectedExpiry    
+
+  pure ()
+
+testRenewalRejectsDifferentLicenseUuid : Script ()
+testRenewalRejectsDifferentLicenseUuid = script do
+  let initialUserBalance = 100.0
+      renewalFee = 20.0
+      extension = days 30
+      otherLicenseUuid = "00000000-0000-4000-8000-000000000011"
+  ((registry, userParty, providerParty), licenseCid) <- setupLicenseTest
+  WalletClient.checkBalance userParty registry.instrumentId initialUserBalance
+  Some originalLicense <- queryContractId providerParty licenseCid
+
+  otherLicenseCid <- submit [providerParty, userParty] $ createCmd License with
+    provider = providerParty
+    user = userParty
+    expiresAt = originalLicense.expiresAt
+    uuid = otherLicenseUuid
+    licenseNum = originalLicense.licenseNum
+    params = originalLicense.params
+  assertMsg "The comparison license has the same parties and visible number, but a different UUID"
+    (otherLicenseUuid /= originalLicense.uuid)
+
+  (renewalRequestCid, instrumentId, _) <-
+    initiateLicenseRenewal "UUID mismatch test" renewalFee extension
+      (registry, providerParty) licenseCid "req-id-uuid-mismatch"
+  now <- getTime
+  [userAlloc] <- WalletClient.listRequestedAllocations userParty instrumentId
+  userHoldingCids <- WalletClient.listHoldingCids userParty instrumentId
+  enrichedChoice <- RegistryApi.getAllocationFactory registry AllocationFactory_Allocate with
+    expectedAdmin = registry.dso
+    allocation = userAlloc
+    requestedAt = now
+    inputHoldingCids = userHoldingCids
+    extraArgs = emptyExtraArgs
+  submitWithDisclosures' userParty enrichedChoice.disclosures $
+    exerciseCmd enrichedChoice.factoryCid enrichedChoice.arg
+
+  Some renewalRequest <- queryContractId providerParty renewalRequestCid
+  renewalRequest.uuid === originalLicense.uuid
+  let renewalRef = (view $ toInterface @AllocationRequest renewalRequest).settlement.settlementRef
+  (allocCid, _) <- fetchAllocationsForRenewal providerParty renewalRef
+  context <- RegistryApi.getAllocation_TransferContext registry allocCid emptyMetadata
+  let completeAgainstWrongLicense = exerciseCmd renewalRequestCid LicenseRenewalRequest_CompleteRenewal with
+        allocationCid = allocCid
+        licenseCid = otherLicenseCid
+        extraArgs = ExtraArgs with
+          context = context.choiceContext
+          meta = emptyMetadata
+  userHoldingsBefore <- WalletClient.listHoldings userParty instrumentId
+  providerHoldingsBefore <- WalletClient.listHoldings providerParty instrumentId
+  submitWithDisclosuresMustFail' providerParty context.disclosures completeAgainstWrongLicense
+
+  -- UUID mismatch must fail before executing the funded allocation.
+  Some _ <- queryContractId providerParty renewalRequestCid
+  (remainingAllocCid, _) <- fetchAllocationsForRenewal providerParty renewalRef
+  remainingAllocCid === allocCid
+  Some _ <- queryContractId providerParty licenseCid
+  Some _ <- queryContractId providerParty otherLicenseCid
+  userHoldingsAfter <- WalletClient.listHoldings userParty instrumentId
+  providerHoldingsAfter <- WalletClient.listHoldings providerParty instrumentId
+  sortOn (show . fst) userHoldingsAfter === sortOn (show . fst) userHoldingsBefore
+  sortOn (show . fst) providerHoldingsAfter === sortOn (show . fst) providerHoldingsBefore
+
+  renewedCid <- submitWithDisclosures' providerParty context.disclosures $
+    exerciseCmd renewalRequestCid LicenseRenewalRequest_CompleteRenewal with
+      allocationCid = allocCid
+      licenseCid = licenseCid
+      extraArgs = ExtraArgs with
+        context = context.choiceContext
+        meta = emptyMetadata
+  queryContractId providerParty renewalRequestCid >>= (=== None)
+  queryContractId providerParty licenseCid >>= (=== None)
+  Some renewedLicense <- queryContractId providerParty renewedCid
+  Some _ <- queryContractId providerParty otherLicenseCid
+  renewedLicense.uuid === originalLicense.uuid
+  renewedLicense.licenseNum === originalLicense.licenseNum
+  WalletClient.checkBalanceApprox userParty instrumentId (initialUserBalance - renewalFee)
+  WalletClient.checkBalanceApprox providerParty instrumentId renewalFee
 
   pure ()
 

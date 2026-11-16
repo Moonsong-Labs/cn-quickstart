@@ -20,7 +20,7 @@ import Splice.Api.Token.AllocationV1 as Api.Token.AllocationV1
 data LicenseKey = LicenseKey with
     provider : Party
     user : Party
-    licenseNum : Int
+    uuid : Text
   deriving (Eq, Show)
 
 data LicenseRenewalRequestKey = LicenseRenewalRequestKey with
@@ -41,16 +41,14 @@ template License
     provider : Party -- ^ Party identifying the app provider
     user : Party -- ^ Party identifying the app user
     expiresAt : Time -- ^ When the license expires. The license is not valid after this time.
-    licenseNum : Int 
-      -- ^ The license number.
-      -- Its uniqueness depends on `AppInstall`s being unique.
-      -- Alternatively storing a UUID chosen by the app provider as a globally unique
-      -- license ID is a good option as well. 
+    uuid : Text -- ^ Provider-generated UUID, preserved across renewals.
+    licenseNum : Int -- ^ Display number scoped to the originating app installation.
     params : LicenseParams
   where
     signatory provider, user
+    ensure uuid /= ""
 
-    key LicenseKey with provider; user; licenseNum : LicenseKey
+    key LicenseKey with provider; user; uuid : LicenseKey
     maintainer key.provider
 
     -- | Renews this license by collecting a fee from the user
@@ -76,6 +74,7 @@ template License
           requestId
           provider
           user
+          uuid
           licenseNum
           licenseFeeAmount
           licenseFeeInstrumentId
@@ -105,6 +104,7 @@ template LicenseRenewalRequest
     requestId : Text -- ^ Globally unique id for this renewal request (e.g. a UUID)
     provider : Party -- ^ Party identifying the app provider
     user : Party -- ^ Party identifying the app user
+    uuid : Text -- ^ Stable identity of the license being renewed.
     licenseNum : Int -- ^ The license number
     licenseFeeAmount : Decimal -- ^ The amount to be paid for the license renewal
     licenseFeeInstrumentId : InstrumentId -- ^ The instrument used for the license fee payment
@@ -119,6 +119,7 @@ template LicenseRenewalRequest
 
   where
     signatory user, provider
+    ensure uuid /= ""
 
     key LicenseRenewalRequestKey with provider; user; requestId : LicenseRenewalRequestKey
     maintainer key.provider
@@ -137,6 +138,13 @@ template LicenseRenewalRequest
       do
         assertWithinDeadline "settleBefore" settleBefore
 
+        -- Validate the stable license identity before executing the fee transfer.
+        oldLicense <- fetch licenseCid
+        uuid === oldLicense.uuid
+        licenseNum === oldLicense.licenseNum
+        user === oldLicense.user
+        provider === oldLicense.provider
+
         alloc <- fetch @Allocation allocationCid  
         let allocView = view @Allocation alloc
             thisView = view $ toInterface @AllocationRequest this
@@ -151,14 +159,7 @@ template LicenseRenewalRequest
 
         exercise allocationCid (Allocation_ExecuteTransfer extraArgs)
 
-        oldLicense <- fetch licenseCid
         archive licenseCid
-
-        -- validate that the old license is the one that is being renewed
-        licenseNum === oldLicense.licenseNum
-        user === oldLicense.user
-        provider === oldLicense.provider
-
 
         now <- getTime
         create oldLicense
@@ -171,9 +172,10 @@ template LicenseRenewalRequest
           meta = Metadata with
             values = TextMap.fromList [
               ("splice.lfdecentralizedtrust.org/reason", description)
-              -- Communicate the license number for disambiguation using app specific 
+              -- Communicate the display number and stable identity using app specific
               -- metadata as per https://github.com/global-synchronizer-foundation/cips/blob/main/cip-0056/cip-0056.md#generic-metadata
               ,("cn-quickstart.example.org/licenseNum", show licenseNum)
+              ,("cn-quickstart.example.org/uuid", uuid)
               ]
         in
           AllocationRequestView
