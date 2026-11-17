@@ -26,15 +26,15 @@ template AppInstall with
     signatory provider, user
 
     -- | Create a license using a fresh UUID supplied by the provider.
-    -- UUID generation and uniqueness are the provider's responsibility;
-    -- contract keys do not enforce uniqueness.
-    -- TODO: Enforce UUID uniqueness across license creation.
+    -- The lookup detects an active license but does not reserve the key for concurrent issuances.
     choice AppInstall_CreateLicense : AppInstall_CreateLicense_Result
       with
         uuid : Text -- ^ Stable license identity generated off-ledger.
         params : LicenseParams -- ^ Parameters of the license to be created.
       controller provider
       do
+        existing <- lookupByKey @License (LicenseKey with provider; user; uuid)
+        require "No active license with this key" (existing == None)
         now <- getTime
   
         -- create the license
