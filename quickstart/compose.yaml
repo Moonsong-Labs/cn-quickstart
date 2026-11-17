@@ -18,7 +18,8 @@ services:
       - onboarding:/onboarding
     command: /app/start.sh
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      # Published on 127.0.0.1 unless HOST_BIND_IP is set.
+      - "${HOST_BIND_IP:-127.0.0.1}:${BACKEND_PORT}:${BACKEND_PORT}"
     depends_on:
       pqs-app-provider:
         condition: service_started

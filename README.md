@@ -70,10 +70,10 @@ java -version
 
 ### dpm
 
-The installer installs Daml SDK 3.5.2 through dpm. Put the `dpm` binary on `PATH`. 3.5.2 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
+The installer installs Daml SDK 3.7.1 through dpm. Put the `dpm` binary on `PATH`. 3.7.1 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
 
 ```bash
-curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.5.2
+curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.7.1
 ```
 
 The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the active SDK version:
@@ -82,7 +82,7 @@ The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, 
 dpm version --active
 ```
 
-That prints `3.5.2`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when that SDK is not installed or differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
+That prints `3.7.1`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when that SDK is not installed or differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
 
 ### Check the install
 
@@ -304,6 +304,8 @@ Only the end users from an organization registered using endpoint `http://backen
 The `AppUser` organization is registered on the Quickstart startup by calling the registration script in the `register-app-user-tenant` Docker container.
 
 # Port mappings
+
+Published ports bind to `127.0.0.1`. Set `HOST_BIND_IP` to choose another address, for example `HOST_BIND_IP=0.0.0.0`. That value publishes every Quickstart port on all interfaces, including the participant Admin APIs, which LocalNet leaves unauthenticated, and the JVM debug port on 5005.
 
 ## Web UIs
 

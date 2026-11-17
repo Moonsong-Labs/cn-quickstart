@@ -59,17 +59,17 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
-      installedJson('3.5.2'),
+      { stdout: '3.7.1\n' },
+      installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\nbuild: abc\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
     expect(await runDoctor(context)).toBe(0);
     expect(noted()).toContain('✓ Docker');
     expect(noted()).toContain('✓ Compose');
-    expect(noted()).toContain('0.8.4');
+    expect(noted()).toContain('0.10.2');
     expect(noted()).toContain('✓ Daml SDK');
-    expect(noted()).toContain('3.5.2');
+    expect(noted()).toContain('3.7.1');
     expect(noted()).toContain('✓ dpm CLI');
     expect(noted()).toContain('1.0.21');
     expect(noted()).not.toContain('pinned');
@@ -84,8 +84,8 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
-      installedJson('3.5.2'),
+      { stdout: '3.7.1\n' },
+      installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -110,7 +110,7 @@ describe('runDoctor', () => {
     expect(dpmCalls[0]?.cwd).toBe(join(dir, 'daml', 'licensing'));
     expect(dpmCalls[1]?.cwd).toBe(join(dir, 'daml', 'licensing'));
     expect(io.noted()).toContain('✓ Daml SDK');
-    expect(io.noted()).toContain('3.5.2');
+    expect(io.noted()).toContain('3.7.1');
   });
 
   test('fails when the Docker CLI is missing', async () => {
@@ -143,8 +143,8 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.14\n' },
-      { stdout: '3.5.2\n' },
-      installedJson('3.5.2'),
+      { stdout: '3.7.1\n' },
+      installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "27.0.1"\n' },
     ]);
@@ -166,7 +166,7 @@ describe('runDoctor', () => {
     ]);
     expect(await runDoctor(context)).toBe(0);
     expect(noted()).toContain('! Daml SDK');
-    expect(noted()).toContain('3.4.0 (pinned 3.5.2 in daml/licensing/daml.yaml)');
+    expect(noted()).toContain('3.4.0 (pinned 3.7.1 in daml/licensing/daml.yaml)');
     expect(noted()).toContain('✓ dpm CLI');
     expect(noted()).toContain('1.0.21');
   });
@@ -181,8 +181,8 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
-      installedJson('3.5.2'),
+      { stdout: '3.7.1\n' },
+      installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -206,14 +206,14 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
-      { stdout: '[{"version":"3.5.2","active":true}]\n' },
+      { stdout: '3.7.1\n' },
+      { stdout: '[{"version":"3.7.1","active":true}]\n' },
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
     expect(await runDoctor(context)).toBe(0);
     expect(noted()).toContain('! Daml SDK');
-    expect(noted()).toContain('3.5.2 is not installed');
+    expect(noted()).toContain('3.7.1 is not installed');
     expect(noted()).not.toContain('not found on PATH');
     expect(noted()).toContain('✓ JDK');
   });
@@ -247,8 +247,8 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
-      installedJson('3.5.2'),
+      { stdout: '3.7.1\n' },
+      installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -281,7 +281,7 @@ describe('runDoctor', () => {
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
       { stdout: '1.3.3\n' },
-      { stdout: '3.5.2\n' },
+      { stdout: '3.7.1\n' },
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
@@ -306,34 +306,34 @@ describe('runDoctor', () => {
         runner,
       }),
     ).toBe(0);
-    expect(io.noted()).toContain('3.5.2 (could not list installed SDKs)');
+    expect(io.noted()).toContain('3.7.1 (could not list installed SDKs)');
     expect(io.noted()).toContain('✓ Docker');
     expect(io.noted()).toContain('✓ JDK');
     expect(io.noted()).toContain('✓ dpm CLI');
   });
 
   test('warns when the SDK listing does not show this version as installed', async () => {
-    /** Failed command, malformed JSON, and a list with no active row for 3.5.2. */
+    /** Failed command, malformed JSON, and a list with no active row for 3.7.1. */
     const listings = [
       { code: 1, stderr: 'Error: boom\n' },
       { stdout: 'not-json\n' },
       { stdout: '[{"version":"9.9.9","installed":true,"active":true}]\n' },
     ];
     for (const listing of listings) {
-      /** One unusable listing. The active SDK is still 3.5.2 and the pin matches. */
+      /** One unusable listing. The active SDK is still 3.7.1 and the pin matches. */
       const { context, noted } = await ctx([
         { code: 0 },
         { stdout: '29.8.2\n' },
         { stdout: '5.5.0\n' },
         { stdout: '1.3.3\n' },
-        { stdout: '3.5.2\n' },
+        { stdout: '3.7.1\n' },
         listing,
         { stdout: 'version: 1.0.21\n' },
         { stderr: 'openjdk version "21.0.2"\n' },
       ]);
       expect(await runDoctor(context)).toBe(0);
       expect(noted()).toContain('! Daml SDK');
-      expect(noted()).toContain('3.5.2 (could not list installed SDKs)');
+      expect(noted()).toContain('3.7.1 (could not list installed SDKs)');
       expect(noted()).toContain('✓ JDK');
     }
   });

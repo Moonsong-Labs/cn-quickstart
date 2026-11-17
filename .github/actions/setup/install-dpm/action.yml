@@ -1,6 +1,6 @@
 name: Install dpm
 description: >-
-  Installs dpm 3.5.2 for the rest of the job and exports DPM_HOME,
+  Installs dpm 3.7.1 for the rest of the job and exports DPM_HOME,
   DPM_SDK_VERSION, and PATH. The install is removed when the job ends.
 
 runs:

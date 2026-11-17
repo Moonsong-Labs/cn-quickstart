@@ -6,7 +6,8 @@ COPY .github/actions/setup/install-dpm/install-dpm.sh /tmp/install-dpm.sh
 # Reuse CI's pinned SDK and checksum verification without GitHub environment files.
 RUN RUNNER_TEMP=/opt GITHUB_PATH=/dev/null GITHUB_ENV=/dev/null bash /tmp/install-dpm.sh
 ENV DPM_HOME=/opt/dpm
-ENV DPM_SDK_VERSION=3.5.2
+# dpm build uses this in place of sdk-version. It has to be the SDK install-dpm.sh just bootstrapped.
+ENV DPM_SDK_VERSION=3.7.1
 ENV PATH="/opt/dpm/bin:${PATH}"
 WORKDIR /app/quickstart/daml/licensing
 COPY quickstart/daml/dars/ ../dars/
