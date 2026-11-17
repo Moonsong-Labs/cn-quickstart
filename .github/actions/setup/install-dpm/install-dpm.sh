@@ -58,7 +58,8 @@ if [ -z "${script_jar}" ] || [ -z "${resources}" ]; then
   echo "damlc resources: ${resources:-missing}" >&2
   exit 1
 fi
-ln -sfn "${script_jar}" "${resources}/script-service.jar"
+# The directory is empty, so an existing file fails the install.
+ln -s "${script_jar}" "${resources}/script-service.jar"
 
 echo "${dest}/bin" >> "${GITHUB_PATH}"
 {
