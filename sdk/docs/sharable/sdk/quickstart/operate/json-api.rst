@@ -721,6 +721,7 @@ Exercise the CreateLicense choice
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-create-license-start
 
+   LICENSE_UUID=$(uuidgen)
    JSON_PAYLOAD=$(cat <<EOF
    {
      "commands": [{
@@ -729,6 +730,7 @@ Exercise the CreateLicense choice
          "contractId": "$APP_INSTALL_CID",
          "choice": "AppInstall_CreateLicense",
          "choiceArgument": {
+           "uuid": "$LICENSE_UUID",
            "params": {
              "meta": {"values": {}}
            }
