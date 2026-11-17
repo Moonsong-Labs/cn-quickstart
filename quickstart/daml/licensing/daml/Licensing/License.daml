@@ -54,7 +54,6 @@ template License
     -- | Renews this license by collecting a fee from the user
     --   via the token standard. The actual settlement flow
     --   is defined by the corresponding LicenseRenewalRequest.
-    -- | TODO: Check if the `requestId` is unique for this provider and user.
     nonconsuming choice License_Renew : ContractId LicenseRenewalRequest
       with
         requestId : Text
@@ -101,7 +100,7 @@ template License
 --   license with extended validity is created.
 template LicenseRenewalRequest
   with
-    requestId : Text -- ^ Globally unique id for this renewal request (e.g. a UUID)
+    requestId : Text -- ^ Provider-supplied identifier used to correlate the request with its payment.
     provider : Party -- ^ Party identifying the app provider
     user : Party -- ^ Party identifying the app user
     uuid : Text -- ^ Stable identity of the license being renewed.

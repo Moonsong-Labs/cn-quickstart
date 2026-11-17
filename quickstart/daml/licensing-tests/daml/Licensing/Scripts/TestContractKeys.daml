@@ -55,6 +55,24 @@ testLicenseKeys = script do
   Some secondLicense <- queryContractId user secondCid
   firstLicense.licenseNum === secondLicense.licenseNum
 
+testDuplicateActiveLicenseKeyAcrossInstalls : Script ()
+testDuplicateActiveLicenseKeyAcrossInstalls = script do
+  provider <- allocateParty "provider"
+  user <- allocateParty "user"
+  firstInstall <- createInstall provider user
+  secondInstall <- createInstall provider user
+  let uuid = "00000000-0000-4000-8000-000000000005"
+  firstLicense <- createLicense provider firstInstall uuid
+
+  submitMustFail provider $ exerciseCmd secondInstall AppInstall_CreateLicense with
+    uuid
+    params = LicenseParams with meta = emptyMetadata
+
+  matches <- queryAllByKey @License provider (LicenseKey with provider; user; uuid)
+  map fst matches === [firstLicense]
+  Some install <- queryContractId provider secondInstall
+  install.numLicensesCreated === 0
+
 testLicenseKeyRemovedOnArchiveAndReusable : Script ()
 testLicenseKeyRemovedOnArchiveAndReusable = script do
   provider <- allocateParty "provider"
