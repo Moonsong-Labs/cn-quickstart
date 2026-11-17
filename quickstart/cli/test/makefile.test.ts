@@ -85,6 +85,39 @@ describe('Makefile workspace install', () => {
   });
 });
 
+describe('Makefile localnet targets', () => {
+  test('localnet targets call docker compose and not qs', () => {
+    /** Makefile next to this package. LocalNet-only targets must run without Bun. */
+    const makefile = readFileSync(new URL('../../Makefile', import.meta.url), 'utf8');
+    /** Assignment of the LocalNet directory. Compose files are resolved from it. */
+    const localnet = /^LOCALNET_DIR := (.+)$/m.exec(makefile)?.[1];
+    expect(localnet).toBe(
+      '$(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/docker/modules/localnet)',
+    );
+    /** Image tag. It comes from the committed Splice pin, not from `make setup`. */
+    expect(makefile).toContain("SPLICE_VERSION := $(shell sed -n 's/^SPLICE_VERSION=//p' .env)");
+    expect(makefile).toContain('IMAGE_TAG ?= $(SPLICE_VERSION)');
+    for (const target of [
+      'start-localnet',
+      'stop-localnet',
+      'clean-localnet',
+      'status-localnet',
+    ] as const) {
+      /** Recipe for this target. It checks Docker, then runs Compose. */
+      const recipe = targetRecipe(makefile, target);
+      expect(recipe[0], target).toBe('@docker info >/dev/null');
+      expect(
+        recipe.some((line) => line.includes('$(QS)') || line.includes('$(SETUP_COMMAND)')),
+        target,
+      ).toBe(false);
+      expect(
+        recipe.some((line) => line.includes('$(LOCALNET_ONLY_COMPOSE)')),
+        target,
+      ).toBe(true);
+    }
+  });
+});
+
 describe('Makefile qs recipes', () => {
   test('every delegated command is one qs accepts', async () => {
     /** Makefile next to this package. Recipes are read as text, including the CI block. */
