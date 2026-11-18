@@ -5,3 +5,4 @@ packages:
 - ./external-test-sources/splice-wallet-test
 - ./licensing
 - ./licensing-tests
+- ./external-test-sources/quickstart-test-support

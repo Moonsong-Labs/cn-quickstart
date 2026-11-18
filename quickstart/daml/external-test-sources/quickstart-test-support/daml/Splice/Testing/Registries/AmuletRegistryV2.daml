@@ -1,0 +1,228 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | Daml script functions for initializing and using an amulet registry via the
+-- token standard and the amulet specific functions.
+module Splice.Testing.Registries.AmuletRegistryV2 where
+
+import DA.Date
+import qualified DA.TextMap as TextMap
+import DA.List.Total
+import DA.Time
+import Splice.Api.Token.MetadataV1 as Api.Token.MetadataV1
+import Splice.Api.Token.HoldingV2 as Api.Token.HoldingV2
+import Splice.Api.Token.TransferInstructionV2
+import Splice.Amulet
+import Splice.Amulet.TokenApiUtils
+import Splice.AmuletConfig (AmuletConfig, USD)
+import Splice.AmuletRules
+import Splice.ExternalPartyConfigState
+import Splice.ExternalPartyAmuletRules
+import Splice.Schedule
+import Splice.Round
+import Splice.Testing.Utils
+import Splice.Testing.Registries.AmuletRegistry.Parameters
+import Daml.Script
+
+
+-- Registry representation
+--------------------------
+
+-- | A reference to a mock amulet registry.
+data AmuletRegistry = AmuletRegistry with
+    dso : Party
+    instrumentId : InstrumentId
+  deriving (Eq, Ord, Show, Serializable)
+
+
+-- Registry initialization
+--------------------------
+data AmuletRegistryConfig = AmuletRegistryConfig
+  with
+    initialAmuletPrice : Decimal
+    demoTime : Time
+    dsoPartyName : Text
+    amuletConfig : AmuletConfig USD
+  deriving (Eq, Show, Serializable)
+
+-- | Recommended default configuration for setting up the mock amulet registry.
+defaultAmuletRegistryConfig : AmuletRegistryConfig
+defaultAmuletRegistryConfig = AmuletRegistryConfig with
+  initialAmuletPrice = 0.5 -- a non-zero price that still makes it easy to reason about fees and amounts
+  demoTime = time (DA.Date.date 2022 Jan 1) 0 0 0
+  dsoPartyName = "dso-party"
+  amuletConfig = defaultAmuletConfig
+
+-- | Initialize the mock amulet registry.
+initialize : AmuletRegistryConfig -> Script AmuletRegistry
+initialize config = do
+  -- use a time that is easy to reason about in script outputs
+  setTime config.demoTime
+
+  dso <- allocateParty config.dsoPartyName
+  let registry = AmuletRegistry with
+        dso
+        instrumentId = amuletInstrumentIdV2 dso
+
+  let defaultAmuletConfigSchedule = Schedule with
+        initialValue = config.amuletConfig
+        futureValues = []
+
+  _ <- submit dso $ createCmd AmuletRules with
+    configSchedule = defaultAmuletConfigSchedule
+    isDevNet = True
+    contractStateSchemaVersion = None
+    ..
+
+  _ <- submit dso $ createCmd ExternalPartyAmuletRules with dso
+
+  (amuletRulesCid, _) <- getAmuletRules registry
+  _ <- submit registry.dso $ exerciseCmd amuletRulesCid AmuletRules_Bootstrap_Rounds with
+      amuletPrice = config.initialAmuletPrice
+      round0Duration = minutes 10 -- no special setup for normal tests
+      initialRound = None
+
+  -- return the off-ledger reference to the registry for later script steps
+  return registry
+
+
+-- | Tap the faucet on DevNet to get a specified amount of Amulet.
+tapFaucet : AmuletRegistry -> Party -> Decimal -> Script (ContractId Holding)
+tapFaucet registry user amount = do
+  (openRound, _) <- getLatestOpenRound registry
+  (amuletRulesCid, _) <- getAmuletRules registry
+  amuletRulesD <- queryDisclosure' @AmuletRules registry.dso amuletRulesCid
+  openMiningRoundD <- queryDisclosure' @OpenMiningRound registry.dso openRound
+  let disclosures = amuletRulesD <> openMiningRoundD
+  result <- submitWithDisclosures' user disclosures $
+      exerciseCmd amuletRulesCid AmuletRules_DevNet_Tap with
+        receiver = user
+        amount
+        openRound
+  return $ toInterfaceContractId result.amuletSum.amulet
+
+createTransferPreapproval : AmuletRegistry -> Party -> Party -> Time -> Script (ContractId TransferPreapproval)
+createTransferPreapproval registry receiver provider expiresAt = do
+  now <- getTime
+  submit (actAs receiver <> actAs provider <> actAs registry.dso) $ createCmd TransferPreapproval with
+      receiver
+      provider
+      dso = registry.dso
+      validFrom = now
+      lastRenewedAt = now
+      expiresAt
+getTransferFactory
+  : AmuletRegistry -> TransferFactory_Transfer
+  -> Script (EnrichedFactoryChoice TransferFactory TransferFactory_Transfer)
+getTransferFactory registry arg = do
+  (extAmuletRulesCid, extAmuletRulesD) <- getExtAmuletRulesWithDisclosures registry
+  transferC <- getExternalPartyConfigStateContext registry
+  openRoundC <-
+    if arg.transfer.receiver.owner == Some trafficPurchaseReceiver
+      then getOpenRoundContext registry
+      else pure emptyOpenApiChoiceContext
+  let isSelfTransfer = arg.transfer.sender.owner == arg.transfer.receiver.owner
+  (optPreapproval, preapprovalC) <-
+    case arg.transfer.receiver.owner of
+      Some owner | not isSelfTransfer -> lookupPreapprovalWithContext registry owner
+      _ -> pure (None, emptyOpenApiChoiceContext)
+  featuredAppRightC <- case optPreapproval of
+    None -> pure emptyOpenApiChoiceContext
+    Some preapproval -> getFeaturedAppRightContext registry preapproval.provider
+  let fullContext = withExtraDisclosures extAmuletRulesD
+        (transferC <> openRoundC <> preapprovalC <> featuredAppRightC)
+  pure EnrichedFactoryChoice with
+    factoryCid = toInterfaceContractId @TransferFactory extAmuletRulesCid
+    arg = arg with extraArgs = arg.extraArgs with context = fullContext.choiceContext
+    disclosures = fullContext.disclosures
+
+mkAmuletContext : TextMap.TextMap AnyValue -> ChoiceContext
+mkAmuletContext values = ChoiceContext with
+  values
+
+getAmuletRules : AmuletRegistry -> Script (ContractId AmuletRules, AmuletRules)
+getAmuletRules registry = getAmuletRules' registry.dso
+
+getAmuletRules' : Party -> Script (ContractId AmuletRules, AmuletRules)
+getAmuletRules' dso = do
+  rules <- query @AmuletRules dso
+  case rules of
+    [rule] -> return rule
+    [] -> failNotInitialized "No AmuletRules found"
+    _ -> fail "Multiple AmuletRules found: are you initializing the Amulet registry multiple times?"
+
+-- Primarily used by submitters to decide against which round they should try to transact.
+getLatestOpenRound : AmuletRegistry -> Script (ContractId OpenMiningRound, OpenMiningRound)
+getLatestOpenRound registry = getLatestOpenRound' registry.dso
+
+getLatestOpenRound' : Party -> Script (ContractId OpenMiningRound, OpenMiningRound)
+getLatestOpenRound' dso = do
+  now <- getTime
+  -- only get open rounds
+  rounds <- queryFilter @OpenMiningRound dso (\round -> now >= round.opensAt)
+  case maximumOn (\(_, r) -> r.round) rounds of
+    None -> failNotInitialized "No open open mining round found"
+    Some r-> pure r
+
+failNotInitialized : Text -> Script a
+failNotInitialized problem =
+  fail $ problem <> ": have you called 'initialize' to initialize the Amulet registry?"
+
+getExtAmuletRulesWithDisclosures : AmuletRegistry -> Script (ContractId ExternalPartyAmuletRules, Disclosures')
+getExtAmuletRulesWithDisclosures registry = do
+  [(extAmuletRulesCid, _)] <- query @ExternalPartyAmuletRules registry.dso
+  extAmuletRulesD <- queryDisclosure' registry.dso extAmuletRulesCid
+  pure (extAmuletRulesCid, extAmuletRulesD)
+
+getExternalPartyConfigStateContext : AmuletRegistry -> Script OpenApiChoiceContext
+getExternalPartyConfigStateContext registry = do
+  extPartyConfigs <- query @ExternalPartyConfigState registry.dso
+  let (newestConfigCid, _) = case maximumOn (\(_, c) -> c.targetArchiveAfter) extPartyConfigs of
+        None -> error "No ExternalPartyConfigState found: have you initialized the Amulet registry?"
+        Some c -> c
+  extConfigDD <- queryDisclosure' @ExternalPartyConfigState registry.dso newestConfigCid
+  pure OpenApiChoiceContext with
+    choiceContext = mkAmuletContext $ TextMap.fromList
+        [(externalPartyConfigStateContextKey, AV_ContractId $ coerceContractId newestConfigCid)]
+    disclosures = extConfigDD
+
+lookupPreapprovalWithContext : AmuletRegistry -> Party -> Script (Optional TransferPreapproval, OpenApiChoiceContext)
+lookupPreapprovalWithContext registry receiver = do
+  preapprovals  <- queryFilter @TransferPreapproval receiver (\preapproval -> preapproval.receiver == receiver)
+  case preapprovals of
+    [] -> pure (None, emptyOpenApiChoiceContext)
+    (preapprovalCid, preapproval) :: _ ->  do
+      preapprovalD <- queryDisclosure' @TransferPreapproval registry.dso preapprovalCid
+      pure
+        ( Some preapproval
+        , OpenApiChoiceContext with
+          disclosures = preapprovalD
+          choiceContext = mkAmuletContext $
+            TextMap.fromList [(transferPreapprovalContextKey, AV_ContractId (coerceContractId preapprovalCid))]
+        )
+
+getOpenRoundContext : AmuletRegistry -> Script OpenApiChoiceContext
+getOpenRoundContext registry = do
+  (openRoundCid, _) <- getLatestOpenRound registry
+  openRoundD <- queryDisclosure' @OpenMiningRound registry.dso openRoundCid
+  pure OpenApiChoiceContext with
+    choiceContext = mkAmuletContext $ TextMap.fromList
+        [(openRoundContextKey, AV_ContractId $ coerceContractId openRoundCid)]
+    disclosures = openRoundD
+
+getFeaturedAppRightContext : AmuletRegistry -> Party -> Script OpenApiChoiceContext
+getFeaturedAppRightContext registry provider = do
+  appRights <- queryFilter @FeaturedAppRight registry.dso (\appRight -> appRight.provider == provider)
+  case appRights of
+    [] -> pure emptyOpenApiChoiceContext
+    (rightCid, _) :: _ -> do
+      rightDisc <- queryDisclosure' @FeaturedAppRight registry.dso rightCid
+      pure OpenApiChoiceContext with
+        disclosures = rightDisc
+        choiceContext = mkAmuletContext $
+          TextMap.fromList [ (featuredAppRightContextKey, AV_ContractId (coerceContractId rightCid)) ]
+
+emptyOpenApiChoiceContext : OpenApiChoiceContext
+emptyOpenApiChoiceContext = OpenApiChoiceContext with
+  disclosures = mempty
+  choiceContext = mkAmuletContext TextMap.empty

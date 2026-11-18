@@ -114,7 +114,7 @@ template LicenseRenewalRequest
       --
       -- SHOULD be strictly after `prepareUntil`.
     requestedAt : Time -- ^ When the settlement was requested
-    description : Text -- ^ Reason for renewal   
+    description : Text -- ^ Reason for renewal
 
   where
     signatory user, provider
@@ -144,7 +144,7 @@ template LicenseRenewalRequest
         user === oldLicense.user
         provider === oldLicense.provider
 
-        alloc <- fetch @Allocation allocationCid  
+        alloc <- fetch @Allocation allocationCid
         let allocView = view @Allocation alloc
             thisView = view $ toInterface @AllocationRequest this
             expectedTransferLegId = licenseFeePaymentLegId

@@ -281,7 +281,7 @@ testLicenseTokenStandard = script do
   -- Confirm it is extended exactly 365 days
   now <- getTime
   let expectedExpiry = addRelTime now extension
-  newLicenseUser._2.expiresAt === expectedExpiry    
+  newLicenseUser._2.expiresAt === expectedExpiry
 
   pure ()
 
@@ -624,5 +624,5 @@ fetchAllocationsForRenewal p ref = do
         (cid, Some alloc) <- allocs
         guard (alloc.allocation.settlement.settlementRef == ref)
         pure (cid, alloc)
-  length matchingAllocs === 1        
+  length matchingAllocs === 1
   pure $ head $ sortOn (\(_, alloc) -> alloc.allocation.settlement.settlementRef.id) matchingAllocs
