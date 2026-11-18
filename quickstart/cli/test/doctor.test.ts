@@ -34,7 +34,7 @@ async function ctx(script: Parameters<typeof fakeRunner>[0]): Promise<{
   noted(): string;
 }> {
   const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
-  await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+  await writeFile(join(dir, '..', '.bun-version'), '1.4.4\n');
   /** Scripted terminal and runner. */
   const io = scriptedIo([]);
   const { runner } = fakeRunner(script);
@@ -58,7 +58,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\nbuild: abc\n' },
@@ -83,7 +83,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
@@ -150,7 +150,7 @@ describe('runDoctor', () => {
     ]);
     expect(await runDoctor(context)).toBe(0);
     expect(noted()).toContain('outside 21–22');
-    expect(noted()).toContain('pinned 1.3.3');
+    expect(noted()).toContain('pinned 1.4.4');
   });
 
   test('warns when the active SDK differs from daml.yaml and still succeeds', async () => {
@@ -158,7 +158,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.4.0\n' },
       installedJson('3.4.0'),
       { stdout: '1.0.21\n' },
@@ -174,13 +174,13 @@ describe('runDoctor', () => {
   test('warns when daml.yaml has no sdk-version', async () => {
     const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
     await writeFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'name: licensing\n');
-    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.4.4\n');
     const io = scriptedIo([]);
     const fake = fakeRunner([
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
@@ -205,7 +205,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       { stdout: '[{"version":"3.7.1","active":true}]\n' },
       { stdout: 'version: 1.0.21\n' },
@@ -223,7 +223,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { code: 1, stderr: 'Error: no SDK version is active\n' },
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
@@ -240,13 +240,13 @@ describe('runDoctor', () => {
     /** Manifest made unreadable. The same user then gets EACCES from readFileSync. */
     const yaml = join(dir, 'daml', 'licensing', 'daml.yaml');
     await chmod(yaml, 0o000);
-    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.4.4\n');
     const io = scriptedIo([]);
     const fake = fakeRunner([
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       installedJson('3.7.1'),
       { stdout: 'version: 1.0.21\n' },
@@ -274,13 +274,13 @@ describe('runDoctor', () => {
 
   test('warns when the SDK listing cannot be started and still prints the other checks', async () => {
     const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
-    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.4.4\n');
     const io = scriptedIo([]);
     const fake = fakeRunner([
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stdout: '3.7.1\n' },
       { stdout: 'version: 1.0.21\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
@@ -325,7 +325,7 @@ describe('runDoctor', () => {
         { code: 0 },
         { stdout: '29.8.2\n' },
         { stdout: '5.5.0\n' },
-        { stdout: '1.3.3\n' },
+        { stdout: '1.4.4\n' },
         { stdout: '3.7.1\n' },
         listing,
         { stdout: 'version: 1.0.21\n' },
@@ -340,7 +340,7 @@ describe('runDoctor', () => {
 
   test('warns when DPM_PATH is not executable and still prints the other checks', async () => {
     const dir = await tempProject(cleaner.dirs, 'PARTY_HINT=App-User-1\n');
-    await writeFile(join(dir, '..', '.bun-version'), '1.3.3\n');
+    await writeFile(join(dir, '..', '.bun-version'), '1.4.4\n');
     /** File `DPM_PATH` names. Mode 644 makes posix_spawn throw EACCES. */
     const dpmPath = join(dir, 'dpm');
     await writeFile(dpmPath, '');
@@ -350,7 +350,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
     /** Live spawn for dpm only, so the test sees the real EACCES. */
@@ -386,7 +386,7 @@ describe('runDoctor', () => {
       { code: 0 },
       { stdout: '29.8.2\n' },
       { stdout: '5.5.0\n' },
-      { stdout: '1.3.3\n' },
+      { stdout: '1.4.4\n' },
       { stderr: 'openjdk version "21.0.2"\n' },
     ]);
     /** Spawn that rejects before a status exists. Both dpm probes hit it. */

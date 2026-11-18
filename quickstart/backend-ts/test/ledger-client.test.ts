@@ -71,9 +71,11 @@ test('Preserves token acquisition failures without contacting the ledger', async
 });
 
 test('Rejects initialization when the connection fails', async () => {
-  const server = serve(() => Response.error());
+  const server = serve(() => Response.json({ version: '3.5.2' }));
+  const baseUrl = server.url;
+  await server.stop(true);
 
-  await expect(createLedgerClient({ baseUrl: server.url, accessTokenProvider })).rejects.toThrow(
+  await expect(createLedgerClient({ baseUrl, accessTokenProvider })).rejects.toThrow(
     'Failed to initialize Ledger API client',
   );
 });
