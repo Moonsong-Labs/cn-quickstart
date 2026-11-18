@@ -106,8 +106,9 @@ export function rewriteEnvAssignment(text: string, key: string, value: string): 
  * `SPLICE_VERSION` in `.env` is written with no prompt. The SDK version from that Splice
  * release's `daml.yaml` is fetched and printed. `sdk-version` is rewritten only in manifests
  * whose pin differs, and only after a yes. A manifest that already matches is left untouched,
- * including its comments. An empty answer, `n`, or end of input leaves every file unchanged.
- * When every pin already matches, this does not ask and does not rewrite.
+ * including its comments. An empty answer, `n`, or end of input skips that SDK rewrite.
+ * `SPLICE_VERSION` is still written. When every pin already matches, this does not ask
+ * and does not rewrite.
  * `DAML_RUNTIME_VERSION` is left as it is, because it is the ledger API proto version.
  * `--dry-run` fetches, asks the same question, prints what that answer would do, and writes nothing.
  * An existing tag without `--force`, and a missing sibling checkout for `--copy`, are refused
@@ -264,7 +265,7 @@ async function askToUpdateSdk(ctx: CommandContext, sdk: string): Promise<boolean
 /**
  * Rewrite `sdk-version` in each `daml.yaml` under `daml/` whose pin differs from `sdk`.
  * Asks first, defaulting to no, when any pin differs. An empty answer, `n`, or end of input
- * leaves every file unchanged and prints a note. A manifest that already matches is not written,
+ * leaves every manifest unchanged and prints a note. A manifest that already matches is not written,
  * so its comments stay, even when another manifest is updated. When every pin already matches,
  * this does not ask and does not write. Directories named `.daml` or `node_modules` are not walked.
  * `--dry-run` asks the same question, prints the lines for the files that would change, and writes nothing.
