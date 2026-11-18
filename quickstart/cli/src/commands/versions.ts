@@ -8,6 +8,7 @@ import type { Command } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
 import { definedEnv, loggedRun } from '../lib/exec.ts';
 import { projectFromContext } from '../lib/project.ts';
+import { askYesNo, EndOfInputError } from '../lib/prompts.ts';
 import type { CommandDeps } from '../lib/register.ts';
 
 /** What `qs versions sync` should do beyond printing the versions. */
@@ -102,9 +103,15 @@ export function rewriteEnvAssignment(text: string, key: string, value: string): 
 
 /**
  * Point the checkout at the Splice version published for `network`.
- * Writes `sdk-version` in every `daml.yaml` under `daml/` and `SPLICE_VERSION` in `.env`.
+ * `SPLICE_VERSION` in `.env` is written with no prompt. The SDK version from that Splice
+ * release's `daml.yaml` is fetched and printed. `sdk-version` in this repo's manifests is
+ * rewritten only when one of them differs and the user answers yes. An empty answer, `n`,
+ * or end of input leaves those files unchanged. Manifests that already match are not
+ * rewritten and do not prompt.
  * `DAML_RUNTIME_VERSION` is left as it is, because it is the ledger API proto version.
- * `--dry-run` prints the same lines and writes nothing.
+ * `--dry-run` fetches, asks the same question, prints what that answer would do, and writes nothing.
+ * An existing tag without `--force`, and a missing sibling checkout for `--copy`, are refused
+ * before any of those writes.
  */
 export async function runVersionsSync(ctx: CommandContext, options: SyncOptions): Promise<number> {
   /** Checkout whose manifests and `.env` are updated. */
@@ -209,23 +216,79 @@ async function publishedSdk(ctx: CommandContext, version: string): Promise<strin
 }
 
 /**
- * Rewrite `sdk-version` in every `daml.yaml` under `daml/`.
- * Directories named `.daml` or `node_modules` are not walked. `--dry-run` prints the change only.
+ * A `daml.yaml` under `daml/` and the SDK pin read from it.
+ * `current` is undefined when the file has no `sdk-version` line.
+ */
+type ManifestPin = {
+  /** Absolute path of the manifest. */
+  file: string;
+  /** Original text, including its newline style, so a rewrite can preserve it. */
+  text: string;
+  /** Value of `sdk-version`, or undefined when that key is absent. */
+  current: string | undefined;
+};
+
+/**
+ * Read each `daml.yaml` under `projectDir/daml` without changing it.
+ * Directories named `.daml` or `node_modules` are skipped. A missing `daml/` returns an empty list.
+ */
+async function readManifestPins(projectDir: string): Promise<ManifestPin[]> {
+  /** Manifests in walk order. */
+  const files = await damlYamlFiles(join(projectDir, 'daml'));
+  /** Pins in that same order, so a later rewrite stays stable. */
+  const pins: ManifestPin[] = [];
+  for (const file of files) {
+    /** Current text, including its line ending style. */
+    const text = await readFile(file, 'utf8');
+    pins.push({ file, text, current: readSdkLine(text) });
+  }
+  return pins;
+}
+
+/**
+ * Ask whether to write `sdk` into every `daml.yaml`.
+ * An empty answer and `n` return false. End of input returns false as well, instead of
+ * throwing `EndOfInputError`, so a closed stdin leaves the pins unchanged and the command
+ * can still exit 0.
+ */
+async function askToUpdateSdk(ctx: CommandContext, sdk: string): Promise<boolean> {
+  try {
+    return await askYesNo(ctx.io, `Update sdk-version to ${sdk} in every daml.yaml`, false);
+  } catch (error) {
+    /** Closed stdin takes the default answer, which is no. Any other failure still propagates. */
+    if (error instanceof EndOfInputError) return false;
+    throw error;
+  }
+}
+
+/**
+ * Rewrite `sdk-version` in every `daml.yaml` under `daml/` when any pin differs from `sdk`.
+ * The question defaults to no. An empty answer, `n`, or end of input leaves every file
+ * unchanged and prints a note. When every pin already matches, this does not ask and does not write.
+ * Directories named `.daml` or `node_modules` are not walked.
+ * `--dry-run` asks the same question, prints what that answer would do, and writes nothing.
  */
 async function rewriteManifests(
   ctx: CommandContext,
   projectDir: string,
   sdk: string,
 ): Promise<void> {
-  /** Manifests in walk order. */
-  const files = await damlYamlFiles(join(projectDir, 'daml'));
-  for (const file of files) {
-    /** Current text, including its line ending style. */
-    const text = await readFile(file, 'utf8');
+  /** Manifests in walk order, with the pin each one already has. */
+  const manifests = await readManifestPins(projectDir);
+  /** True when at least one manifest pins a different SDK, or has no pin. */
+  const differs = manifests.some((manifest) => manifest.current !== sdk);
+  if (!differs) return;
+  /** True when the user accepts the rewrite. A decline includes an empty answer and end of input. */
+  const update = await askToUpdateSdk(ctx, sdk);
+  if (!update) {
+    ctx.io.note('Left sdk-version unchanged.\n');
+    return;
+  }
+  for (const manifest of manifests) {
     /** Version already in the file, printed so a no-op is visible. */
-    const current = readSdkLine(text) ?? '(none)';
-    ctx.io.note(`${file}: sdk-version ${current} -> ${sdk}\n`);
-    if (!ctx.dryRun) await writeFile(file, rewriteSdkVersion(text, sdk));
+    const current = manifest.current ?? '(none)';
+    ctx.io.note(`${manifest.file}: sdk-version ${current} -> ${sdk}\n`);
+    if (!ctx.dryRun) await writeFile(manifest.file, rewriteSdkVersion(manifest.text, sdk));
   }
 }
 
@@ -422,16 +485,16 @@ async function damlYamlFiles(dir: string): Promise<string[]> {
 
 /**
  * Register `qs versions sync`.
- * The network defaults to `dev`. `--dry-run` fetches and writes nothing.
+ * The network defaults to `dev`. `--dry-run` fetches and asks, then writes nothing.
  */
 export function registerVersions(program: Command, deps: CommandDeps): void {
   /** Version group. Sync is the only versions command. */
   const versions = deps
     .addSharedOptions(program.command('versions'))
-    .description('Update the Splice and SDK pins');
+    .description('Update the Splice pin, and the SDK pin when confirmed');
   deps
     .addSharedOptions(versions.command('sync'))
-    .description('Point daml.yaml and SPLICE_VERSION at a Canton Network')
+    .description('Set SPLICE_VERSION from a Canton Network and ask before changing sdk-version')
     .argument('[network]', 'Network name: dev, test, or main', 'dev')
     .option('--tag', 'Tag splice-<version> when the working tree is clean after the update')
     .option('--force', 'Replace an existing splice-<version> tag')
