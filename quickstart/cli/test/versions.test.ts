@@ -94,7 +94,7 @@ describe('runVersionsSync', () => {
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe(
       'SPLICE_VERSION=0.9.3\nDOCKER_NETWORK=quickstart\nDAML_RUNTIME_VERSION=3.5.14\n',
     );
-    expect(io.output()).toContain('Update sdk-version to 3.5.2 in every daml.yaml');
+    expect(io.output()).toContain('Update sdk-version to 3.5.2 in daml.yaml');
     expect(io.output()).toContain('(y/N)');
     expect(io.noted()).toContain('sdk-version 3.7.1 -> 3.5.2');
     expect(io.noted()).toContain('sdk-version 1.0.0 -> 3.5.2');
@@ -103,6 +103,35 @@ describe('runVersionsSync', () => {
     expect(io.noted()).toContain('migration 4');
     expect(io.noted()).toContain('Run qs vendor localnet');
     expect(fake.calls).toEqual([]);
+  });
+
+  test('a yes updates only manifests whose sdk-version differs', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    /** Matching pin with a comment. Rewriting this file would drop the comment. */
+    const kept = 'sdk-version: 3.5.2 # keep\n';
+    await writeFile(join(dir, 'daml', 'licensing', 'daml.yaml'), kept);
+    await mkdir(join(dir, 'daml', 'other'), { recursive: true });
+    await writeFile(join(dir, 'daml', 'other', 'daml.yaml'), 'sdk-version: 1.0.0\nname: other\n');
+    const io = scriptedIo(['y']);
+    const context: CommandContext = {
+      io: io.io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fakeRunner().runner,
+      fetch: fetchVersions('0.9.3'),
+    };
+    expect(
+      await runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+    ).toBe(0);
+    expect(await readFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'utf8')).toBe(kept);
+    expect(await readFile(join(dir, 'daml', 'other', 'daml.yaml'), 'utf8')).toBe(
+      'sdk-version: 3.5.2\nname: other\n',
+    );
+    expect(io.noted()).toContain('sdk-version 1.0.0 -> 3.5.2');
+    expect(io.noted()).not.toContain('sdk-version 3.5.2 ->');
   });
 
   test('leaves every daml.yaml unchanged when the answer is no', async () => {
@@ -204,7 +233,7 @@ describe('runVersionsSync', () => {
     expect(code).toBe(0);
     expect(await readFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'utf8')).toBe(before);
     expect(await readFile(join(dir, '.env'), 'utf8')).toContain('SPLICE_VERSION=0.9.3\n');
-    expect(io.output()).toContain('Update sdk-version to 3.5.2 in every daml.yaml');
+    expect(io.output()).toContain('Update sdk-version to 3.5.2 in daml.yaml');
     expect(io.output()).toContain('(y/N)');
     expect(io.noted()).toContain('Left sdk-version unchanged.');
     expect(io.noted()).not.toContain('End of input');
@@ -232,7 +261,7 @@ describe('runVersionsSync', () => {
     ).toBe(0);
     expect(await readFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'utf8')).toBe(before);
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
-    expect(io.output()).toContain('Update sdk-version to 3.5.2 in every daml.yaml');
+    expect(io.output()).toContain('Update sdk-version to 3.5.2 in daml.yaml');
     expect(io.output()).toContain('(y/N)');
     expect(io.noted()).toContain('sdk-version 3.7.1 -> 3.5.2');
     expect(io.noted()).toContain('.env: SPLICE_VERSION -> 0.9.3');

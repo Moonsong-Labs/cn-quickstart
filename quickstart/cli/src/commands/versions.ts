@@ -104,10 +104,10 @@ export function rewriteEnvAssignment(text: string, key: string, value: string): 
 /**
  * Point the checkout at the Splice version published for `network`.
  * `SPLICE_VERSION` in `.env` is written with no prompt. The SDK version from that Splice
- * release's `daml.yaml` is fetched and printed. `sdk-version` in this repo's manifests is
- * rewritten only when one of them differs and the user answers yes. An empty answer, `n`,
- * or end of input leaves those files unchanged. Manifests that already match are not
- * rewritten and do not prompt.
+ * release's `daml.yaml` is fetched and printed. `sdk-version` is rewritten only in manifests
+ * whose pin differs, and only after a yes. A manifest that already matches is left untouched,
+ * including its comments. An empty answer, `n`, or end of input leaves every file unchanged.
+ * When every pin already matches, this does not ask and does not rewrite.
  * `DAML_RUNTIME_VERSION` is left as it is, because it is the ledger API proto version.
  * `--dry-run` fetches, asks the same question, prints what that answer would do, and writes nothing.
  * An existing tag without `--force`, and a missing sibling checkout for `--copy`, are refused
@@ -246,14 +246,14 @@ async function readManifestPins(projectDir: string): Promise<ManifestPin[]> {
 }
 
 /**
- * Ask whether to write `sdk` into every `daml.yaml`.
+ * Ask whether to write `sdk` into each `daml.yaml` whose pin differs.
  * An empty answer and `n` return false. End of input returns false as well, instead of
  * throwing `EndOfInputError`, so a closed stdin leaves the pins unchanged and the command
  * can still exit 0.
  */
 async function askToUpdateSdk(ctx: CommandContext, sdk: string): Promise<boolean> {
   try {
-    return await askYesNo(ctx.io, `Update sdk-version to ${sdk} in every daml.yaml`, false);
+    return await askYesNo(ctx.io, `Update sdk-version to ${sdk} in daml.yaml`, false);
   } catch (error) {
     /** Closed stdin takes the default answer, which is no. Any other failure still propagates. */
     if (error instanceof EndOfInputError) return false;
@@ -262,11 +262,12 @@ async function askToUpdateSdk(ctx: CommandContext, sdk: string): Promise<boolean
 }
 
 /**
- * Rewrite `sdk-version` in every `daml.yaml` under `daml/` when any pin differs from `sdk`.
- * The question defaults to no. An empty answer, `n`, or end of input leaves every file
- * unchanged and prints a note. When every pin already matches, this does not ask and does not write.
- * Directories named `.daml` or `node_modules` are not walked.
- * `--dry-run` asks the same question, prints what that answer would do, and writes nothing.
+ * Rewrite `sdk-version` in each `daml.yaml` under `daml/` whose pin differs from `sdk`.
+ * Asks first, defaulting to no, when any pin differs. An empty answer, `n`, or end of input
+ * leaves every file unchanged and prints a note. A manifest that already matches is not written,
+ * so its comments stay, even when another manifest is updated. When every pin already matches,
+ * this does not ask and does not write. Directories named `.daml` or `node_modules` are not walked.
+ * `--dry-run` asks the same question, prints the lines for the files that would change, and writes nothing.
  */
 async function rewriteManifests(
   ctx: CommandContext,
@@ -275,17 +276,17 @@ async function rewriteManifests(
 ): Promise<void> {
   /** Manifests in walk order, with the pin each one already has. */
   const manifests = await readManifestPins(projectDir);
-  /** True when at least one manifest pins a different SDK, or has no pin. */
-  const differs = manifests.some((manifest) => manifest.current !== sdk);
-  if (!differs) return;
+  /** Manifests whose pin is not already `sdk`. Matching files stay out of the preview and the write. */
+  const outdated = manifests.filter((manifest) => manifest.current !== sdk);
+  if (outdated.length === 0) return;
   /** True when the user accepts the rewrite. A decline includes an empty answer and end of input. */
   const update = await askToUpdateSdk(ctx, sdk);
   if (!update) {
     ctx.io.note('Left sdk-version unchanged.\n');
     return;
   }
-  for (const manifest of manifests) {
-    /** Version already in the file, printed so a no-op is visible. */
+  for (const manifest of outdated) {
+    /** Version already in the file, printed so the change is visible. */
     const current = manifest.current ?? '(none)';
     ctx.io.note(`${manifest.file}: sdk-version ${current} -> ${sdk}\n`);
     if (!ctx.dryRun) await writeFile(manifest.file, rewriteSdkVersion(manifest.text, sdk));
