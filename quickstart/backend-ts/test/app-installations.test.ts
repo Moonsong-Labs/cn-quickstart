@@ -184,7 +184,17 @@ test('Rejects when the participant becomes unreachable after initialization', as
 });
 
 test('Rejects a connection lost after receipt without reporting success or resubmitting', async () => {
-  const { connection, state } = await setup(() => Response.error());
+  const { connection, state } = await setup(
+    () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error('connection lost'));
+          },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+  );
 
   await expect(
     createAppInstallRequest(connection, payload, 'lost-response-command'),

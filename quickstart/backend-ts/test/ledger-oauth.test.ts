@@ -186,6 +186,15 @@ test('Submits commands with the renewed OAuth token after the cached token reach
   ]);
 });
 
+test('Obtains a token from a *.localhost issuer served on host loopback', async () => {
+  const { server, state, options } = setup();
+  const issuer = new URL(`http://keycloak.localhost:${server.port}/issuer`);
+  const provider = await createOAuthTokenProvider({ ...options, issuer }, () => state.now);
+
+  expect(await provider.getAccessToken()).toBe('token-1');
+  expect(state.discoveryRequests).toBe(1);
+});
+
 test('Exposes identity-provider discovery failures as Ledger API errors with the original cause', async () => {
   const { server, options } = setup();
   await expect(
