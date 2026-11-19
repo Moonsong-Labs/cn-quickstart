@@ -824,7 +824,6 @@ Generate a unique renewal request
 
    REQUEST_ID=$(uuidgen)
    REQUESTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-   PREPARE_UNTIL=$(date -u -v+60M +"%Y-%m-%dT%H:%M:%SZ")
    SETTLE_BEFORE=$(date -u -v+90M +"%Y-%m-%dT%H:%M:%SZ")
 
 .. cf-docs-snippet-cn-quickstart-json-api-generate-renewal-request-id-end
@@ -867,7 +866,7 @@ Set the COMMAND_ID variable
 
 .. cf-docs-snippet-cn-quickstart-json-api-set-command-id-end
 
-You have 15 minutes to allocate tokens and 30 minutes to complete the renewal request.
+The provider must complete the renewal before the settlement deadline, set here to 90 minutes after the request.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-request-license-renewal-start
@@ -890,7 +889,6 @@ You have 15 minutes to allocate tokens and 30 minutes to complete the renewal re
              "microseconds": $LICENSE_EXTENSION_MICROSECONDS
            },
            "requestedAt": "$REQUESTED_AT",
-           "prepareUntil": "$PREPARE_UNTIL",
            "settleBefore": "$SETTLE_BEFORE",
            "description": "License renewal payment"
          }

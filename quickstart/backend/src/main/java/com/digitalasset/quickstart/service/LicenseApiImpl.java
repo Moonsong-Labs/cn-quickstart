@@ -43,7 +43,7 @@ import org.springframework.web.server.ResponseStatusException;
 import quickstart_licensing.licensing.license.License.License_Expire;
 import quickstart_licensing.licensing.license.License.License_Renew;
 import quickstart_licensing.licensing.license.LicenseRenewalRequest.LicenseRenewalRequest_CompleteRenewal;
-import splice_api_token_holding_v1.splice.api.token.holdingv1.InstrumentId;
+import splice_api_token_holding_v2.splice.api.token.holdingv2.InstrumentId;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ChoiceContext;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.AnyValue;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ExtraArgs;
@@ -115,7 +115,6 @@ public class LicenseApiImpl implements LicensesApi {
                         request.getLicenseFeeCc(),
                         parseRelTime(request.getLicenseExtensionDuration()),
                         now,
-                        now.plus(Duration.parse(request.getPrepareUntilDuration())),
                         now.plus(Duration.parse(request.getSettleBeforeDuration())),
                         request.getDescription()
                 );
@@ -224,14 +223,12 @@ public class LicenseApiImpl implements LicensesApi {
         renewalApi.setLicenseNum(rp.getLicenseNum.intValue());
         renewalApi.setLicenseFeeAmount(rp.getLicenseFeeAmount);
         renewalApi.setDescription(rp.getDescription);
-        renewalApi.setPrepareUntil(toOffsetDateTime(rp.getPrepareUntil));
         renewalApi.setSettleBefore(toOffsetDateTime(rp.getSettleBefore));
         renewalApi.setRequestedAt(toOffsetDateTime(rp.getRequestedAt));
         renewalApi.setRequestId(rp.getRequestId);
         long micros = rp.getLicenseExtensionDuration.getMicroseconds;
         String approximateDays = (micros / 1_000_000 / 3600 / 24) + " days";
         renewalApi.setLicenseExtensionDuration(approximateDays);
-        renewalApi.setPrepareDeadlinePassed(!rp.getPrepareUntil.isAfter(now));
         renewalApi.setSettleDeadlinePassed(!rp.getSettleBefore.isAfter(now));
         if (renewalContract.allocationCid().isPresent()) {
             renewalApi.setAllocationCid(renewalContract.allocationCid().get().getContractId);
