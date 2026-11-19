@@ -2,8 +2,8 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 import { Pool } from 'pg';
 import {
   AllocationRequest,
-  type AllocationRequestView,
-} from '../build/generated-daml-bindings/splice-api-token-allocation-request-v1-1.0.0/lib/Splice/Api/Token/AllocationRequestV1/module';
+  AllocationRequestView,
+} from '../build/generated-daml-bindings/splice-api-token-allocation-request-v2-1.0.0/lib/Splice/Api/Token/AllocationRequestV2/module';
 import {
   AppInstall,
   AppInstallRequest,
@@ -36,23 +36,36 @@ afterEach(async () => {
 });
 
 const allocationRequestPayload = {
+  originalRequestCid: null,
   settlement: {
-    executor: 'provider::test',
-    settlementRef: { id: 'renewal-1', cid: null },
-    requestedAt: '2026-10-22T12:00:00.123456Z',
-    allocateBefore: '2026-10-22T13:00:00.123456Z',
-    settleBefore: '2026-10-22T14:00:00.123456Z',
+    executors: ['provider::test'],
+    id: 'renewal-1',
+    cid: 'settlement-reference',
     meta: { values: {} },
   },
-  transferLegs: {
-    '0': {
-      sender: 'user::test',
-      receiver: 'provider::test',
-      amount: '12.3400000000',
-      instrumentId: { admin: 'issuer::test', id: 'test-token' },
+  allocations: [
+    {
+      admin: 'issuer::test',
+      authorizer: { owner: 'user::test', provider: null, id: '' },
+      transferLegSides: [
+        {
+          transferLegId: 'licenseFeePayment',
+          side: 'SenderSide',
+          otherside: { owner: 'provider::test', provider: null, id: '' },
+          amount: '12.3400000000',
+          instrumentId: 'test-token',
+          meta: { values: {} },
+        },
+      ],
+      settlementDeadline: '2026-10-22T14:00:00.123456Z',
+      nextIterationFunding: null,
+      committed: false,
       meta: { values: {} },
     },
-  },
+  ],
+  requestedAt: '2026-10-22T12:00:00.123456Z',
+  settleAt: null,
+  availableActions: [[{ tag: 'ARA_Accept', value: {} }, [['user::test']]]],
   meta: { values: {} },
 };
 
@@ -205,24 +218,23 @@ test('lists and finds active AllocationRequest interface views by ID', async () 
   const contracts: Contract<AllocationRequest>[] = await listActive(pool, AllocationRequest);
 
   expect(query).toHaveBeenCalledWith('SELECT contract_id, payload FROM active($1)', [
-    'splice-api-token-allocation-request-v1:Splice.Api.Token.AllocationRequestV1:AllocationRequest',
+    'splice-api-token-allocation-request-v2:Splice.Api.Token.AllocationRequestV2:AllocationRequest',
   ]);
   expect(contracts).toHaveLength(1);
   expect(contracts[0]?.contractId.toString()).toBe('allocation-1');
-  expect<AllocationRequestView | undefined>(contracts[0]?.payload).toEqual(
-    allocationRequestPayload,
-  );
+  expect(AllocationRequestView.encode(contracts[0].payload)).toEqual(allocationRequestPayload);
 
   const contract = await findActiveById(pool, AllocationRequest, 'allocation-1');
   expect(query).toHaveBeenLastCalledWith(
     'SELECT contract_id, payload FROM active($1) WHERE contract_id = $2',
     [
-      'splice-api-token-allocation-request-v1:Splice.Api.Token.AllocationRequestV1:AllocationRequest',
+      'splice-api-token-allocation-request-v2:Splice.Api.Token.AllocationRequestV2:AllocationRequest',
       'allocation-1',
     ],
   );
   expect(contract?.contractId.toString()).toBe('allocation-1');
-  expect<AllocationRequestView | undefined>(contract?.payload).toEqual(allocationRequestPayload);
+  if (!contract) throw new Error('Expected an active allocation request');
+  expect(AllocationRequestView.encode(contract.payload)).toEqual(allocationRequestPayload);
 });
 
 test('returns undefined when an AllocationRequest interface lookup finds no row', async () => {
@@ -232,7 +244,7 @@ test('returns undefined when an AllocationRequest interface lookup finds no row'
   expect(query).toHaveBeenCalledWith(
     'SELECT contract_id, payload FROM active($1) WHERE contract_id = $2',
     [
-      'splice-api-token-allocation-request-v1:Splice.Api.Token.AllocationRequestV1:AllocationRequest',
+      'splice-api-token-allocation-request-v2:Splice.Api.Token.AllocationRequestV2:AllocationRequest',
       'archived-allocation',
     ],
   );
@@ -244,7 +256,7 @@ test('rejects a payload that does not match the AllocationRequest interface view
   ]);
 
   await expect(listActive(pool, AllocationRequest)).rejects.toThrow(
-    'Failed to decode PQS contract not-an-allocation for #splice-api-token-allocation-request-v1:Splice.Api.Token.AllocationRequestV1:AllocationRequest',
+    'Failed to decode PQS contract not-an-allocation for #splice-api-token-allocation-request-v2:Splice.Api.Token.AllocationRequestV2:AllocationRequest',
   );
 });
 
@@ -258,7 +270,8 @@ test('decodes renewal amounts, time values, and large integers without conversio
     licenseFeeAmount: '123456789012345678.1234567890',
     licenseFeeInstrumentId: { admin: 'issuer::test', id: 'test-token' },
     licenseExtensionDuration: { microseconds: '86400000000' },
-    prepareUntil: '2026-10-22T13:00:00.123456Z',
+    settlementReference: 'settlement-reference',
+    originalRequestCid: null,
     settleBefore: '2026-10-22T14:00:00.123456Z',
     requestedAt: '2026-10-22T12:00:00.123456Z',
     description: 'Renew test license',
@@ -267,7 +280,8 @@ test('decodes renewal amounts, time values, and large integers without conversio
 
   const contract = await findActiveById(pool, LicenseRenewalRequest, 'renewal-1');
 
-  expect(contract?.payload).toEqual(payload);
+  if (!contract) throw new Error('Expected an active renewal request');
+  expect(LicenseRenewalRequest.encode(contract.payload)).toEqual(payload);
 });
 
 test('returns empty results for no active contracts and a missing ID', async () => {
