@@ -151,6 +151,10 @@ tasks.getByName("compileJava").dependsOn(
     "openApiGenerateAllocation"
 )
 
+tasks.test {
+    useJUnitPlatform()
+}
+
 tasks.register<JavaExec>("runPqsBackwardCompatibility") {
     group = "verification"
     description = "Checks Java PQS behavior during the TypeScript migration."
