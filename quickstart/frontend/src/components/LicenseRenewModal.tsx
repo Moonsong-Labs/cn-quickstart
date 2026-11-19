@@ -8,7 +8,6 @@ import Modal from './Modal.tsx';
 type RenewData = {
   extension: string;
   feeAmount: number;
-  prepareIn: string;
   settleIn: string;
   description: string;
 };
@@ -16,7 +15,6 @@ type RenewData = {
 const defaultData: RenewData = {
   extension: '30d',
   feeAmount: 100,
-  prepareIn: '10m',
   settleIn: '20m',
   description: '',
 };
@@ -38,17 +36,10 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
   );
 
   const handleRenew = async () => {
-    if (
-      !renewData.description.trim() &&
-      !renewData.prepareIn.trim() &&
-      !renewData.settleIn.trim() &&
-      !renewData.extension
-    )
-      return;
+    if (!renewData.description.trim() || !renewData.settleIn || !renewData.extension) return;
     const request: LicenseRenewRequest = {
       licenseExtensionDuration: toISO_8601(renewData.extension),
       licenseFeeCc: renewData.feeAmount,
-      prepareUntilDuration: toISO_8601(renewData.prepareIn),
       settleBeforeDuration: toISO_8601(renewData.settleIn),
       description: renewData.description.trim(),
     };
@@ -118,21 +109,6 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
               value={renewData.feeAmount}
               onChange={(e) => updateField('feeAmount')(Number(e.target.value) || 0)}
               style={{ width: '120px' }}
-            />
-          </div>
-
-          <label
-            className="text-end pe-2 mb-0"
-            htmlFor="renew-prepare"
-          >
-            Prepare in:
-          </label>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <DurationInput
-              id="renew-prepare"
-              units="smhd"
-              value={renewData.prepareIn}
-              onChange={updateField('prepareIn')}
             />
           </div>
 
