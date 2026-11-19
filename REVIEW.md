@@ -71,6 +71,14 @@ Scheduled for deletion once the TypeScript backend passes the Playwright suite. 
 - New shell scripts start with `set -euo pipefail` and quote their variables. Existing scripts keep at least `set -e`.
 - Flag a port, hostname, or volume change that `README.md` or the integration tests still rely on.
 
+## Pull request descriptions
+
+A reviewer should understand the description without already knowing the change. Keep the sections and emoji headings from `.github/pull_request_template.md`. Short sentences. Say what is true.
+
+- **Decisions for a person.** One bullet per decision. The first line is a short bold sentence that states the choice. Nested bullets say why, in plain words, and keep the facts a person needs: versions, sizes, where dependencies and images come from, and what to do if it fails. Include a backticked `path` or `path:line`. Leave out checksums, hash conversions, and component inventories unless the decision is about them. Write a recommendation as a sentence.
+- **What & Why.** One bullet per point. Start with what changes in plain words, then the paths, commands, and versions.
+- Flag a decision or a What & Why bullet that a person cannot follow: a pile of hashes, component names, or labels where a short sentence would do.
+
 ## CI: `.github/**`
 
 - Actions are pinned to a commit SHA with the version in a trailing comment.
