@@ -11,9 +11,12 @@ Example: Medium. Changes how `qs start` waits for the validator; the CLI tests c
 
 ## Decisions for a person 🕵️‍♂️
 
-<!-- The few choices a reviewer should check by eye, at most five. One bullet each: the decision,
-why it needs a human, and the code as `path` or `path:line`. Write None if nothing needs a look.
-Example: - Renewal archives the license before payment settles, so a failed payment loses it. `quickstart/daml/licensing/daml/Licensing/License.daml:88` -->
+<!-- The few choices a reviewer should check by eye, at most five. One bullet each: a bold first
+sentence that states the choice, then nested bullets that say why it needs a human and give the
+code as `path` or `path:line`. Write None if nothing needs a look.
+Example:
+- **Renewal archives the license before payment settles.**
+  - A failed payment loses the license. `quickstart/daml/licensing/daml/Licensing/License.daml:88` -->
 
 ## What & Why 💻
 
