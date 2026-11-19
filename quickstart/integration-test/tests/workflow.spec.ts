@@ -1,7 +1,7 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { test } from '../fixtures/workflow';
+import { expect, test } from '../fixtures/workflow';
 import {
   Button as InstallButton,
   Status as InstallStatus,
@@ -192,13 +192,31 @@ test.describe('AppInstall and Licensing workflow', () => {
 
     await test.step('AppProvider can complete License Renewal', async () => {
       const licenses = provider.licenses;
+      const original = (await licenses.list()).find((license) => license.contractId === licenseId);
+      if (!original) throw new Error('Original license is missing');
+      let replacementId!: string;
       await licenses.withRowMatching(licenseId, async () => {
         const renewals = licenses.renewalsModal;
         await renewals.withRowMatching(renewalRequestId, async () => {
-          await renewals.clickButton(RenewalsModalButton.CompleteRenewal);
+          replacementId = await renewals.completeRenewal(licenseId);
           await provider.waitForSuccessMessage('License renewal completed successfully');
         });
       });
+      expect(replacementId).not.toBe(licenseId);
+      await expect
+        .poll(async () => {
+          const active = (await licenses.list()).filter(
+            (license) => license.uuid === original.uuid,
+          );
+          return active.map((license) => ({
+            id: license.contractId,
+            extended: Date.parse(license.expiresAt) > Date.parse(original.expiresAt),
+            pending: license.renewalRequests.some(
+              (request) => request.requestId === renewalRequestId,
+            ),
+          }));
+        })
+        .toEqual([{ id: replacementId, extended: true, pending: false }]);
     });
   });
 });
