@@ -137,6 +137,10 @@ public class DamlRepository {
        return pqs.contractByContractId(LicenseRenewalRequest.class, contractId);
     }
 
+    public CompletableFuture<Optional<Contract<Allocation>>> findActiveAllocationById(String contractId) {
+        return pqs.contractByContractId(Allocation.class, contractId);
+    }
+
     public CompletableFuture<Optional<Contract<AllocationRequest>>> findActiveAllocationRequestById(String contractId) {
         return pqs.contractByContractId(AllocationRequest.class, contractId);
     }

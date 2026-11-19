@@ -53,8 +53,8 @@ public class ChoiceContextUtils {
         }
         return switch (AnyValueTag.fromString(tag)) {
             case AV_Text -> new AnyValue.AnyValue_AV_Text((String) value);
-            case AV_Int -> new AnyValue.AnyValue_AV_Int((Long)value);
-            case AV_Decimal -> new AnyValue.AnyValue_AV_Decimal(new BigDecimal((Double)value));
+            case AV_Int -> new AnyValue.AnyValue_AV_Int(Long.parseLong(value.toString()));
+            case AV_Decimal -> new AnyValue.AnyValue_AV_Decimal(new BigDecimal(value.toString()));
             case AV_Bool -> new AnyValue.AnyValue_AV_Bool((Boolean) value);
             case AV_ContractId -> new AnyValue.AnyValue_AV_ContractId(new ContractId<>((String) value));
             case AV_Party -> new AnyValue.AnyValue_AV_Party(new Party((String) value));
