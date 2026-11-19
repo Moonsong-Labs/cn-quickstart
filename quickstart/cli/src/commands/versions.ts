@@ -18,7 +18,7 @@ export type SyncOptions = {
   tag: boolean;
   /** Replace an existing tag of that name. Without this, an existing tag is an error. */
   force: boolean;
-  /** Copy DARs and the token-standard tests from a sibling `splice` checkout. */
+  /** Copy vendored DARs from a sibling `splice` checkout. */
   copy: boolean;
 };
 
@@ -255,18 +255,14 @@ function siblingSpliceDir(projectDir: string): string {
 
 /**
  * Throw when the sibling Splice checkout cannot supply a copy.
- * Requires the checkout itself, `daml/dars`, and `token-standard/splice-token-standard-test`.
+ * Requires the checkout and its `daml/dars` directory.
  * Called before `versions sync` writes, so a missing path does not leave a half-updated tree.
  */
 async function assertSiblingSplice(projectDir: string): Promise<void> {
   /** Checkout two directories above `quickstart/`. */
   const sibling = siblingSpliceDir(projectDir);
   /** Paths `copyFromSplice` reads. The first missing one is the error. */
-  const required = [
-    sibling,
-    join(sibling, 'daml', 'dars'),
-    join(sibling, 'token-standard', 'splice-token-standard-test'),
-  ];
+  const required = [sibling, join(sibling, 'daml', 'dars')];
   for (const path of required) {
     try {
       await access(path);
@@ -346,27 +342,20 @@ async function tagSplice(
 }
 
 /**
- * Copy DARs that already exist in `daml/dars` from the sibling checkout, then copy the token-standard tests.
+ * Copy DARs that already exist in `daml/dars` from the sibling checkout.
  * `assertSiblingSplice` has already required those paths. `--dry-run` prints them and copies nothing.
  */
 async function copyFromSplice(ctx: CommandContext, projectDir: string): Promise<number> {
   /** Sibling Splice checkout, two directories above `quickstart/`. */
   const sibling = siblingSpliceDir(projectDir);
-  /** DAR directory and the token-standard tests. Printed on a dry run before any copy. */
+  /** DAR directory. Printed on a dry run before any copy. */
   const dars = join(sibling, 'daml', 'dars');
-  /** Token-standard tests copied into `daml/external-test-sources`. */
-  const tests = join(sibling, 'token-standard', 'splice-token-standard-test');
   if (ctx.dryRun) {
     ctx.io.note(`Would copy DARs from ${dars}\n`);
-    ctx.io.note(`Would copy ${tests}\n`);
     return 0;
   }
   await copyExistingDars(dars, join(projectDir, 'daml', 'dars'));
-  await cp(tests, join(projectDir, 'daml', 'external-test-sources', 'splice-token-standard-test'), {
-    recursive: true,
-    force: true,
-  });
-  ctx.io.note('Copied DARs and splice-token-standard-test.\n');
+  ctx.io.note('Updated vendored DARs.\n');
   return 0;
 }
 
@@ -435,7 +424,7 @@ export function registerVersions(program: Command, deps: CommandDeps): void {
     .argument('[network]', 'Network name: dev, test, or main', 'dev')
     .option('--tag', 'Tag splice-<version> when the working tree is clean after the update')
     .option('--force', 'Replace an existing splice-<version> tag')
-    .option('--copy', 'Copy DARs and token-standard tests from a sibling splice checkout')
+    .option('--copy', 'Update vendored DARs from a sibling splice checkout')
     .action(async (network: string, _local: unknown, command: Command) => {
       /** Flags that change what sync writes. Absent flags stay false. */
       const opts = command.opts<{ tag?: boolean; force?: boolean; copy?: boolean }>();
