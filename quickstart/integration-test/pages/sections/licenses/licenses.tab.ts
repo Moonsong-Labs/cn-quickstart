@@ -47,7 +47,7 @@ export default class Licenses extends RowOps {
     return this.page.evaluate(async () => {
       const response = await fetch('/api/licenses');
       if (!response.ok) throw new Error(`Listing licenses returned HTTP ${response.status}`);
-      return response.json();
+      return (await response.json()) as LicenseSnapshot[];
     });
   }
 
