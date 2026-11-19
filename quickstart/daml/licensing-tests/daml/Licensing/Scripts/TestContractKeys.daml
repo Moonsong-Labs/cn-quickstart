@@ -7,9 +7,10 @@ import DA.List (sortOn)
 
 import Licensing.AppInstall
 import Licensing.License
-import Splice.Api.Token.AllocationRequestV1
-import Splice.Api.Token.HoldingV1 (InstrumentId(..))
+import Splice.Api.Token.AllocationRequestV2
+import Splice.Api.Token.HoldingV2 (InstrumentId(..))
 import Splice.Api.Token.MetadataV1
+import Splice.Testing.Utils (emptyExtraArgs)
 
 createInstall : Party -> Party -> Script (ContractId AppInstall)
 createInstall provider user = do
@@ -117,7 +118,6 @@ testRenewalRequestKeys = script do
         licenseFeeAmount = 1.0
         licenseExtensionDuration = days 1
         requestedAt = now
-        prepareUntil = now `addRelTime` hours 1
         settleBefore = now `addRelTime` hours 2
         description = "Key test"
 
@@ -138,7 +138,8 @@ testRenewalRequestKeys = script do
   queryAllByKey @LicenseRenewalRequest user (duplicateKey with user = outsider) >>= (=== [])
   submit provider $ exerciseCmd (toInterfaceContractId @AllocationRequest secondCid)
     AllocationRequest_Withdraw with
-      extraArgs = ExtraArgs with context = emptyChoiceContext; meta = emptyMetadata
+      actors = [provider]
+      extraArgs = emptyExtraArgs
   remaining <- queryAllByKey @LicenseRenewalRequest user duplicateKey
   map fst remaining === [firstCid]
   queryContractId provider secondCid >>= (=== None)
