@@ -11,8 +11,11 @@ import DA.List.Total
 import DA.Time
 import Splice.Api.Token.MetadataV1 as Api.Token.MetadataV1
 import Splice.Api.Token.HoldingV2 as Api.Token.HoldingV2
+import Splice.Api.Token.AllocationInstructionV2 as Api.Token.AllocationInstructionV2
+import Splice.Api.Token.AllocationV2 as Api.Token.AllocationV2
 import Splice.Api.Token.TransferInstructionV2
 import Splice.Amulet
+import Splice.AmuletAllocationV2 (AmuletAllocationV2(..))
 import Splice.Amulet.TokenApiUtils
 import Splice.AmuletConfig (AmuletConfig, USD)
 import Splice.AmuletRules
@@ -22,6 +25,7 @@ import Splice.Schedule
 import Splice.Round
 import Splice.Testing.Utils
 import Splice.Testing.Registries.AmuletRegistry.Parameters
+import Splice.Testing.TokenStandard.WalletClientV2 qualified as WalletClientV2
 import Daml.Script
 
 
@@ -135,6 +139,73 @@ getTransferFactory registry arg = do
     factoryCid = toInterfaceContractId @TransferFactory extAmuletRulesCid
     arg = arg with extraArgs = arg.extraArgs with context = fullContext.choiceContext
     disclosures = fullContext.disclosures
+
+-- | Create an Amulet allocation using a V2 allocation specification.
+-- The party must be the authorizer of the specification. Input holdings are
+-- selected from that party's unlocked holdings for the registry instrument.
+createAllocationForSpecification
+  : AmuletRegistry
+  -> Party
+  -> Api.Token.AllocationV2.SettlementInfo
+  -> Api.Token.AllocationV2.AllocationSpecification
+  -> Script (ContractId Api.Token.AllocationV2.Allocation)
+createAllocationForSpecification registry party settlement allocation = do
+  assertMsg "Allocation authorizer must belong to the allocating party"
+    (allocation.authorizer.owner == Some party)
+  (factoryCid, extraArgs, factoryDisclosures) <- getAllocationFactoryContext registry
+  now <- getTime
+  inputHoldingCids <- WalletClientV2.listUnlockedHoldingCidsFor
+    allocation.authorizer party registry.instrumentId
+  let args = Api.Token.AllocationInstructionV2.AllocationFactory_Allocate with
+        settlement
+        allocation
+        requestedAt = now
+        inputHoldingCids
+        extraArgs
+        actors = [party]
+  result <- submitWithDisclosures' party factoryDisclosures $
+    exerciseCmd factoryCid args
+  case result.output of
+    Api.Token.AllocationInstructionV2.AllocationInstructionResult_Completed with allocationCid ->
+      pure allocationCid
+    Api.Token.AllocationInstructionV2.AllocationInstructionResult_Pending{} ->
+      fail "Amulet allocation creation unexpectedly returned a pending instruction"
+    Api.Token.AllocationInstructionV2.AllocationInstructionResult_Failed ->
+      fail "Amulet allocation creation failed"
+
+getAllocationFactoryContext
+  : AmuletRegistry
+  -> Script (ContractId Api.Token.AllocationInstructionV2.AllocationFactory, ExtraArgs, Disclosures')
+getAllocationFactoryContext registry = do
+  (cid, extraArgs, disclosures) <- getExternalPartyFactoryContext registry
+  pure
+    (toInterfaceContractId @Api.Token.AllocationInstructionV2.AllocationFactory cid, extraArgs, disclosures)
+
+getSettlementFactoryContext
+  : AmuletRegistry
+  -> ContractId Api.Token.AllocationV2.Allocation
+  -> Script (ContractId Api.Token.AllocationV2.SettlementFactory, ExtraArgs, Disclosures')
+getSettlementFactoryContext registry allocationCid = do
+  (cid, extraArgs, disclosures) <- getExternalPartyFactoryContext registry
+  -- The executor sees the allocation. The registry discloses its backing LockedAmulet for settlement.
+  Some allocation <- queryContractId @AmuletAllocationV2 registry.dso (fromInterfaceContractId allocationCid)
+  backing <- case allocation.lockedAmulet of
+    None -> pure mempty
+    Some lockedCid -> queryDisclosure' @LockedAmulet registry.dso lockedCid
+  pure
+    (toInterfaceContractId @Api.Token.AllocationV2.SettlementFactory cid, extraArgs, disclosures <> backing)
+
+getExternalPartyFactoryContext
+  : AmuletRegistry
+  -> Script (ContractId ExternalPartyAmuletRules, ExtraArgs, Disclosures')
+getExternalPartyFactoryContext registry = do
+  (cid, factoryDisclosure) <- getExtAmuletRulesWithDisclosures registry
+  context <- getExternalPartyConfigStateContext registry
+  pure
+    ( cid
+    , emptyExtraArgs with context = context.choiceContext
+    , factoryDisclosure <> context.disclosures
+    )
 
 mkAmuletContext : TextMap.TextMap AnyValue -> ChoiceContext
 mkAmuletContext values = ChoiceContext with
