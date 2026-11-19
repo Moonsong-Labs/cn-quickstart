@@ -926,7 +926,7 @@ Success looks like:
 LicenseRenewalRequest
 ~~~~~~~~~~~~~~~~~~~~~
 
-Return to daml shell to get the ``LicenseRenewalRequest`` contract ID
+In the provider's ``daml shell``, list the active renewal requests.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-renewal-request-start
@@ -935,19 +935,48 @@ Return to daml shell to get the ``LicenseRenewalRequest`` contract ID
 
 .. cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-renewal-request-end
 
-Execute the contract command to see the ``LicenseRenewalRequest`` contract details.
+Run ``contract <contract-id>`` to inspect the payload. Match ``requestId`` to
+``$REQUEST_ID`` and note the request's ``settlementReference``. This reference
+identifies the payment for this renewal even if another request uses the same
+``requestId``.
+
+Fund the renewal in the Canton Wallet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``LicenseRenewalRequest`` implements the Token Standard V2
+``AllocationRequest`` interface. The user needs 100 Amulet available to fund the
+fee. To inspect holdings in ``daml shell``, enable the AppUser PQS and run
+``SHELL_DB=pqs-app-user make shell`` from the Quickstart directory, then query
+the V2 holding interface. Exit the provider shell before opening the user shell.
+You can also check the available balance in the wallet.
 
 .. code-block:: bash
+   :name: cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-holdings-start
 
-   contract ###...
+   active splice-api-token-holding-v2:Splice.Api.Token.HoldingV2:Holding
 
-.. image:: images/json-api-payload.png
-   :alt: LicenseRenewalRequest contract payload
+.. cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-holdings-end
 
-Take note of the ``Payload`` field.
-You'll use the metadata values to send the payment allocation in a future step.
+If the user's available balance is too low, use **Tap** in the LocalNet wallet
+to add funds. If a recent holding or request is missing from ``daml shell``,
+allow time for PQS to index the transaction and run the query again.
 
-Go back to the terminal and create a new ``RENEWAL_REQ_CID`` variable
+Open the Canton Wallet at http://wallet.localhost:2000/allocations and sign in
+as ``app-user`` with password ``abc123``. Find the V2 allocation request with
+your request ID, check the 100 Amulet fee and the provider, and click **Accept**.
+The wallet uses the terms and metadata published by the request. When the
+funding succeeds, the wallet shows **Withdraw**. The funds are reserved until
+the provider completes the renewal.
+
+Look up the active request and funded allocation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Run the active renewal request query again in the provider's ``daml shell``.
+If you switched to the AppUser shell, exit it and run ``make shell`` to return
+to the provider's PQS.
+Use the active contract with the ``settlementReference`` you noted. If the
+``AllocationRequest_Accept`` choice was exercised on the request, it replaced
+the contract and preserved that reference. Save the current contract ID.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-save-renewal-request-cid-start
@@ -956,155 +985,49 @@ Go back to the terminal and create a new ``RENEWAL_REQ_CID`` variable
 
 .. cf-docs-snippet-cn-quickstart-json-api-save-renewal-request-cid-end
 
-Return to the ``daml shell``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``LicenseRenewalRequest`` implements the ``AllocationRequest interface``.
-
-The user must allocate 100 CC tokens to satisfy the payment.
-
-.. code-block:: bash
-   :name: cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-holdings-start
-
-   active splice-api-token-holding-v1:Splice.Api.Token.HoldingV1:Holding
-
-.. cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-holdings-end
-
-If the return shows "<empty>", wait a couple minutes and try again.
-(It can take up to 15 minutes).
-This is normal Canton Network behavior due to how the Participant Query Store (PQS) works.
-Before the holding, or any other on-ledger activity shows in the ``daml shell``,
-the transaction must be processed on the ledger,
-PQS polls the participant for new events and updates its database,
-and after the sync completes the queries return the new data.
-
-The value in ``amount`` needs to be more than 100 to complete this step.
-
-In LocalNet, the Canton Wallet automatically replenishes tokens in each round.
-If your amount shows less than 100,
-then you most likely only need to wait a few minutes for the wallet to build up to a satisfactory amount.
-
-Optional: If you'd like to view more details, call the Holding contract ID.
-
-Navigate to the Canton Wallet UI at http://wallet.localhost:2000/allocations
-
-Log in as ``app-user`` with password ``abc123``
-
-In the demo, the allocation was completed for you via backend processes in the web app.
-Now, we need to fill out the allocation request manually
-
-You need to manually create an allocation for the daml shell allocation contract even if the UI shows an allocation request.
-
-.. image:: images/json-api-create-allocation.png
-   :alt: Create allocation manually
-
-Use the ``Payload`` metadata mentioned above to fill in all the fields surrounded by red.
-
-* **Transfer Leg ID:** ``licenseFeePayment``
-* **Settlement Ref ID:** ``settlementRef.id``
-* **Recipient:** ``receiver``
-* **Executor:** ``executor``
-* **Amount:** ``100``
-* **Requested At:** ``requestedAt``
-* **Settle before:** ``settleBefore``
-* **Allocate before:** ``allocateBefore``
-
-In the renewal request's ``AllocationRequest`` interface view, find the two metadata maps.
-Copy every key and its value into the corresponding Canton Wallet field:
-
-* **Settlement meta:** copy ``settlement.meta.values``.
-* **Transfer leg meta:** copy ``transferLegs.licenseFeePayment.meta.values``.
-
-For a license renewal, each map includes ``cn-quickstart.example.org/licenseNum``,
-``cn-quickstart.example.org/uuid``, and ``splice.lfdecentralizedtrust.org/reason``.
-Use the UUID from the request and enter the values without surrounding quotes.
-Completing the renewal requires both maps to match the request exactly.
-
-For the times ``Requested At``, ``Settle before``, and ``Allocate before``,
-you will need to manually enter a "." before the "Z" followed by six (6) "0"s.
-
-For example, ``requestedAt: 2025-10-29T20:38:16Z`` becomes
-``2025-10-29T20:38:16.000000Z``
-
-Send the request once all information is complete.
-
-Regenerate the provider token in case of security-sensitive errors
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Tokens automatically expire over time.
-This is a security measure and no fault of your own if you experience such errors.
-
-.. code-block:: bash
-
-   PROVIDER_TOKEN=$(curl -f -s -S "http://keycloak.localhost:8082/realms/AppProvider/protocol/openid-connect/token" \
-     -H 'Content-Type: application/x-www-form-urlencoded' \
-     -d 'client_id=app-provider-unsafe' \
-     -d 'username=app-provider' \
-     -d 'password=abc123' \
-     -d 'grant_type=password' \
-     -d 'scope=openid' | jq -r .access_token)
-
-Return to the terminal and get a user token
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   USER_TOKEN=$(curl -f -s -S "http://keycloak.localhost:8082/realms/AppUser/protocol/openid-connect/token" \
-     -H 'Content-Type: application/x-www-form-urlencoded' \
-     -d 'client_id=app-user-unsafe' \
-     -d 'username=app-user' \
-     -d 'password=abc123' \
-     -d 'grant_type=password' \
-     -d 'scope=openid' | jq -r .access_token)
-
-Look up the Allocation Contract ID
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Query for the allocation in ``daml shell``
+Query for the funded allocation in the same shell.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-allocations-start
 
-   active splice-api-token-allocation-v1:Splice.Api.Token.AllocationV1:Allocation
+   active splice-api-token-allocation-v2:Splice.Api.Token.AllocationV2:Allocation
 
 .. cf-docs-snippet-cn-quickstart-json-api-daml-shell-active-allocations-end
 
-Save the allocation contract ID as ALLOCATION_CID="###"
+Inspect the allocation with ``contract <contract-id>``. Its ``settlement.id``
+matches ``$REQUEST_ID`` and its ``settlement.cid`` matches the request's
+``settlementReference``. Check that ``allocation.authorizer.owner`` is the user
+and that the sender leg in ``allocation.transferLegSides`` names the provider
+as the recipient of 100 Amulet.
 
-Double check that the license renewal request, allocation , and license contract IDs are different.
-You may verify contract ID variables with values in ``daml shell``.
+Save that allocation's contract ID and check the three IDs before completing
+the renewal.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-verify-renewal-variables-start
 
+   ALLOCATION_CID="###"
    echo "Renewal Request: $RENEWAL_REQ_CID"
    echo "Allocation: $ALLOCATION_CID"
    echo "License: $LICENSE_CID"
-   echo "User Party: $APP_USER_PARTY"
-   echo "Provider Party: $APP_PROVIDER_PARTY"
-   echo "App Provider User ID: $APP_PROVIDER_USER_ID"
-   echo "Provider Token: ${PROVIDER_TOKEN:0:50}..."
-   echo "Package ID: $PACKAGE_ID"
-   echo "DSO Party: $DSO_PARTY"
-   echo "Contract ID: $APP_INSTALL_CID"
 
 .. cf-docs-snippet-cn-quickstart-json-api-verify-renewal-variables-end
 
-Renew the token
-~~~~~~~~~~~~~~~
+Authenticate to the Quickstart backend
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sign in as **AppProvider** at http://app-provider.localhost:3000/login.
+The Quickstart backend requires a session and a CSRF token for this write.
+In the browser's developer tools, open the cookies for
+``http://app-provider.localhost:3000`` and copy the values for
+``JSESSIONID`` and ``XSRF-TOKEN``. Enter them when prompted below.
 
 .. code-block:: bash
-   :name: cf-docs-snippet-cn-quickstart-json-api-renew-provider-token-start
 
-   PROVIDER_TOKEN=$(curl -fsS "http://keycloak.localhost:8082/realms/AppProvider/protocol/openid-connect/token" \
-     -H 'Content-Type: application/x-www-form-urlencoded' \
-     -d 'client_id=app-provider-unsafe' \
-     -d 'username=app-provider' \
-     -d 'password=abc123' \
-     -d 'grant_type=password' \
-     -d 'scope=openid' | jq -r .access_token)
-
-.. cf-docs-snippet-cn-quickstart-json-api-renew-provider-token-end
+   read -r -s -p 'JSESSIONID: ' PROVIDER_SESSION
+   echo
+   read -r -s -p 'XSRF-TOKEN: ' PROVIDER_CSRF
+   echo
 
 Generate a unique command ID
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1112,20 +1035,22 @@ Generate a unique command ID
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-generate-complete-renewal-command-id-start
 
-   COMMAND_ID="complete-renewal-$(date +%s%N)"
+   COMMAND_ID="complete-renewal-$(uuidgen)"
 
 .. cf-docs-snippet-cn-quickstart-json-api-generate-complete-renewal-command-id-end
 
 Set the endpoint path to connect to the backend service to complete the license renewal
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A backend service is required for this step because the DSO and the user exchange information stored in ``lockedAmulet``.
-This information is not available to the Provider and therefore cannot be accessed via the daml shell.
+Complete the renewal before the request's ``settleBefore`` deadline.
+The backend asks Scan for the V2 factory contexts and disclosed contracts
+needed to receive and settle the payment. It submits one ledger command that
+pays the provider and replaces the license.
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-set-complete-renewal-endpoint-start
 
-   ENDPOINT="http://localhost:8080/licenses/${LICENSE_CID}:complete-renewal"
+   ENDPOINT="http://app-provider.localhost:3000/api/licenses/${LICENSE_CID}:complete-renewal"
 
 .. cf-docs-snippet-cn-quickstart-json-api-set-complete-renewal-endpoint-end
 
@@ -1151,13 +1076,11 @@ Make the request to complete the license renewal
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-complete-license-renewal-start
 
-   RESPONSE=$(curl -s -v -X POST "$ENDPOINT?commandId=$COMMAND_ID" \
-     -H "Authorization: Bearer $PROVIDER_TOKEN" \
+   RESPONSE=$(curl -fsS -X POST "$ENDPOINT?commandId=$COMMAND_ID" \
+     --cookie "JSESSIONID=$PROVIDER_SESSION; XSRF-TOKEN=$PROVIDER_CSRF" \
+     -H "X-XSRF-TOKEN: $PROVIDER_CSRF" \
      -H "Content-Type: application/json" \
-     -d "$REQUEST_BODY")
-   
-   
-   echo "$RESPONSE" | jq .
+     -d "$REQUEST_BODY") && printf '%s\n' "$RESPONSE" | jq .
 
 .. cf-docs-snippet-cn-quickstart-json-api-complete-license-renewal-end
 
@@ -1178,11 +1101,9 @@ After successful execution, return to daml shell and run a contract command usin
 
    contract ###...
    
-In the ``Payload`` field, notice that the ``expiresAt`` value is set for 30 days in the future.
-
-Congratulations!
-You've made a complete business operation in the Quickstart application using JSON API
-(with minimal help from the backend service to collect information not available in PQS for ``complete-renewal``).
+The replacement license has the same ``uuid`` as the original. Its
+``expiresAt`` is extended by 30 days from the later of the original expiration
+and the settlement time. The renewal request is no longer active.
 
 Appendix
 --------
