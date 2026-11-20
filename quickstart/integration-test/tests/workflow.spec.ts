@@ -134,6 +134,43 @@ test.describe('AppInstall and Licensing workflow', () => {
     });
   });
 
+  for (const { field, selector } of [
+    { field: 'fee', selector: '#renew-fee' },
+    { field: 'extension', selector: '#renew-extension' },
+  ]) {
+    test(`AppProvider cannot issue a renewal with zero ${field}`, async ({
+      requestTag,
+      provider,
+    }) => {
+      const installs = provider.installs;
+      await installs.goto();
+      let licenseId!: string;
+      await installs.withRowMatching(requestTag, async () => {
+        await installs.clickButton(InstallButton.Accept);
+        await installs.assertStatus(InstallStatus.Accepted);
+        await installs.clickButton(InstallButton.CreateLicense);
+        licenseId = await installs.captureLicenseId();
+      });
+
+      const licenses = provider.licenses;
+      await licenses.goto();
+      await licenses.withRowMatching(licenseId, async () => {
+        await licenses.clickButton(LicenseButton.Renewals);
+        const renewals = licenses.renewalsModal;
+        await renewals.clickButton(RenewalsModalButton.New, renewals.modal);
+        const form = renewals.issueRenewalModal;
+        await form.fillDescription('Renewal validation');
+        const submit = form.button(IssueRenewalModalButton.IssueLicenseRenewalRequest);
+        await expect(submit).toBeEnabled();
+
+        const input = form.page.locator(selector);
+        await input.fill('0');
+        await expect(input).toHaveValue('0');
+        await expect(submit).toBeDisabled({ timeout: 2_000 });
+      });
+    });
+  }
+
   test('Full License Lifecycle should pass', async ({
     requestTag,
     keycloak,
