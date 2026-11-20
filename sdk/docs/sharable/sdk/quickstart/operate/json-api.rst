@@ -1011,16 +1011,14 @@ Use the ``Payload`` metadata mentioned above to fill in all the fields surrounde
 * **Settle before:** ``settleBefore``
 * **Allocate before:** ``allocateBefore``
 
-In the renewal request's ``AllocationRequest`` interface view, find the two metadata maps.
-Copy every key and its value into the corresponding Canton Wallet field:
+Use the ``LicenseRenewalRequest`` ``Payload`` you noted in ``daml shell``.
+Add these entries to both **Settlement meta** and **Transfer leg meta**:
 
-* **Settlement meta:** copy ``settlement.meta.values``.
-* **Transfer leg meta:** copy ``transferLegs.licenseFeePayment.meta.values``.
+* **Key:** ``cn-quickstart.example.org/licenseNum`` · **Value:** ``licenseNum``
+* **Key:** ``cn-quickstart.example.org/uuid`` · **Value:** ``uuid``
+* **Key:** ``splice.lfdecentralizedtrust.org/reason`` · **Value:** ``description``
 
-For a license renewal, each map includes ``cn-quickstart.example.org/licenseNum``,
-``cn-quickstart.example.org/uuid``, and ``splice.lfdecentralizedtrust.org/reason``.
-Use the UUID from the request and enter the values without surrounding quotes.
-Completing the renewal requires both maps to match the request exactly.
+Enter values without surrounding quotes. Both maps must match the request exactly.
 
 For the times ``Requested At``, ``Settle before``, and ``Allocate before``,
 you will need to manually enter a "." before the "Z" followed by six (6) "0"s.
