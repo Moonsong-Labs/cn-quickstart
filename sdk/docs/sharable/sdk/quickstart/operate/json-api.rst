@@ -1024,10 +1024,11 @@ In the browser's developer tools, open the cookies for
 
 .. code-block:: bash
 
-   read -r -s -p 'JSESSIONID: ' PROVIDER_SESSION
-   echo
-   read -r -s -p 'XSRF-TOKEN: ' PROVIDER_CSRF
-   echo
+   printf 'JSESSIONID: '
+   IFS= read -rs PROVIDER_SESSION
+   printf '\nXSRF-TOKEN: '
+   IFS= read -rs PROVIDER_CSRF
+   printf '\n'
 
 Generate a unique command ID
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
