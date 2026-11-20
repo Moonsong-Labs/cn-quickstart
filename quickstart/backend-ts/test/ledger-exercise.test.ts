@@ -200,7 +200,7 @@ test('Decodes a structured result using a different generated choice', async () 
     ...options,
     contractId: ContractId(AppInstall).decoder.runWithException('installation-contract'),
     choice: AppInstall.AppInstall_CreateLicense,
-    argument: { params: { meta: { values: {} } } },
+    argument: { uuid: '00000000-0000-4000-8000-000000000001', params: { meta: { values: {} } } },
   });
   expect(decoded.installId.toString()).toBe(result.installId);
   expect(decoded.licenseId.toString()).toBe(result.licenseId);

@@ -277,6 +277,32 @@ describe('runVersionsSync', () => {
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe(before);
   });
 
+  test('updates only vendored DARs from a sibling checkout', async () => {
+    const dir = await tempProject(cleaner.dirs, undefined, true);
+    const source = join(dir, '..', '..', 'splice', 'daml', 'dars');
+    const target = join(dir, 'daml', 'dars');
+    await mkdir(source, { recursive: true });
+    await mkdir(target, { recursive: true });
+    await writeFile(join(source, 'vendored.dar'), 'new');
+    await writeFile(join(source, 'unused.dar'), 'unused');
+    await writeFile(join(target, 'vendored.dar'), 'old');
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fakeRunner().runner,
+      fetch: fetchVersions('0.9.3'),
+    };
+    expect(
+      await runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: true }),
+    ).toBe(0);
+    expect(await readFile(join(target, 'vendored.dar'), 'utf8')).toBe('new');
+    await expect(readFile(join(target, 'unused.dar'))).rejects.toThrow('ENOENT');
+  });
+
   test('refuses to tag a dirty tree after the rewrite', async () => {
     const dir = await tempProject(cleaner.dirs);
     /** Tag is absent, then the working tree is dirty, so no `git tag` runs. */
