@@ -333,6 +333,8 @@ paths:
       responses:
         '201':
           description: Renewal offer/payment request created
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -729,10 +731,12 @@ components:
       properties:
         licenseFeeCc:
           type: number
+          minimum: 0
+          exclusiveMinimum: true
           description: License fee amount
         licenseExtensionDuration:
           type: string
-          description: "ISO-8601 duration specifying the requested extension period (e.g. 'P30D' for 30 days)."
+          description: "Positive ISO-8601 duration of at least one microsecond (e.g. 'P30D' for 30 days)."
         settleBeforeDuration:
           type: string
           description: "ISO-8601 duration until the provider must settle the renewal fee."

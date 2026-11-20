@@ -20,10 +20,12 @@ import com.digitalasset.quickstart.repository.DamlRepository;
 import com.digitalasset.quickstart.security.AuthUtils;
 import com.digitalasset.transcode.java.ContractId;
 import com.digitalasset.transcode.java.Party;
+import daml_stdlib_da_time_types.da.time.types.RelTime;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -105,6 +107,11 @@ public class LicenseApiImpl implements LicensesApi {
                 "commandId", commandId
         );
         return auth.asAdminParty(party -> traceServiceCallAsync(ctx, () -> {
+            var fee = request.getLicenseFeeCc();
+            if (fee == null || fee.signum() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "licenseFeeCc must be greater than zero");
+            }
+            var extension = parseRenewalExtension(request.getLicenseExtensionDuration());
             var registryAdminIdFut = tokenStandardProxy.getRegistryAdminId();
             var licenseFut = damlRepository.findLicenseById(contractId);
             return registryAdminIdFut.thenCombine(licenseFut, (adminId, optLicense) -> {
@@ -113,8 +120,8 @@ public class LicenseApiImpl implements LicensesApi {
                 License_Renew choice = new License_Renew(
                         UUID.randomUUID().toString(),
                         new InstrumentId(new Party(adminId), "Amulet"),
-                        request.getLicenseFeeCc(),
-                        parseRelTime(request.getLicenseExtensionDuration()),
+                        fee,
+                        extension,
                         now,
                         now.plus(Duration.parse(request.getSettleBeforeDuration())),
                         request.getDescription()
@@ -125,6 +132,21 @@ public class LicenseApiImpl implements LicensesApi {
         }));
     }
 
+    private static RelTime parseRenewalExtension(String duration) {
+        if (duration == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "licenseExtensionDuration is required");
+        }
+        try {
+            var extension = parseRelTime(duration);
+            if (extension.getMicroseconds <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "licenseExtensionDuration must be at least one microsecond");
+            }
+            return extension;
+        } catch (DateTimeParseException | ArithmeticException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid licenseExtensionDuration", e);
+        }
+    }
 
     @Override
     @WithSpan

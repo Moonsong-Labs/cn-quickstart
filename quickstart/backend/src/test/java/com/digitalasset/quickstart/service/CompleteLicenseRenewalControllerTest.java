@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -32,6 +33,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
@@ -71,6 +74,25 @@ class CompleteLicenseRenewalControllerTest {
         }).when(auth).asAdminParty(any(Function.class));
         mockMvc = MockMvcBuilders.standaloneSetup(
                 new LicenseApiImpl(ledger, repository, tokenStandardProxy, auth)).build();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,P30D", "100,P0D", "100,PT0.000000001S", "100,invalid"})
+    void invalidRenewalReturnsBadRequestWithoutCallingDependencies(String fee, String extension) throws Exception {
+        var request = """
+                {"licenseFeeCc":%s,"licenseExtensionDuration":"%s",
+                 "settleBeforeDuration":"PT20M","description":"Test renewal"}
+                """.formatted(fee, extension);
+        var pending = mockMvc.perform(post("/licenses/{id}:renew", "license-contract-id")
+                        .queryParam("commandId", "invalid-renewal")
+                        .contentType("application/json")
+                        .content(request))
+                .andReturn();
+        if (pending.getRequest().isAsyncStarted()) {
+            pending = mockMvc.perform(asyncDispatch(pending)).andReturn();
+        }
+        assertEquals(400, pending.getResponse().getStatus());
+        verifyNoInteractions(ledger, repository, tokenStandardProxy);
     }
 
     @Test
