@@ -292,10 +292,8 @@ test.each(['common-provider', 'common-user', 'same-party', 'outsider'])(
   },
 );
 
-test('TS intentionally excludes the other provider renewal that Java associates by user and license number', () => {
-  expect(java.licenses['provider-a'][0].renewals.map((v) => v.renewal.contractId)).toEqual([
-    'renewal-provider-b',
-  ]);
+test('Both backends scope renewals to the license provider', () => {
+  expect(java.licenses['provider-a'][0].renewals).toEqual([]);
   expect(typescript.licenses['provider-a'][0].renewals).toEqual([]);
   expect(licenses(typescript.licenses['provider-b'])).toEqual(
     licenses(java.licenses['provider-b']),

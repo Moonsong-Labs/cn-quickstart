@@ -121,6 +121,7 @@ export async function seedFixtures(pool: Pool) {
       {
         provider,
         user,
+        uuid: `00000000-0000-4000-8000-${BigInt(licenseNum).toString(16).slice(-12).padStart(12, '0')}`,
         licenseNum,
         expiresAt: '2026-11-02T12:00:00.123456Z',
         params: {
@@ -144,6 +145,7 @@ export async function seedFixtures(pool: Pool) {
     const payload = {
       provider,
       user,
+      uuid: `00000000-0000-4000-8000-${BigInt(licenseNum).toString(16).slice(-12).padStart(12, '0')}`,
       licenseNum,
       requestId,
       licenseFeeAmount: '123456789012345678.1234567890',
@@ -158,6 +160,7 @@ export async function seedFixtures(pool: Pool) {
       values: {
         'splice.lfdecentralizedtrust.org/reason': payload.description,
         'cn-quickstart.example.org/licenseNum': licenseNum,
+        'cn-quickstart.example.org/uuid': payload.uuid,
       },
     };
     const view: AllocationRequestView = {

@@ -26,6 +26,7 @@ afterEach(async () => {
 const licensePayload = (provider: string, user: string, licenseNum: string) => ({
   provider,
   user,
+  uuid: '00000000-0000-4000-8000-000000000001',
   licenseNum,
   expiresAt: '2026-10-30T00:00:00Z',
   params: { meta: { values: {} } },
@@ -35,6 +36,7 @@ const renewalPayload = (requestId: string, provider: string, user: string, licen
   requestId,
   provider,
   user,
+  uuid: '00000000-0000-4000-8000-000000000001',
   licenseNum,
   licenseFeeAmount: '12.3400000000',
   licenseFeeInstrumentId: { admin: 'provider::test', id: 'test-token' },

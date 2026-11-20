@@ -721,6 +721,7 @@ Exercise the CreateLicense choice
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-create-license-start
 
+   LICENSE_UUID=$(uuidgen)
    JSON_PAYLOAD=$(cat <<EOF
    {
      "commands": [{
@@ -729,6 +730,7 @@ Exercise the CreateLicense choice
          "contractId": "$APP_INSTALL_CID",
          "choice": "AppInstall_CreateLicense",
          "choiceArgument": {
+           "uuid": "$LICENSE_UUID",
            "params": {
              "meta": {"values": {}}
            }
@@ -1009,20 +1011,14 @@ Use the ``Payload`` metadata mentioned above to fill in all the fields surrounde
 * **Settle before:** ``settleBefore``
 * **Allocate before:** ``allocateBefore``
 
-Add two custom entries for the Settlement meta and Transfer leg meta, each.
+Use the ``LicenseRenewalRequest`` ``Payload`` you noted in ``daml shell``.
+Add these entries to both **Settlement meta** and **Transfer leg meta**:
 
-* **Key:** ``cn-quickstart.example.org/licenseNum``
-* **Value:** ``1``
-* **Key:** ``splice.lfdecentralizedtrust.org/reason``
-* **Value:** ``License renewal payment``
+* **Key:** ``cn-quickstart.example.org/licenseNum`` · **Value:** ``licenseNum``
+* **Key:** ``cn-quickstart.example.org/uuid`` · **Value:** ``uuid``
+* **Key:** ``splice.lfdecentralizedtrust.org/reason`` · **Value:** ``description``
 
-Do NOT wrap values in quotes.
-Canton Wallet adds escaped quotes.
-
-Both key value pairs go in both meta options.
-
-To find the necessary information,
-look at the LicenseRenewalRequest contract ``payload`` field in daml shell.
+Enter values without surrounding quotes. Both maps must match the request exactly.
 
 For the times ``Requested At``, ``Settle before``, and ``Allocate before``,
 you will need to manually enter a "." before the "Z" followed by six (6) "0"s.
