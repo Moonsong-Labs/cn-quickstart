@@ -1,5 +1,6 @@
 import { AuthMode, readAuthMode, readProviderIssuer } from './auth-mode';
 
+/** Describes the validated AppProvider settings and authentication configuration returned by the loader. */
 export type ApplicationConfig = ReturnType<typeof readApplicationConfig>;
 
 /** Loads the AppProvider tenant and validates the settings for the selected authentication mode. */

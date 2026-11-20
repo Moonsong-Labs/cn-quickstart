@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import type { resolveSharedSecretUser, Tenant } from '../../auth/shared-secret-user';
 
+/** Returns a functional error message as an HTTP problem response. */
 function problem(status: number, message: string) {
   return Response.json(
     { message },
@@ -8,6 +9,7 @@ function problem(status: number, message: string) {
   );
 }
 
+/** Registers admin-only shared-secret tenant creation, listing, and deletion with session revocation. */
 export function tenantRegistrationRoutes(
   tenants: Tenant[],
   sessionUser: (id: unknown) => ReturnType<typeof resolveSharedSecretUser>,
@@ -91,7 +93,7 @@ export function tenantRegistrationRoutes(
           partyId,
           users,
           internal: false,
-          walletUrl: walletUrl ?? undefined,
+          walletUrl: walletUrl?.trim() ? walletUrl : undefined,
         });
         return Response.json(
           {

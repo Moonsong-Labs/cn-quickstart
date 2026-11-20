@@ -188,3 +188,37 @@ test('An internal space is part of a single shared-secret username', async () =>
   expect(await login('Bob')).toBe('');
   expect(await login('Smith')).toBe('');
 });
+
+/** Checks that registration, listing, and login expose the same optional wallet URL. */
+test.each(['', ' ', 'https://wallet.example/pay'])(
+  'Shared-secret wallet URL stays consistent for "%s"',
+  async (walletUrl) => {
+    /** Provides an isolated application and its HTTP helpers. */
+    const { app, login, register, list } = setup();
+    /** Authenticates the administrator allowed to register tenants. */
+    const admin = await login('app-provider');
+    /** Supplies one user whose wallet can be checked after login. */
+    const tenant = {
+      tenantId: 'AppUser',
+      partyId: 'customer::123',
+      users: ['Alice'],
+      walletUrl,
+    };
+    /** Blank wallets are absent; configured wallets retain their original value. */
+    const expected = walletUrl.trim() ? walletUrl : null;
+    /** Creates the tenant through the same endpoint used by onboarding. */
+    const created = await register(admin, tenant);
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ walletUrl: expected });
+    expect(await (await list(admin)).json()).toContainEqual(
+      expect.objectContaining({ tenantId: tenant.tenantId, walletUrl: expected }),
+    );
+
+    /** Opens the registered user's session to inspect its wallet resolution. */
+    const cookie = await login('Alice');
+    /** Reads the wallet URL exposed to the authenticated frontend. */
+    const user = await app.handle(new Request('http://localhost/user', { headers: { cookie } }));
+    expect(user.status).toBe(200);
+    expect(await user.json()).toMatchObject({ walletUrl: expected });
+  },
+);

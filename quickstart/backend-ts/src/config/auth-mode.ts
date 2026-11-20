@@ -6,14 +6,17 @@ export enum AuthMode {
   OAuth2 = 'oauth2',
 }
 
+/** Provides read-only environment values, including unset variables. */
 type Environment = Readonly<Record<string, string | undefined>>;
 
+/** Defaults to shared-secret and rejects values other than shared-secret or oauth2. */
 export function readAuthMode(env: Environment): AuthMode {
   const mode = env.AUTH_MODE ?? AuthMode.SharedSecret;
   if (mode === AuthMode.SharedSecret || mode === AuthMode.OAuth2) return mode;
   throw new Error(`AUTH_MODE must be ${AuthMode.SharedSecret} or ${AuthMode.OAuth2}`);
 }
 
+/** Validates the provider issuer URL and permits HTTP only when explicitly enabled. */
 export function readProviderIssuer(env: Environment) {
   const allowHttpValue = env.LEDGER_OAUTH_ALLOW_HTTP ?? 'false';
   if (allowHttpValue !== 'true' && allowHttpValue !== 'false') {
