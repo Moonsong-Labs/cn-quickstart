@@ -1,5 +1,6 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { Pool } from 'pg';
 import { createApp } from '../src/app';
 import { readApplicationConfig } from '../src/config/application';
 import { appDependencies } from './fixtures/dependencies';
@@ -113,7 +114,15 @@ describe('OIDC callbacks and tenant permissions', () => {
         LEDGER_OAUTH_ALLOW_HTTP: 'true',
         TEST_MODE: scenario === 'profile' ? 'on' : 'off',
       });
-      const app = createApp({ ...appDependencies, application });
+      /** Supplies one active request per effective party without a database connection. */
+      const pqs = new Pool();
+      spyOn(pqs, 'query').mockResolvedValue({
+        rows: ['configured-party', 'test-party', 'customer'].map((party) => ({
+          contract_id: party,
+          payload: { provider: 'other-provider', user: party, meta: { values: {} } },
+        })),
+      } as never);
+      const app = createApp({ ...appDependencies, application, pqs });
       /** Sends a browser request through the app with the cookie from the previous step. */
       const get = (path: string, cookie = '') =>
         app.handle(new Request(`http://internal${path}`, { headers: { cookie } }));
@@ -149,6 +158,28 @@ describe('OIDC callbacks and tenant permissions', () => {
           roles: ['ROLE_ADMIN', 'AppProvider', party],
           walletUrl: null,
         });
+
+        /** Reads requests using the current OIDC browser session. */
+        const requests = await get('/app-install-requests', session);
+        expect(requests.status).toBe(200);
+        expect(await requests.json()).toEqual([
+          { contractId: party, provider: 'other-provider', user: party, meta: { data: {} } },
+        ]);
+        /** A trusted bearer maps to the configured AppProvider instead of using the browser party. */
+        const bearerRequests = await app.handle(
+          new Request('http://internal/app-install-requests', {
+            headers: { authorization: `Bearer ${providerIdToken}`, cookie: session ?? '' },
+          }),
+        );
+        expect(bearerRequests.status).toBe(200);
+        expect(await bearerRequests.json()).toEqual([
+          {
+            contractId: 'configured-party',
+            provider: 'other-provider',
+            user: 'configured-party',
+            meta: { data: {} },
+          },
+        ]);
 
         // The browser session grants admin access, but cannot rescue an invalid bearer.
         const path = '/admin/tenant-registrations';
@@ -271,6 +302,14 @@ describe('OIDC callbacks and tenant permissions', () => {
                 ? ['ROLE_ADMIN', 'AppUser', 'customer']
                 : ['AppUser', 'customer'],
           });
+          expect(await (await get('/app-install-requests', browserCookies)).json()).toEqual([
+            {
+              contractId: 'customer',
+              provider: 'other-provider',
+              user: 'customer',
+              meta: { data: {} },
+            },
+          ]);
           const customerCsrf = done.headers
             .getSetCookie()
             .find((h) => h.startsWith('XSRF-TOKEN='))
