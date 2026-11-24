@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../../config/ledger';
 import {
   AppInstall,
+  type AppInstall_Cancel,
   AppInstallRequest,
   type AppInstallRequest_Accept,
   type AppInstallRequest_Reject,
@@ -110,6 +111,46 @@ export async function rejectAppInstallRequest(
     readAs: [providerParty],
   });
   return true;
+}
+
+/** Cancels a visible installation when the AppProvider can act as a signatory. */
+export async function cancelAppInstall(
+  pqs: Pool,
+  ledger: LedgerConnection,
+  providerParty: string,
+  {
+    contractId,
+    commandId,
+    party,
+    meta,
+  }: {
+    contractId: string;
+    commandId: string;
+    party: string;
+    meta: AppInstall_Cancel['meta'];
+  },
+) {
+  /** Loads the active installation and its signatories from PQS. */
+  const install = await findActiveById(pqs, AppInstall, contractId);
+  if (!install) return 'missing';
+
+  /** The authenticated party must be a signatory, as must the provider acting on the ledger. */
+  const { user, provider } = install.payload;
+  if (
+    (party !== user && party !== provider) ||
+    (providerParty !== user && providerParty !== provider)
+  )
+    return 'forbidden';
+
+  await exerciseChoice(ledger, {
+    contractId: install.contractId,
+    choice: AppInstall.AppInstall_Cancel,
+    argument: { actor: providerParty, meta },
+    commandId,
+    actAs: [providerParty],
+    readAs: [providerParty],
+  });
+  return 'canceled';
 }
 
 /**

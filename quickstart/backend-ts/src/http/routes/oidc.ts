@@ -107,6 +107,15 @@ export function oidcRoutes(
     return verifyBearer(authorization);
   }
 
+  /** Requires the session's CSRF token in both the cookie and header on mutations. */
+  function hasValidCsrf(request: Request, csrfCookie: unknown, sessionToken: string) {
+    return (
+      request.method === 'GET' ||
+      request.method === 'HEAD' ||
+      (sessionToken === csrfCookie && sessionToken === request.headers.get('x-xsrf-token'))
+    );
+  }
+
   /** Authorizes a trusted AppProvider bearer or a provider session with CSRF on mutations. */
   async function authorizeAppProvider(request: Request, sessionId: unknown, csrfCookie: unknown) {
     /** An explicit bearer takes precedence over a session cookie. */
@@ -120,12 +129,7 @@ export function oidcRoutes(
       session.party !== provider.partyId
     )
       return 403;
-    if (
-      request.method !== 'GET' &&
-      request.method !== 'HEAD' &&
-      (session.csrf !== csrfCookie || session.csrf !== request.headers.get('x-xsrf-token'))
-    )
-      return 403;
+    if (!hasValidCsrf(request, csrfCookie, session.csrf)) return 403;
     return 200;
   }
 
@@ -138,12 +142,15 @@ export function oidcRoutes(
         pqs,
         ledger,
         provider.partyId,
-        async (request, sessionId) => {
+        async (request, sessionId, csrfCookie) => {
           /** Explicit bearer credentials take precedence over a browser session. */
           const authorization = request.headers.get('authorization');
           if (authorization !== null)
             return (await authenticateBearer(authorization))?.partyId ?? null;
-          return sessions.read(sessionId)?.party ?? null;
+          /** Browser sessions require CSRF for writes, including customer cancellations. */
+          const session = sessions.read(sessionId);
+          if (!session) return null;
+          return hasValidCsrf(request, csrfCookie, session.csrf) ? session.party : 403;
         },
         authorizeAppProvider,
       ),

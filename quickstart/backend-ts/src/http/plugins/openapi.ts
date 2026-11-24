@@ -4,6 +4,8 @@ import {
   acceptAppInstallRequestPath,
   appInstallRequestsPath,
   appInstallsPath,
+  cancelAppInstallOperation,
+  cancelAppInstallPath,
   listAppInstallRequestsOperation,
   listAppInstallsOperation,
   rejectAppInstallRequestOperation,
@@ -26,6 +28,7 @@ export function createApiDocumentation() {
         [appInstallsPath]: { get: listAppInstallsOperation },
         [acceptAppInstallRequestPath]: { post: acceptAppInstallRequestOperation },
         [rejectAppInstallRequestPath]: { post: rejectAppInstallRequestOperation },
+        [cancelAppInstallPath]: { post: cancelAppInstallOperation },
       },
     },
   });
