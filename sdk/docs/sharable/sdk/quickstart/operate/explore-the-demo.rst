@@ -226,12 +226,11 @@ Click **New** to open the "Renew License" modal.
 .. image:: images/renew-license-modal.png
    :alt: renew license modal
 
-In the modal, set the number of days to renew the license, the fee, time to prepare the license, and time to settle the license.
+In the modal, set the number of days to extend the license, the fee, and the time allowed for settlement.
 You must add a description to proceed.
 
-"Prepare in" is an indication for the sender (app-user) that they are expected to accept allocation before that time.
-"Settle in" is a time that the provider has to ``completeRenewal``. 
-After that, the allocation will be expired.
+"Settle in" determines the deadline by which the app-user must accept the request
+and the provider must complete the renewal.
 
 Click **Issue License Renewal Request**.
 

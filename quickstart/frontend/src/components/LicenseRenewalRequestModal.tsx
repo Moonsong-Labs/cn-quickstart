@@ -108,7 +108,6 @@ export default function LicenseRenewalRequestModal({
               <th style={{ width: '100px' }}>Requested At</th>
               <th style={{ width: '50px' }}>Extension</th>
               <th style={{ width: '30px' }}>Fee</th>
-              <th style={{ width: '100px' }}>Prepare Until</th>
               <th style={{ width: '100px' }}>Settle Before</th>
               <th style={{ width: '100px' }}>Description</th>
               <th style={{ width: '150px', minWidth: '150px' }}>Status</th>
@@ -139,11 +138,6 @@ export default function LicenseRenewalRequestModal({
                   </td>
                   <td className="ellipsis-cell">{renewal.licenseExtensionDuration}</td>
                   <td className="ellipsis-cell">{renewal.licenseFeeAmount}</td>
-                  <td
-                    className={`ellipsis-cell ${renewal.prepareDeadlinePassed && 'deadline-passed'}`}
-                  >
-                    {formatDateTime(renewal.prepareUntil)}
-                  </td>
                   <td
                     className={`ellipsis-cell ${renewal.settleDeadlinePassed && 'deadline-passed'}`}
                   >

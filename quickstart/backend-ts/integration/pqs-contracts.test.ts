@@ -18,7 +18,7 @@ const pool = new Pool({ ...config, options: `-c search_path=${schema},pg_catalog
 const licenseKey = {
   provider: 'provider::test',
   user: 'user::test',
-  licenseNum: '9007199254740993',
+  uuid: '00000000-0000-4000-8000-000000000001',
 };
 
 beforeAll(async () => {
@@ -76,14 +76,17 @@ test('Finds all active contracts with an exact key using PQS JSONB equality', as
   ]);
 });
 
-test('Matches the full key across provider, user, number, template, and active status', async () => {
+test('Matches the full key across provider, user, UUID, template, and active status', async () => {
   expect(
     (await listActiveByKey(pool, License, { ...licenseKey, user: 'another-user::test' })).map(
       ({ contractId }) => contractId.toString(),
     ),
   ).toEqual(['license-key-other-user']);
   expect(
-    await listActiveByKey(pool, License, { ...licenseKey, licenseNum: '9007199254740992' }),
+    await listActiveByKey(pool, License, {
+      ...licenseKey,
+      uuid: '00000000-0000-4000-8000-000000000002',
+    }),
   ).toHaveLength(1);
   expect(await listActiveByKey(pool, License, { ...licenseKey, provider: 'absent::test' })).toEqual(
     [],
@@ -103,7 +106,7 @@ test('Binds key values safely and returns no matches for absent keys', async () 
   const injectionKey = {
     provider: "provider' OR true; DROP TABLE contracts; --",
     user: 'user::test',
-    licenseNum: '1',
+    uuid: '00000000-0000-4000-8000-000000000001',
   };
   expect(await listActiveByKey(pool, License, injectionKey)).toEqual([]);
   expect(await listActive(pool, AppInstall)).toHaveLength(2);

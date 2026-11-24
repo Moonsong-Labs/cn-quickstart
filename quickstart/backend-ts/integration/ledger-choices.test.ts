@@ -3,14 +3,20 @@ import { randomUUID } from 'node:crypto';
 import type { LedgerCommonSchemas } from '@canton-network/core-ledger-client-types';
 import { ContractId } from '@daml/types';
 import { DatabaseError, Pool } from 'pg';
+import { AllocationFactory } from '../build/generated-daml-bindings/splice-api-token-allocation-instruction-v2-1.0.0/lib/Splice/Api/Token/AllocationInstructionV2/module';
 import {
   AllocationRequest,
   type AllocationRequestView,
-} from '../build/generated-daml-bindings/splice-api-token-allocation-request-v1-1.0.0/lib/Splice/Api/Token/AllocationRequestV1/module';
-import { Allocation } from '../build/generated-daml-bindings/splice-api-token-allocation-v1-1.0.0/lib/Splice/Api/Token/AllocationV1/module';
+} from '../build/generated-daml-bindings/splice-api-token-allocation-request-v2-1.0.0/lib/Splice/Api/Token/AllocationRequestV2/module';
 import {
-  AnyContract,
+  Allocation,
+  type AllocationSpecification,
+  SettlementFactory,
+  type SettlementInfo,
+} from '../build/generated-daml-bindings/splice-api-token-allocation-v2-1.0.0/lib/Splice/Api/Token/AllocationV2/module';
+import {
   ChoiceContext,
+  type ExtraArgs,
 } from '../build/generated-daml-bindings/splice-api-token-metadata-v1-1.0.0/lib/Splice/Api/Token/MetadataV1/module';
 import { readApplicationConfig } from '../src/config/application';
 import { readPostgresConfig } from '../src/config/postgres';
@@ -198,10 +204,11 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
   expect(requests.some((event) => event.contractId === requestId)).toBe(false);
 
   const params = { meta: { values: { description: 'Integration license' } } };
+  const uuid = randomUUID();
   const created = await exerciseChoice(provider, {
     contractId: installId,
     choice: AppInstall.AppInstall_CreateLicense,
-    argument: { params },
+    argument: { uuid, params },
     commandId: randomUUID(),
     actAs: [providerParty],
   });
@@ -223,17 +230,18 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
   expect(payload.user).toBe(userParty);
   expect(payload.params).toEqual(params);
   expect(payload.licenseNum).toBe('1');
+  expect(payload.uuid).toBe(uuid);
   expect(license?.signatories.slice().sort()).toEqual([providerParty, userParty].sort());
   expect(License.keyDecoder.runWithException(license?.contractKey)).toEqual({
     provider: providerParty,
     user: userParty,
-    licenseNum: '1',
+    uuid: payload.uuid,
   });
 
   const pqs = new Pool(readPostgresConfig());
   try {
     await waitForPqs(pqs, [created.licenseId]);
-    const licenseKey = { provider: providerParty, user: userParty, licenseNum: '1' };
+    const licenseKey = { provider: providerParty, user: userParty, uuid: payload.uuid };
     let activeLicenses = await listActiveByKey(pqs, License, licenseKey);
     const pqsLicense = activeLicenses.find(({ contractId }) => contractId === created.licenseId);
     expect(pqsLicense?.payload).toEqual(payload);
@@ -244,7 +252,6 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
       licenseFeeAmount: '1.0000000000',
       licenseExtensionDuration: { microseconds: '86400000000' },
       requestedAt: payload.expiresAt,
-      prepareUntil: new Date(Date.now() + 3_600_000).toISOString(),
       settleBefore: new Date(Date.now() + 7_200_000).toISOString(),
       description: 'Contract key integration',
     };
@@ -303,27 +310,45 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
       values: {
         'splice.lfdecentralizedtrust.org/reason': renewalArgument.description,
         'cn-quickstart.example.org/licenseNum': '1',
+        'cn-quickstart.example.org/uuid': payload.uuid,
       },
     };
     expect(interfaceContract?.contractId.toString()).toBe(renewalIds[0].toString());
-    expect<AllocationRequestView | undefined>(interfaceContract?.payload).toEqual({
-      settlement: {
-        executor: providerParty,
-        requestedAt: activeRenewals[0].payload.requestedAt,
-        allocateBefore: activeRenewals[0].payload.prepareUntil,
-        settleBefore: activeRenewals[0].payload.settleBefore,
-        settlementRef: { id: renewalArgument.requestId, cid: null },
-        meta,
+    const renewal = activeRenewals.find(({ contractId }) => contractId === renewalIds[0]);
+    if (!renewal) throw new Error('Active renewal missing from PQS');
+    const allocationRequest: AllocationRequestView | undefined = interfaceContract?.payload;
+    expect(allocationRequest?.originalRequestCid).toBeNull();
+    expect(allocationRequest?.settlement).toMatchObject({
+      executors: [providerParty],
+      id: renewalArgument.requestId,
+      meta,
+    });
+    expect(String(allocationRequest?.settlement.cid)).toBe(
+      String(renewal.payload.settlementReference),
+    );
+    expect(allocationRequest?.allocations).toEqual([
+      {
+        admin: providerParty,
+        authorizer: { owner: userParty, provider: null, id: '' },
+        transferLegSides: [
+          {
+            transferLegId: 'licenseFeePayment',
+            side: 'SenderSide',
+            otherside: { owner: providerParty, provider: null, id: '' },
+            amount: renewal.payload.licenseFeeAmount,
+            instrumentId: renewalArgument.licenseFeeInstrumentId.id,
+            meta,
+          },
+        ],
+        settlementDeadline: renewal.payload.settleBefore,
+        nextIterationFunding: null,
+        committed: false,
+        meta: { values: {} },
       },
-      transferLegs: {
-        licenseFeePayment: {
-          sender: userParty,
-          receiver: providerParty,
-          amount: activeRenewals[0].payload.licenseFeeAmount,
-          instrumentId: renewalArgument.licenseFeeInstrumentId,
-          meta,
-        },
-      },
+    ]);
+    expect(allocationRequest).toMatchObject({
+      requestedAt: renewal.payload.requestedAt,
+      settleAt: null,
       meta,
     });
     const interfaceContracts = await listActive(pqs, AllocationRequest);
@@ -338,7 +363,10 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
     await exerciseChoice(provider, {
       contractId: LicenseRenewalRequest.toInterface(AllocationRequest, renewalIds[0]),
       choice: AllocationRequest.AllocationRequest_Withdraw,
-      argument: { extraArgs: { context: { values: {} }, meta: { values: {} } } },
+      argument: {
+        actors: [providerParty],
+        extraArgs: { context: { values: {} }, meta: { values: {} } },
+      },
       commandId: randomUUID(),
       actAs: [providerParty],
     });
@@ -363,6 +391,42 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
     expect(afterWithdrawal?.renewals.map(({ renewal }) => String(renewal.contractId))).toEqual([
       String(renewalIds[1]),
     ]);
+
+    const requestToAccept = await findActiveById(pqs, AllocationRequest, renewalIds[1]);
+    expect(requestToAccept?.payload.originalRequestCid).toBeNull();
+    await exerciseChoice(user, {
+      contractId: LicenseRenewalRequest.toInterface(AllocationRequest, renewalIds[1]),
+      choice: AllocationRequest.AllocationRequest_Accept,
+      argument: {
+        actors: [userParty],
+        extraArgs: { context: { values: {} }, meta: { values: {} } },
+      },
+      commandId: randomUUID(),
+      actAs: [userParty],
+    });
+    // Acceptance replaces the request. Wait for PQS to index the transaction on the provider.
+    const acceptanceDeadline = Date.now() + PQS_VISIBILITY_TIMEOUT_MS;
+    const acceptedRequest = async () =>
+      (await listActiveByKey(pqs, LicenseRenewalRequest, renewalKey)).find(
+        ({ payload }) => String(payload.originalRequestCid) === String(renewalIds[1]),
+      );
+    let accepted = await acceptedRequest();
+    while (!accepted && Date.now() < acceptanceDeadline) {
+      await Bun.sleep(VISIBILITY_POLL_INTERVAL_MS);
+      accepted = await acceptedRequest();
+    }
+    if (!accepted) throw new Error('Accepted renewal request replacement missing from PQS');
+    expect(accepted.contractId).not.toBe(renewalIds[1]);
+    expect(await findActiveById(pqs, AllocationRequest, renewalIds[1])).toBeUndefined();
+    const afterAccept = (await findActiveLicenses(pqs, providerParty)).find(
+      ({ license }) => license.contractId === created.licenseId,
+    );
+    expect(
+      afterAccept?.renewals.map(({ renewal, allocationCid }) => [
+        renewal.contractId,
+        allocationCid,
+      ]),
+    ).toEqual([[accepted.contractId, undefined]]);
 
     await exerciseChoice(provider, {
       contractId: created.licenseId,
@@ -520,6 +584,55 @@ async function tokenApi<T = unknown>(
   }
 }
 
+// The wallet encodes time as epoch microseconds; Date.parse truncates sub-millisecond digits.
+function epochMicros(timestamp: string): number {
+  const fraction = timestamp.match(/\.(\d+)Z$/)?.[1] ?? '';
+  return Date.parse(timestamp) * 1000 + Number(fraction.padEnd(6, '0').slice(3, 6));
+}
+
+type FactoryContext = {
+  factoryId: string;
+  choiceContext: {
+    choiceContextData: unknown;
+    disclosedContracts: LedgerCommonSchemas['DisclosedContract'][];
+  };
+};
+
+function extraArgsFromFactory({ choiceContext }: FactoryContext): ExtraArgs {
+  return {
+    context: ChoiceContext.decoder.runWithException(choiceContext.choiceContextData),
+    meta: { values: {} },
+  };
+}
+
+function toWalletAllocationV2Request(
+  settlement: SettlementInfo,
+  allocation: AllocationSpecification,
+) {
+  return {
+    settlement: {
+      executors: settlement.executors,
+      settlement_ref: { id: settlement.id, cid: settlement.cid },
+      meta: settlement.meta.values,
+      ...(allocation.settlementDeadline
+        ? { settlement_deadline: epochMicros(allocation.settlementDeadline) }
+        : {}),
+    },
+    transfer_leg_sides: allocation.transferLegSides.map((side) => ({
+      transfer_leg_id: side.transferLegId,
+      amount: side.amount,
+      otherside: side.otherside.owner,
+      side: side.side === 'SenderSide' ? 'SENDERSIDE' : 'RECEIVERSIDE',
+      meta: side.meta.values,
+    })),
+    committed: allocation.committed,
+    meta: allocation.meta.values,
+    ...(allocation.nextIterationFunding
+      ? { next_iteration_funding: allocation.nextIterationFunding }
+      : {}),
+  };
+}
+
 test('Matches a real wallet allocation and observes completed renewal in PQS', async () => {
   const walletUrl = process.env.APP_USER_WALLET_API_URL;
   const registryUrl = process.env.TOKEN_REGISTRY_URL;
@@ -537,7 +650,10 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
   const { licenseId } = await exerciseChoice(provider, {
     contractId: installId,
     choice: AppInstall.AppInstall_CreateLicense,
-    argument: { params: { meta: { values: { integrationTest: randomUUID() } } } },
+    argument: {
+      uuid: randomUUID(),
+      params: { meta: { values: { integrationTest: randomUUID() } } },
+    },
     commandId: randomUUID(),
     actAs: [providerParty],
   });
@@ -557,7 +673,6 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
       licenseFeeAmount: '1.0000000000',
       licenseExtensionDuration: { microseconds: '86400000000' },
       requestedAt: original.payload.expiresAt,
-      prepareUntil: new Date(Date.now() + 3_600_000).toISOString(),
       settleBefore: new Date(Date.now() + 7_200_000).toISOString(),
       description: 'Real allocation integration',
     };
@@ -571,7 +686,7 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
     const siblingId = await exerciseChoice(provider, {
       contractId: licenseId,
       choice: License.License_Renew,
-      argument: { ...renewalArgument, requestId: randomUUID() },
+      argument: renewalArgument,
       commandId: randomUUID(),
       actAs: [providerParty],
     });
@@ -580,7 +695,7 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
       ({ license }) => license.contractId === licenseId,
     );
     if (!before) throw new Error('License missing from joined PQS query');
-    // License numbers are installation-local; preserve matching requests from other fixtures.
+    // Both requests have identical terms and keys but independent settlement references.
     const pending = before.renewals.map(({ renewal, allocationCid }) => [
       renewal.contractId,
       allocationCid,
@@ -599,28 +714,15 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
       token,
     );
     const request = await findActiveById(pqs, AllocationRequest, renewalId);
-    if (!request) throw new Error('Renewal interface view missing from PQS');
-    const { settlement, transferLegs } = request.payload;
-    const leg = transferLegs.licenseFeePayment;
-    // Wallet timestamps use epoch microseconds; Date.parse alone loses Daml's sub-ms digits.
-    const epochMicros = (timestamp: string) =>
-      Date.parse(timestamp) * 1000 +
-      Number((timestamp.match(/\.(\d+)Z$/)?.[1] ?? '').padEnd(6, '0').slice(3, 6));
+    if (!request) throw new Error('Active V2 renewal allocation request missing from PQS');
+    expect(request.contractId.toString()).toBe(String(renewalId));
+    const { settlement, allocations } = request.payload;
+    const allocationSpecification = allocations[0];
+    if (!allocationSpecification) throw new Error('V2 renewal request has no allocation terms');
     const allocated = await tokenApi<{ output: { allocation_cid?: string } }>(
       walletUrl,
-      '/api/validator/v0/allocations',
-      {
-        settlement: {
-          executor: settlement.executor,
-          settlement_ref: { id: settlement.settlementRef.id },
-          requested_at: epochMicros(settlement.requestedAt),
-          allocate_before: epochMicros(settlement.allocateBefore),
-          settle_before: epochMicros(settlement.settleBefore),
-          meta: settlement.meta.values,
-        },
-        transfer_leg_id: 'licenseFeePayment',
-        transfer_leg: { receiver: leg.receiver, amount: leg.amount, meta: leg.meta.values },
-      },
+      '/api/validator/v2/allocations',
+      toWalletAllocationV2Request(settlement, allocationSpecification),
       token,
     );
     const returnedId = allocated.output.allocation_cid;
@@ -628,49 +730,99 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
     const allocationId = ContractId(Allocation).decoder.runWithException(returnedId);
     await waitForPqs(pqs, [allocationId]);
     const allocation = await findActiveById(pqs, Allocation, allocationId);
-    expect(allocation?.payload.allocation).toEqual({
-      settlement,
-      transferLegId: 'licenseFeePayment',
-      transferLeg: leg,
-    });
+    if (!allocation) throw new Error('Funded V2 allocation missing from PQS');
+    expect(allocation.payload.settlement).toEqual(settlement);
+    expect(allocation.payload.allocation).toEqual(allocationSpecification);
     for (const party of [providerParty, userParty]) {
       const joined = (await findActiveLicenses(pqs, party)).find(
         ({ license }) => license.contractId === licenseId,
       );
+      const allocatedRenewal = joined?.renewals.find(
+        ({ renewal }) => renewal.contractId === renewalId,
+      );
+      expect(allocatedRenewal?.allocationCid).toBe(allocationId);
       expect(
-        joined?.renewals.map(({ renewal, allocationCid }) => [renewal.contractId, allocationCid]),
-      ).toEqual(pending.map(([id, cid]) => [id, id === renewalId ? allocationId : cid]));
+        joined?.renewals.find(({ renewal }) => renewal.contractId === siblingId)?.allocationCid,
+      ).toBeUndefined();
     }
 
-    const context = await tokenApi<{
-      choiceContextData: unknown;
-      disclosedContracts: LedgerCommonSchemas['DisclosedContract'][];
-    }>(
+    const specification = allocation.payload.allocation;
+    const side = specification.transferLegSides[0];
+    if (!side) throw new Error('Funded allocation has no transfer leg');
+    const transferLeg = {
+      transferLegId: side.transferLegId,
+      sender: specification.authorizer,
+      receiver: side.otherside,
+      amount: side.amount,
+      instrumentId: side.instrumentId,
+      meta: side.meta,
+    };
+    const emptyExtraArgs = { context: { values: {} }, meta: { values: {} } };
+    const settlementContext = await tokenApi<FactoryContext>(
       registryUrl,
-      `/registry/allocations/v1/${encodeURIComponent(allocationId)}/choice-contexts/execute-transfer`,
-      {},
+      '/registry/allocation/v2/settlement-factory',
+      {
+        choiceArguments: {
+          settlement: allocation.payload.settlement,
+          transferLegs: [transferLeg],
+          allocations: [
+            { allocationCid: allocationId, extraTransferLegSides: [], nextIterationFunding: null },
+          ],
+          actors: [providerParty],
+          extraArgs: emptyExtraArgs,
+        },
+        excludeDebugFields: true,
+      },
     );
-    const choiceContext = ChoiceContext.decoder.runWithException(context.choiceContextData);
-    // Match Java's context enrichment for registries that provide these IDs through disclosures.
-    for (const disclosure of context.disclosedContracts) {
-      const key = { AmuletRules: 'amulet-rules', OpenMiningRound: 'open-round' }[
-        disclosure.templateId?.split(':').at(-1) as 'AmuletRules' | 'OpenMiningRound'
-      ];
-      if (key)
-        choiceContext.values[key] = {
-          tag: 'AV_ContractId',
-          value: ContractId(AnyContract).decoder.runWithException(disclosure.contractId),
-        };
-    }
+    const allocationFactoryContext = await tokenApi<FactoryContext>(
+      registryUrl,
+      '/registry/allocation-instruction/v2/allocation-factory',
+      {
+        choiceArguments: {
+          settlement: allocation.payload.settlement,
+          allocation: {
+            ...specification,
+            authorizer: { owner: providerParty, provider: null, id: '' },
+            transferLegSides: [
+              {
+                ...side,
+                side: 'ReceiverSide',
+                otherside: specification.authorizer,
+              },
+            ],
+          },
+          inputHoldingCids: [],
+          requestedAt: new Date().toISOString(),
+          actors: [providerParty],
+          extraArgs: emptyExtraArgs,
+        },
+        excludeDebugFields: true,
+      },
+    );
+    const disclosures = Array.from(
+      new Map(
+        [
+          ...settlementContext.choiceContext.disclosedContracts,
+          ...allocationFactoryContext.choiceContext.disclosedContracts,
+        ].map((disclosure) => [disclosure.contractId, disclosure]),
+      ).values(),
+    );
     const replacementId = await exerciseChoice(provider, {
       contractId: renewalId,
       choice: LicenseRenewalRequest.LicenseRenewalRequest_CompleteRenewal,
       argument: {
-        licenseCid: licenseId,
         allocationCid: allocationId,
-        extraArgs: { context: choiceContext, meta: { values: {} } },
+        allocationFactory: ContractId(AllocationFactory).decoder.runWithException(
+          allocationFactoryContext.factoryId,
+        ),
+        allocationExtraArgs: extraArgsFromFactory(allocationFactoryContext),
+        settlementFactory: ContractId(SettlementFactory).decoder.runWithException(
+          settlementContext.factoryId,
+        ),
+        licenseCid: licenseId,
+        extraArgs: extraArgsFromFactory(settlementContext),
       },
-      disclosedContracts: context.disclosedContracts,
+      disclosedContracts: disclosures,
       commandId: randomUUID(),
       actAs: [providerParty],
     });

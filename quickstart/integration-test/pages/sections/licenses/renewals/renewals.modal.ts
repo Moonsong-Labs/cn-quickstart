@@ -40,6 +40,20 @@ export default class RenewalsModal extends RowOps {
     await this.button(button, loc).click();
   }
 
+  public async completeRenewal(licenseId: string): Promise<string> {
+    const [response] = await Promise.all([
+      this.page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname.endsWith(`/licenses/${licenseId}:complete-renewal`),
+      ),
+      this.clickButton(Button.CompleteRenewal),
+    ]);
+    expect(response.status()).toBe(200);
+    const result: { licenseId: string } = await response.json();
+    return result.licenseId;
+  }
+
   public async clickLink(link: Link, loc: Locator = this.matchingRow): Promise<Wallet> {
     const linkLocator = this.link(link, loc);
     await expect(linkLocator).toBeVisible();

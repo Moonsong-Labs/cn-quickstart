@@ -1,7 +1,7 @@
 import { ContractId } from '@daml/types';
 import type { Pool } from 'pg';
-import { AllocationRequest } from '../../../build/generated-daml-bindings/splice-api-token-allocation-request-v1-1.0.0/lib/Splice/Api/Token/AllocationRequestV1/module';
-import { Allocation } from '../../../build/generated-daml-bindings/splice-api-token-allocation-v1-1.0.0/lib/Splice/Api/Token/AllocationV1/module';
+import { AllocationRequest } from '../../../build/generated-daml-bindings/splice-api-token-allocation-request-v2-1.0.0/lib/Splice/Api/Token/AllocationRequestV2/module';
+import { Allocation } from '../../../build/generated-daml-bindings/splice-api-token-allocation-v2-1.0.0/lib/Splice/Api/Token/AllocationV2/module';
 import { License, LicenseRenewalRequest } from '../../daml/licensing';
 import { type Contract, decodeContract } from '../../integrations/pqs/contracts';
 
@@ -27,8 +27,8 @@ export async function findActiveLicenses(
   pool: Pool,
   party: string,
 ): Promise<LicenseWithRenewalRequests[]> {
-  // Compare the Daml interface view used by CompleteRenewal, including metadata.
-  // Cast amounts and times so equivalent JSON encodings compare by value.
+  // Compare the V2 interface views that LicenseRenewalRequest_CompleteRenewal
+  // validates, including the stable settlement reference and full allocation spec.
   const { rows } = await pool
     .query<LicenseRow>(
       `
@@ -41,23 +41,18 @@ export async function findActiveLicenses(
     LEFT JOIN active($2) renewal ON
       license.payload->>'provider' = renewal.payload->>'provider'
       AND license.payload->>'user' = renewal.payload->>'user'
+      AND license.payload->>'uuid' = renewal.payload->>'uuid'
       AND license.payload->>'licenseNum' = renewal.payload->>'licenseNum'
-    LEFT JOIN active($3) request ON request.contract_id = renewal.contract_id
+    LEFT JOIN active($3) request_view ON request_view.contract_id = renewal.contract_id
     LEFT JOIN active($4) allocation ON
-      allocation.payload->'allocation'->>'transferLegId' = 'licenseFeePayment'
-      AND ((allocation.payload->'allocation'->'settlement')
-           - 'requestedAt' - 'allocateBefore' - 'settleBefore')
-        = ((request.payload->'settlement') - 'requestedAt' - 'allocateBefore' - 'settleBefore')
-      AND (allocation.payload->'allocation'->'settlement'->>'requestedAt')::timestamptz
-        = (request.payload->'settlement'->>'requestedAt')::timestamptz
-      AND (allocation.payload->'allocation'->'settlement'->>'allocateBefore')::timestamptz
-        = (request.payload->'settlement'->>'allocateBefore')::timestamptz
-      AND (allocation.payload->'allocation'->'settlement'->>'settleBefore')::timestamptz
-        = (request.payload->'settlement'->>'settleBefore')::timestamptz
-      AND ((allocation.payload->'allocation'->'transferLeg') - 'amount')
-        = ((request.payload->'transferLegs'->'licenseFeePayment') - 'amount')
-      AND (allocation.payload->'allocation'->'transferLeg'->>'amount')::numeric
-        = (request.payload->'transferLegs'->'licenseFeePayment'->>'amount')::numeric
+      allocation.payload->'settlement' = request_view.payload->'settlement'
+      AND (request_view.payload->'allocations'->0->>'admin') = ANY(allocation.signatories)
+      AND (allocation.payload->'allocation' #- '{transferLegSides,0,amount}' #- '{settlementDeadline}')
+        = (request_view.payload->'allocations'->0 #- '{transferLegSides,0,amount}' #- '{settlementDeadline}')
+      AND (allocation.payload->'allocation'->'transferLegSides'->0->>'amount')::numeric
+        = (request_view.payload->'allocations'->0->'transferLegSides'->0->>'amount')::numeric
+      AND (allocation.payload->'allocation'->>'settlementDeadline')::timestamptz
+        = (request_view.payload->'allocations'->0->>'settlementDeadline')::timestamptz
     WHERE license.payload->>'user' = $5 OR license.payload->>'provider' = $5
     ORDER BY license.contract_id, renewal.contract_id, allocation.contract_id
   `,
@@ -87,7 +82,7 @@ export async function findActiveLicenses(
       licenses.set(row.license_contract_id, entry);
     }
     if (row.renewal_contract_id !== null) {
-      // Keys can repeat. Preserve each compatible allocation instead of choosing one.
+      // Keep every matching allocation so the caller can select a funded one.
       entry.renewals.push({
         renewal: decodeContract(LicenseRenewalRequest, {
           contract_id: row.renewal_contract_id,
