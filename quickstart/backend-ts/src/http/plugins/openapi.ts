@@ -1,4 +1,8 @@
 import { openapi } from '@elysiajs/openapi';
+import {
+  appInstallRequestsPath,
+  listAppInstallRequestsOperation,
+} from '../routes/app-install-requests';
 
 export function createApiDocumentation() {
   return openapi({
@@ -11,6 +15,9 @@ export function createApiDocumentation() {
         description: 'HTTP API for the CN Quickstart licensing application.',
       },
       tags: [{ name: 'System', description: 'Server health and operational endpoints.' }],
+      paths: {
+        [appInstallRequestsPath]: { get: listAppInstallRequestsOperation },
+      },
     },
   });
 }

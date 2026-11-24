@@ -116,7 +116,8 @@ describe('OIDC callbacks and tenant permissions', () => {
       });
       /** Supplies one active request per effective party without a database connection. */
       const pqs = new Pool();
-      spyOn(pqs, 'query').mockResolvedValue({
+      /** Tracks whether a request reaches the database boundary. */
+      const query = spyOn(pqs, 'query').mockResolvedValue({
         rows: ['configured-party', 'test-party', 'customer'].map((party) => ({
           contract_id: party,
           payload: { provider: 'other-provider', user: party, meta: { values: {} } },
@@ -180,6 +181,18 @@ describe('OIDC callbacks and tenant permissions', () => {
             meta: { data: {} },
           },
         ]);
+
+        if (scenario === 'success') {
+          query.mockClear();
+          /** Confirms an invalid explicit bearer cannot fall back to the working browser session. */
+          const deniedList = await app.handle(
+            new Request('http://internal/app-install-requests', {
+              headers: { cookie: session ?? '', authorization: 'Bearer invalid' },
+            }),
+          );
+          expect(deniedList.status).toBe(401);
+          expect(query).not.toHaveBeenCalled();
+        }
 
         // The browser session grants admin access, but cannot rescue an invalid bearer.
         const path = '/admin/tenant-registrations';

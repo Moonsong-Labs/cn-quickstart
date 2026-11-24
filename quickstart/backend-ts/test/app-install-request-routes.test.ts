@@ -110,6 +110,7 @@ test('Provider sees its requests while unrelated parties remain hidden', async (
   const { app, login } = setup([
     requestRow('provider-request', 'customer-party', 'provider-party', 'Customer request'),
     requestRow('unrelated-request', 'unrelated-party', 'another-provider', 'Hidden request'),
+    requestRow('second-request', 'other-customer', 'provider-party', 'Second customer request'),
   ]);
   const admin = await login('app-provider');
 
@@ -118,14 +119,25 @@ test('Provider sees its requests while unrelated parties remain hidden', async (
   );
 
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual([
-    {
-      contractId: 'provider-request',
-      provider: 'provider-party',
-      user: 'customer-party',
-      meta: { data: { description: 'Customer request' } },
-    },
-  ]);
+  /** Captures the visible requests without assuming PQS provides a sort order. */
+  const requests = await response.json();
+  expect(requests).toHaveLength(2);
+  expect(requests).toEqual(
+    expect.arrayContaining([
+      {
+        contractId: 'provider-request',
+        provider: 'provider-party',
+        user: 'customer-party',
+        meta: { data: { description: 'Customer request' } },
+      },
+      {
+        contractId: 'second-request',
+        provider: 'provider-party',
+        user: 'other-customer',
+        meta: { data: { description: 'Second customer request' } },
+      },
+    ]),
+  );
 });
 
 test('Returns an empty list when the provider is absent from every active request', async () => {
@@ -149,6 +161,7 @@ test('Rejects unauthenticated requests without querying PQS', async () => {
   const response = await app.handle(new Request('http://localhost/app-install-requests'));
 
   expect(response.status).toBe(401);
+  expect(response.headers.get('content-type')).toBe('application/problem+json');
   expect(response.headers.get('cache-control')).toBe('no-store');
   expect(query).not.toHaveBeenCalled();
 });
