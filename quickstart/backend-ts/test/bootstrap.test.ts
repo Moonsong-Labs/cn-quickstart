@@ -71,7 +71,7 @@ test('Waits for the Ledger API before creating the app and exposes its dependenc
   ]);
   expect(config).toEqual({ port: 8081, apiDocsEnabled: false });
   expect(app.decorator.ledger.ledgerUserId).toBe('backend-service');
-  expect(app.decorator.application.appProviderParty).toBe('provider-party');
+  expect(app.decorator.application.appProvider.partyId).toBe('provider-party');
   expect(app.decorator.pqs).toBe(pqs);
   expect(query).toHaveBeenCalledTimes(1);
   expect((await app.decorator.ledger.client.get('/v2/version')).version).toBe('3.5.2');

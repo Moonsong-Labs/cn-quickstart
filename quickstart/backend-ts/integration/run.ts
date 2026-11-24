@@ -343,6 +343,8 @@ export async function runIntegration(
     const userId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_USER_ID;
     const issuer = backendEnvironment.AUTH_APP_PROVIDER_ISSUER_URL;
     const clientId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_CLIENT_ID;
+    const webClientId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID;
+    if (!webClientId) throw new Error('Missing AppProvider web client ID');
     const clientSecret = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_SECRET;
     if (!userId || !issuer || !clientId || !clientSecret)
       throw new Error('Missing OAuth service credentials after onboarding');
@@ -390,6 +392,7 @@ export async function runIntegration(
       APP_PROVIDER_PARTY: party,
       AUTH_APP_PROVIDER_ISSUER_URL: issuer,
       AUTH_APP_PROVIDER_BACKEND_CLIENT_ID: clientId,
+      AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID: webClientId,
       AUTH_APP_PROVIDER_BACKEND_SECRET: clientSecret,
       LEDGER_OAUTH_ALLOW_HTTP: 'true',
     };
