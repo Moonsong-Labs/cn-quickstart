@@ -6,6 +6,7 @@ import { access, cp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
+import { parseDotEnv } from '../lib/env.ts';
 import { definedEnv, loggedRun } from '../lib/exec.ts';
 import { assertSha, readLocalnetRow, rewriteLinksSha } from '../lib/localnet.ts';
 import { projectFromContext } from '../lib/project.ts';
@@ -118,8 +119,10 @@ export async function runVersionsSync(ctx: CommandContext, options: SyncOptions)
   requireVersion('SDK version', sdk);
   ctx.io.note(`Splice ${published.version} (migration ${published.migration})\n`);
   ctx.io.note(`SDK ${sdk}\n`);
-  /** Previous Splice pin, so the summary can say whether it moved. */
-  const previousSplice = project.settings.splice;
+  /** Persisted Splice pin in `.env`, so an environment override cannot hide a bump. */
+  const previousSplice = parseDotEnv(await readFile(join(project.dir, '.env'), 'utf8')).get(
+    'SPLICE_VERSION',
+  );
   /** Pinned LocalNet row in `links.csv`, updated when Splice moves to a new version. */
   const localnetRow = previousSplice !== published.version ? readLocalnetRow(project.dir) : null;
   /** New Splice tag commit SHA for `links.csv`, resolved before any file is written. */

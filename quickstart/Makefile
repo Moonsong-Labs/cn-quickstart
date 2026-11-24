@@ -107,7 +107,12 @@ LOCALNET_SHA := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:s
 LOCALNET_SOURCE := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$3); sub(/\/+$$/, "", $$3); print $$3 }')
 LOCALNET_DEST := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$4); sub(/\/+$$/, "", $$4); print $$4 }')
 LOCALNET_CACHE_DIR := $(QUICKSTART_DIR)/$(LOCALNET_DEST)/localnet/$(LOCALNET_SHA)
-LOCALNET_DIR ?= $(LOCALNET_CACHE_DIR)
+ifeq ($(strip $(LOCALNET_DIR)),)
+  LOCALNET_DIR_EXPLICIT := false
+  override LOCALNET_DIR := $(LOCALNET_CACHE_DIR)
+else
+  LOCALNET_DIR_EXPLICIT := true
+endif
 LOCALNET_OVERRIDES_DIR := $(QUICKSTART_DIR)/docker/modules/localnet-overrides
 SPLICE_VERSION := $(shell sed -n 's/^SPLICE_VERSION=//p' .env)
 IMAGE_TAG ?= $(SPLICE_VERSION)
@@ -128,7 +133,7 @@ LOCALNET_ONLY_COMPOSE = LOCALNET_DIR="$(LOCALNET_DIR)" IMAGE_TAG="$(IMAGE_TAG)" 
 # Uses the same git commands and arguments as `qs vendor` so this path stays free of Bun.
 .PHONY: ensure-localnet
 ensure-localnet:
-	@if [ "$(LOCALNET_DIR)" = "$(LOCALNET_CACHE_DIR)" ]; then \
+	@if [ "$(LOCALNET_DIR_EXPLICIT)" = "false" ]; then \
 	  set -euo pipefail; \
 	  LC_ALL=C; export LC_ALL; shopt -s nullglob; \
 	  patch_stamp=""; \

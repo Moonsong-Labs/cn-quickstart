@@ -196,6 +196,29 @@ describe('runVersionsSync', () => {
     }
   });
 
+  test('updates links.csv when SPLICE_VERSION in env already matches the published version', async () => {
+    /** Temporary checkout whose `.env` still holds an older Splice version. */
+    const dir = await tempProject(cleaner.dirs);
+    await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.8.4\nDOCKER_NETWORK=quickstart\n');
+    /** Recording runner scripted with the bumped Splice release tag. */
+    const fake = fakeRunner([lsRemoteTag('0.9.3')]);
+    /** Context whose shell environment overrides `SPLICE_VERSION` to the target release. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: { SPLICE_VERSION: '0.9.3' },
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+      fetch: fetchVersions('0.9.3'),
+    };
+    expect(
+      await runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+    ).toBe(0);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toContain(BUMPED_SHA);
+  });
+
   test('dry-run fetches and writes nothing', async () => {
     const dir = await tempProject(cleaner.dirs);
     /** Manifest and links.csv before the command. */

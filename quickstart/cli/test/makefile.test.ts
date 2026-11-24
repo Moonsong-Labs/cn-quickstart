@@ -125,9 +125,11 @@ describe('Makefile localnet targets', () => {
     /** Assignment of the cache directory derived from `links.csv`. */
     const cacheDir = /^LOCALNET_CACHE_DIR := (.+)$/m.exec(makefile)?.[1];
     expect(cacheDir).toBe('$(QUICKSTART_DIR)/$(LOCALNET_DEST)/localnet/$(LOCALNET_SHA)');
-    /** Default assignment of `LOCALNET_DIR`. `?=` lets callers override it offline. */
-    const localnet = /^LOCALNET_DIR \?= (.+)$/m.exec(makefile)?.[1];
-    expect(localnet).toBe('$(LOCALNET_CACHE_DIR)');
+    /** Explicit-override guard so an explicit `LOCALNET_DIR` skips automatic fetching even at the cache path. */
+    expect(makefile).toContain('LOCALNET_DIR_EXPLICIT := false');
+    expect(makefile).toContain('LOCALNET_DIR_EXPLICIT := true');
+    expect(makefile).toContain('override LOCALNET_DIR := $(LOCALNET_CACHE_DIR)');
+    expect(makefile).toContain('@if [ "$(LOCALNET_DIR_EXPLICIT)" = "false" ]; then');
     /** Assignment of the overrides directory. */
     const overrides = /^LOCALNET_OVERRIDES_DIR := (.+)$/m.exec(makefile)?.[1];
     expect(overrides).toBe('$(QUICKSTART_DIR)/docker/modules/localnet-overrides');
