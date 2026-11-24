@@ -1,8 +1,9 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { access, mkdir, mkdtemp, readdir, rename, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import type { CommandContext } from './context.ts';
 import { definedEnv, loggedRun } from './exec.ts';
@@ -230,6 +231,59 @@ async function listPatchFiles(patchesDir: string): Promise<string[]> {
 }
 
 /**
+ * Stamp file next to a cached tree recording the patch inputs applied to it.
+ * Stored beside `dest` so the cached directory itself stays byte-identical to upstream.
+ */
+function patchStampPath(dest: string): string {
+  return `${dest}.patches`;
+}
+
+/**
+ * Compute the deterministic patch fingerprint for `patches` as `<basename>:<git-blob-oid>\n` lines.
+ * Uses the exact Git blob hash (`sha1("blob <len>\0<bytes>")`) so `quickstart/Makefile` computes
+ * the same stamp with `git hash-object`. Returns an empty string when there are no patches.
+ */
+export async function computePatchStamp(patches: readonly string[]): Promise<string> {
+  /** Formatted `<filename>:<oid>` lines in patch order. */
+  const lines: string[] = [];
+  for (const patchFile of patches) {
+    /** Raw bytes of the patch file hashed identically to `git hash-object`. */
+    const bytes = await readFile(patchFile);
+    /** Git blob object id for `bytes`. */
+    const oid = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    lines.push(`${basename(patchFile)}:${oid}\n`);
+  }
+  return lines.join('');
+}
+
+/**
+ * True when the cached LocalNet directory is missing or its recorded patch stamp differs
+ * from the current `*.patch` files under `<modulesDir>/localnet-overrides/patches`.
+ * An existing cache without a stamp file is treated as having an empty stamp, so an
+ * unpatched cache stays warm until a patch is added.
+ */
+export async function localnetCacheStale(cacheDir: string, modulesDir: string): Promise<boolean> {
+  try {
+    await access(cacheDir);
+  } catch (error) {
+    if (isMissing(error)) return true;
+    throw error;
+  }
+  /** Patch files currently configured for LocalNet, in deterministic lexicographical order. */
+  const patches = await listPatchFiles(join(modulesDir, 'localnet-overrides', 'patches'));
+  /** Fingerprint expected for the current patch directory. */
+  const expected = await computePatchStamp(patches);
+  /** Fingerprint recorded when `cacheDir` was last populated, or empty when absent. */
+  let recorded = '';
+  try {
+    recorded = await readFile(patchStampPath(cacheDir), 'utf8');
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+  }
+  return recorded !== expected;
+}
+
+/**
  * Replace `dest` with `source` on the same filesystem.
  * The old directory is moved aside first and put back when the new name cannot be moved in.
  * `source` is left in place when the replacement fails.
@@ -319,6 +373,8 @@ export async function fetchVendorRow(
     }
     /** Patches to apply in order before moving the tree into the cache. */
     const patches = await listPatchFiles(patchesDir);
+    /** Fingerprint of `patches`, written beside `dest` after the tree lands. */
+    const stamp = await computePatchStamp(patches);
     for (const patchFile of patches) {
       /** Status of `git apply`. Any failure aborts before touching `dest`. */
       const status = await loggedRun(
@@ -337,6 +393,7 @@ export async function fetchVendorRow(
       }
     }
     await replaceDest(dest, source, destParent, row.sha);
+    await writeFile(patchStampPath(dest), stamp);
     ctx.io.note(`Cached ${dest}\n`);
     return 0;
   } finally {
@@ -345,17 +402,14 @@ export async function fetchVendorRow(
 }
 
 /**
- * Ensure the cached LocalNet directory exists before Compose runs.
- * Does nothing when `LOCALNET_DIR` was explicitly overridden, when the cache directory
- * already exists, or when `links.csv` has no `localnet` entry.
+ * Ensure the cached LocalNet directory exists and matches the current override patches
+ * before Compose runs. Does nothing when `LOCALNET_DIR` was explicitly overridden, when
+ * the cache is already up to date, or when `links.csv` has no `localnet` entry.
  */
 export async function ensureLocalnet(ctx: CommandContext, project: Project): Promise<number> {
   if (project.settings.localnetDirExplicit) return 0;
-  try {
-    await access(project.settings.localnetDir);
+  if (!(await localnetCacheStale(project.settings.localnetDir, project.settings.modulesDir))) {
     return 0;
-  } catch (error) {
-    if (!isMissing(error)) throw error;
   }
   /** LocalNet row from `links.csv`. Absent in checkouts that bundle LocalNet without `links.csv`. */
   const row = readLocalnetRow(project.dir);

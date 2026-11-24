@@ -124,41 +124,58 @@ LOCALNET_ONLY_COMPOSE = LOCALNET_DIR="$(LOCALNET_DIR)" IMAGE_TAG="$(IMAGE_TAG)" 
 	--profile sv --profile app-provider --profile app-user
 
 # Fetch the pinned Splice LocalNet tree into the cache when using the default LOCALNET_DIR.
+# Refreshes when the cache directory is missing or when localnet-overrides/patches/*.patch changed.
 # Uses the same git commands and arguments as `qs vendor` so this path stays free of Bun.
 .PHONY: ensure-localnet
 ensure-localnet:
-	@if [ "$(LOCALNET_DIR)" = "$(LOCALNET_CACHE_DIR)" ] && [ ! -d "$(LOCALNET_DIR)" ]; then \
+	@if [ "$(LOCALNET_DIR)" = "$(LOCALNET_CACHE_DIR)" ]; then \
 	  set -euo pipefail; \
-	  if ! [[ "$(LOCALNET_SHA)" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$$ ]]; then \
-	    echo "Invalid LocalNet commit SHA in links.csv: $(LOCALNET_SHA)" >&2; exit 1; \
-	  fi; \
-	  if [ -z "$(LOCALNET_REPO)" ] || [[ "$(LOCALNET_REPO)" == -* ]]; then \
-	    echo "Invalid LocalNet repo in links.csv: $(LOCALNET_REPO)" >&2; exit 1; \
-	  fi; \
-	  if [ -z "$(LOCALNET_SOURCE)" ] || [[ "$(LOCALNET_SOURCE)" == -* ]] || [[ "$(LOCALNET_SOURCE)" == /* ]] || [[ "/$(LOCALNET_SOURCE)/" == */../* ]]; then \
-	    echo "Invalid LocalNet source path in links.csv: $(LOCALNET_SOURCE)" >&2; exit 1; \
-	  fi; \
-	  if [ -z "$(LOCALNET_DEST)" ] || [[ "$(LOCALNET_DEST)" == -* ]] || [[ "$(LOCALNET_DEST)" == /* ]] || [[ "/$(LOCALNET_DEST)/" == */../* ]]; then \
-	    echo "Invalid LocalNet destination path in links.csv: $(LOCALNET_DEST)" >&2; exit 1; \
-	  fi; \
-	  cache_parent="$$(dirname "$(LOCALNET_DIR)")"; \
-	  mkdir -p "$$cache_parent"; \
-	  tmp=$$(mktemp -d "$$cache_parent/.qs-vendor-XXXXXX"); \
-	  trap 'rm -rf "$$tmp"' EXIT; \
-	  git init --quiet "$$tmp"; \
-	  git -C "$$tmp" remote add origin "$(LOCALNET_REPO)"; \
-	  git -C "$$tmp" sparse-checkout set --cone "$(LOCALNET_SOURCE)"; \
-	  git -C "$$tmp" fetch --depth 1 --filter=blob:none origin "$(LOCALNET_SHA)"; \
-	  git -C "$$tmp" checkout --quiet --detach FETCH_HEAD; \
-	  if [ ! -d "$$tmp/$(LOCALNET_SOURCE)" ]; then \
-	    echo "Checkout has no '$(LOCALNET_SOURCE)' at $(LOCALNET_SHA)." >&2; exit 1; \
-	  fi; \
 	  LC_ALL=C; export LC_ALL; shopt -s nullglob; \
+	  patch_stamp=""; \
 	  for patch in "$(LOCALNET_OVERRIDES_DIR)"/patches/*.patch; do \
-	    git -C "$$tmp" apply --directory="$(LOCALNET_SOURCE)" "$$patch"; \
+	    patch_stamp+="$$(basename "$$patch"):$$(git hash-object "$$patch")"$$'\n'; \
 	  done; \
-	  if [ ! -d "$(LOCALNET_DIR)" ]; then \
-	    mv "$$tmp/$(LOCALNET_SOURCE)" "$(LOCALNET_DIR)"; \
+	  recorded_stamp=""; \
+	  if [ -f "$(LOCALNET_DIR).patches" ]; then \
+	    recorded_stamp="$$(cat "$(LOCALNET_DIR).patches")"; \
+	    if [ -n "$$recorded_stamp" ]; then recorded_stamp+=$$'\n'; fi; \
+	  fi; \
+	  if [ ! -d "$(LOCALNET_DIR)" ] || [ "$$recorded_stamp" != "$$patch_stamp" ]; then \
+	    if ! [[ "$(LOCALNET_SHA)" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$$ ]]; then \
+	      echo "Invalid LocalNet commit SHA in links.csv: $(LOCALNET_SHA)" >&2; exit 1; \
+	    fi; \
+	    if [ -z "$(LOCALNET_REPO)" ] || [[ "$(LOCALNET_REPO)" == -* ]]; then \
+	      echo "Invalid LocalNet repo in links.csv: $(LOCALNET_REPO)" >&2; exit 1; \
+	    fi; \
+	    if [ -z "$(LOCALNET_SOURCE)" ] || [[ "$(LOCALNET_SOURCE)" == -* ]] || [[ "$(LOCALNET_SOURCE)" == /* ]] || [[ "/$(LOCALNET_SOURCE)/" == */../* ]]; then \
+	      echo "Invalid LocalNet source path in links.csv: $(LOCALNET_SOURCE)" >&2; exit 1; \
+	    fi; \
+	    if [ -z "$(LOCALNET_DEST)" ] || [[ "$(LOCALNET_DEST)" == -* ]] || [[ "$(LOCALNET_DEST)" == /* ]] || [[ "/$(LOCALNET_DEST)/" == */../* ]]; then \
+	      echo "Invalid LocalNet destination path in links.csv: $(LOCALNET_DEST)" >&2; exit 1; \
+	    fi; \
+	    cache_parent="$$(dirname "$(LOCALNET_DIR)")"; \
+	    mkdir -p "$$cache_parent"; \
+	    tmp=$$(mktemp -d "$$cache_parent/.qs-vendor-XXXXXX"); \
+	    trap 'rm -rf "$$tmp"' EXIT; \
+	    git init --quiet "$$tmp"; \
+	    git -C "$$tmp" remote add origin "$(LOCALNET_REPO)"; \
+	    git -C "$$tmp" sparse-checkout set --cone "$(LOCALNET_SOURCE)"; \
+	    git -C "$$tmp" fetch --depth 1 --filter=blob:none origin "$(LOCALNET_SHA)"; \
+	    git -C "$$tmp" checkout --quiet --detach FETCH_HEAD; \
+	    if [ ! -d "$$tmp/$(LOCALNET_SOURCE)" ]; then \
+	      echo "Checkout has no '$(LOCALNET_SOURCE)' at $(LOCALNET_SHA)." >&2; exit 1; \
+	    fi; \
+	    for patch in "$(LOCALNET_OVERRIDES_DIR)"/patches/*.patch; do \
+	      git -C "$$tmp" apply --directory="$(LOCALNET_SOURCE)" "$$patch"; \
+	    done; \
+	    if [ -d "$(LOCALNET_DIR)" ]; then \
+	      mv "$(LOCALNET_DIR)" "$$tmp/.old"; \
+	    fi; \
+	    if ! mv "$$tmp/$(LOCALNET_SOURCE)" "$(LOCALNET_DIR)"; then \
+	      if [ -d "$$tmp/.old" ]; then mv "$$tmp/.old" "$(LOCALNET_DIR)"; fi; \
+	      exit 1; \
+	    fi; \
+	    printf '%s' "$$patch_stamp" > "$(LOCALNET_DIR).patches"; \
 	  fi; \
 	fi
 

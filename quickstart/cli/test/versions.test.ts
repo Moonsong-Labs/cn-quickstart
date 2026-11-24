@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readSdkLine, rewriteSdkVersion, runVersionsSync } from '../src/commands/versions.ts';
 import type { CommandContext } from '../src/lib/context.ts';
@@ -165,6 +165,35 @@ describe('runVersionsSync', () => {
     ).rejects.toThrow("Could not find Splice tag '0.11.0'");
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
     expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
+  });
+
+  test('leaves SPLICE_VERSION unchanged in .env when writing links.csv fails', async () => {
+    /** Temporary checkout whose `links.csv` is made read-only so writing it fails. */
+    const dir = await tempProject(cleaner.dirs);
+    /** Env file snapshot before the failed write. Must keep the old `SPLICE_VERSION`. */
+    const envBefore = await readFile(join(dir, '.env'), 'utf8');
+    /** Path to `links.csv`, temporarily set read-only to force a write error. */
+    const linksPath = join(dir, 'links.csv');
+    await chmod(linksPath, 0o444);
+    try {
+      /** Context syncing to a new Splice version while `links.csv` cannot be written. */
+      const context: CommandContext = {
+        io: scriptedIo([]).io,
+        env: {},
+        cwd: dir,
+        cliDir: dir,
+        dryRun: false,
+        project: dir,
+        runner: fakeRunner([lsRemoteTag('0.11.0')]).runner,
+        fetch: fetchVersions('0.11.0'),
+      };
+      await expect(
+        runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+      ).rejects.toThrow();
+      expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
+    } finally {
+      await chmod(linksPath, 0o644);
+    }
   });
 
   test('dry-run fetches and writes nothing', async () => {

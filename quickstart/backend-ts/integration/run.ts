@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { composeArgs, composeEnv } from '../../cli/src/lib/compose';
+import { localnetCacheStale } from '../../cli/src/lib/localnet';
 import { readProject } from '../../cli/src/lib/project';
 
 /** Bounds how long Compose waits for LocalNet services to become ready. */
@@ -266,7 +267,10 @@ export async function runIntegration(
     const renderEnv = { ...hostEnv, DOCKER_NETWORK: project };
     /** Uses the same files and profiles as the CLI with the integration fixture as its overlay. */
     const localnet = readProject(quickstart, renderEnv, join(backend, 'integration/localnet.env'));
-    if (!localnet.settings.localnetDirExplicit && !existsSync(localnet.settings.localnetDir)) {
+    if (
+      !localnet.settings.localnetDirExplicit &&
+      (await localnetCacheStale(localnet.settings.localnetDir, localnet.settings.modulesDir))
+    ) {
       console.info('Fetching pinned Splice LocalNet into cache...');
       await run([
         process.execPath,

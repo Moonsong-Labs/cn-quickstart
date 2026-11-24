@@ -190,6 +190,7 @@ describe('runVendor', () => {
       name.startsWith('.qs-vendor-'),
     );
     expect(left).toEqual([]);
+    expect(calls.some((cmd) => cmd.includes('fetch'))).toBe(true);
     /** Patch commands issued, in lexicographical patch filename order. */
     const applyCalls = calls.filter((cmd) => cmd.includes('apply'));
     expect(applyCalls).toEqual([
@@ -210,6 +211,10 @@ describe('runVendor', () => {
         join(patchesDir, '02-second.patch'),
       ],
     ]);
+    /** Recorded patch stamp next to the cached tree. Must list both patches in order. */
+    const stamp = await readFile(`${dest}.patches`, 'utf8');
+    expect(stamp).toContain('01-first.patch:');
+    expect(stamp).toContain('02-second.patch:');
   });
 
   test('fails loudly and keeps the existing cache when a patch fails to apply', async () => {

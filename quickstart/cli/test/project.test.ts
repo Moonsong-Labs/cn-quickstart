@@ -120,6 +120,7 @@ describe('readProject', () => {
   });
 
   test('defaults LOCALNET_DIR to the commit-keyed cache directory from links.csv', async () => {
+    /** Temporary quickstart checkout with the default `links.csv` and no `.env.local` override. */
     const dir = await tempProject(cleaner.dirs);
     /** Project read without an explicit LOCALNET_DIR override. */
     const project = readProject(dir, {});
@@ -128,6 +129,7 @@ describe('readProject', () => {
   });
 
   test('explicit LOCALNET_DIR overrides the cache default', async () => {
+    /** Temporary quickstart checkout tested with an explicit shell `LOCALNET_DIR`. */
     const dir = await tempProject(cleaner.dirs);
     /** Project read with an explicit shell LOCALNET_DIR override. */
     const project = readProject(dir, { LOCALNET_DIR: '/offline/localnet' });
@@ -136,6 +138,7 @@ describe('readProject', () => {
   });
 
   test('falls back to <modules>/localnet when links.csv is absent', async () => {
+    /** Temporary quickstart checkout whose `links.csv` is deleted to test the modules fallback. */
     const dir = await tempProject(cleaner.dirs);
     await rm(join(dir, 'links.csv'));
     /** Project read without links.csv falls back to the modules directory. */
@@ -145,6 +148,7 @@ describe('readProject', () => {
   });
 
   test('expands LOCALNET_DIR references using the cache default when unset', async () => {
+    /** Temporary quickstart checkout whose `.env.local` references `${LOCALNET_DIR}` without setting it. */
     const dir = await tempProject(
       cleaner.dirs,
       `QS_EXTRA_COMPOSE_FILES=${braced('LOCALNET_DIR')}/extra.yaml\n`,

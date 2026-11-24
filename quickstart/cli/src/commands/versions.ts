@@ -142,10 +142,10 @@ export async function runVersionsSync(ctx: CommandContext, options: SyncOptions)
   }
   if (options.copy && !ctx.dryRun) await assertSiblingSplice(project.dir);
   await rewriteManifests(ctx, project.dir, sdk);
-  await rewriteSpliceVersion(ctx, project.dir, published.version);
   if (localnetRow !== null && nextLocalnetSha !== undefined) {
     await rewriteLocalnetPin(ctx, project.dir, localnetRow.sha, nextLocalnetSha);
   }
+  await rewriteSpliceVersion(ctx, project.dir, published.version);
   /** Proto pin. Reported so a person can decide whether it should move too. */
   const runtime = project.fileEnv.get('DAML_RUNTIME_VERSION');
   if (runtime !== undefined) ctx.io.note(`DAML_RUNTIME_VERSION stays ${runtime}\n`);

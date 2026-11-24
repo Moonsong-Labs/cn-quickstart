@@ -1,7 +1,7 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import type { Dirent } from 'node:fs';
+import { type Dirent, existsSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { Argument, type Command, CommanderError } from 'commander';
@@ -161,21 +161,32 @@ async function restartService(ctx: CommandContext, name: string): Promise<number
   /** Daemon check. A stopped daemon is reported before the service list is read. */
   const docker = await ensureDocker(ctx);
   if (docker !== 0) return docker;
-  /** Service names, one per line. */
-  const listed = await composeCapture(ctx, project, ['config', '--services']);
-  if (listed.code !== 0) {
-    ctx.io.note(`${bad('Could not list Compose services.')}\n`);
-    return listed.code;
-  }
-  /** Names Compose knows about for this combination of files and profiles. */
-  const names = listed.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (!names.includes(name)) {
-    ctx.io.note(`${bad(`Unknown service: ${name}`)}\n`);
-    ctx.io.note(`${aside(names.join(', '))}\n`);
-    return 1;
+  /** True when a cold-cache dry-run has no fetched LocalNet files for `config --services` to read. */
+  const coldDryRun =
+    ctx.dryRun &&
+    !project.settings.localnetDirExplicit &&
+    !existsSync(project.settings.localnetDir);
+  if (coldDryRun) {
+    ctx.io.note(
+      `${aside('Skipping service validation during dry-run because the LocalNet cache is missing.')}\n`,
+    );
+  } else {
+    /** Service names, one per line. */
+    const listed = await composeCapture(ctx, project, ['config', '--services']);
+    if (listed.code !== 0) {
+      ctx.io.note(`${bad('Could not list Compose services.')}\n`);
+      return listed.code;
+    }
+    /** Names Compose knows about for this combination of files and profiles. */
+    const names = listed.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (!names.includes(name)) {
+      ctx.io.note(`${bad(`Unknown service: ${name}`)}\n`);
+      ctx.io.note(`${aside(names.join(', '))}\n`);
+      return 1;
+    }
   }
   /** Remove the old container, then start a new one without recreating its dependencies. */
   const removed = await composeReady(ctx, project, ['rm', '-s', '-f', name]);
