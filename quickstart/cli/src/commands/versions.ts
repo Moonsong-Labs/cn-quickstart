@@ -1,8 +1,9 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
+import { randomUUID } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { access, cp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, cp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
@@ -287,7 +288,8 @@ async function publishedSpliceCommit(
 
 /**
  * Update the `localnet` commit SHA in `links.csv`, keeping comments and other rows unchanged.
- * `--dry-run` prints the change and does not write.
+ * Writes to a sibling temporary file and atomically renames it over `links.csv` so an
+ * interrupted write never leaves a truncated pin file. `--dry-run` prints the change only.
  */
 async function rewriteLocalnetPin(
   ctx: CommandContext,
@@ -299,9 +301,19 @@ async function rewriteLocalnetPin(
   const path = join(projectDir, 'links.csv');
   /** Current file text. */
   const text = await readFile(path, 'utf8');
+  /** Updated `links.csv` text ready to write atomically. */
+  const updated = rewriteLinksSha(text, 'localnet', nextSha);
   ctx.io.note(`links.csv: localnet ${currentSha} -> ${nextSha}\n`);
   if (!ctx.dryRun) {
-    await writeFile(path, rewriteLinksSha(text, 'localnet', nextSha));
+    /** Temporary file on the same filesystem so `rename` replaces `links.csv` atomically. */
+    const temp = join(projectDir, `.links.csv.${randomUUID()}.tmp`);
+    try {
+      await writeFile(temp, updated);
+      await rename(temp, path);
+    } catch (error) {
+      await rm(temp, { force: true });
+      throw error;
+    }
   }
 }
 

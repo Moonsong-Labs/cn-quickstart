@@ -167,16 +167,16 @@ describe('runVersionsSync', () => {
     expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
   });
 
-  test('leaves SPLICE_VERSION unchanged in .env when writing links.csv fails', async () => {
-    /** Temporary checkout whose `links.csv` is made read-only so writing it fails. */
+  test('leaves SPLICE_VERSION and links.csv unchanged when writing links.csv fails', async () => {
+    /** Temporary checkout whose directory is made read-only so atomic replacement fails. */
     const dir = await tempProject(cleaner.dirs);
     /** Env file snapshot before the failed write. Must keep the old `SPLICE_VERSION`. */
     const envBefore = await readFile(join(dir, '.env'), 'utf8');
-    /** Path to `links.csv`, temporarily set read-only to force a write error. */
-    const linksPath = join(dir, 'links.csv');
-    await chmod(linksPath, 0o444);
+    /** Pin file snapshot before the failed write. Must stay intact. */
+    const linksBefore = await readFile(join(dir, 'links.csv'), 'utf8');
+    await chmod(dir, 0o555);
     try {
-      /** Context syncing to a new Splice version while `links.csv` cannot be written. */
+      /** Context syncing to a new Splice version while `dir` cannot accept the temp file. */
       const context: CommandContext = {
         io: scriptedIo([]).io,
         env: {},
@@ -191,8 +191,9 @@ describe('runVersionsSync', () => {
         runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
       ).rejects.toThrow();
       expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
+      expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
     } finally {
-      await chmod(linksPath, 0o644);
+      await chmod(dir, 0o755);
     }
   });
 
