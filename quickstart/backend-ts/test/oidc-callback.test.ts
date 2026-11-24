@@ -237,6 +237,42 @@ describe('OIDC callbacks and tenant permissions', () => {
             }),
           );
         const cookies = `${session}; ${csrfCookie}`;
+        if (scenario === 'success') {
+          /** Makes an acceptance request without requiring a real participant or active contract. */
+          function accept(headers: Record<string, string>) {
+            return app.handle(
+              new Request(
+                'http://internal/app-install-requests/missing:accept?commandId=accept-test',
+                {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', ...headers },
+                  body: JSON.stringify({ installMeta: {}, meta: {} }),
+                },
+              ),
+            );
+          }
+
+          query.mockClear();
+          expect((await accept({ cookie: cookies })).status).toBe(403);
+          expect((await accept({ cookie: cookies, 'X-XSRF-TOKEN': 'wrong' })).status).toBe(403);
+          expect(
+            (
+              await accept({
+                cookie: cookies,
+                'X-XSRF-TOKEN': token,
+                authorization: 'Bearer invalid',
+              })
+            ).status,
+          ).toBe(401);
+          expect(query).not.toHaveBeenCalled();
+
+          // For both credential types, reaching PQS with a missing contract gives a 404.
+          query.mockResolvedValueOnce({ rows: [] } as never);
+          expect((await accept({ cookie: cookies, 'X-XSRF-TOKEN': token })).status).toBe(404);
+          query.mockResolvedValueOnce({ rows: [] } as never);
+          expect((await accept({ authorization: `Bearer ${providerIdToken}` })).status).toBe(404);
+          expect(query).toHaveBeenCalledTimes(2);
+        }
         /** Registers a tenant using the browser cookies and optional CSRF header. */
         const customerIssuer =
           scenario === 'shared-issuer' ? server.url.origin : `${server.url.origin}/customer`;
