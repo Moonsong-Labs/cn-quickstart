@@ -396,6 +396,43 @@ describe('OIDC callbacks and tenant permissions', () => {
             .find((h) => h.startsWith('XSRF-TOKEN='))
             ?.split(';')[0]
             .slice('XSRF-TOKEN='.length);
+          if (scenario === 'success') {
+            /** Exercises cancellation authentication without submitting a ledger command. */
+            function cancel(headers: Record<string, string>) {
+              return app.handle(
+                new Request('http://internal/app-installs/missing:cancel?commandId=cancel-test', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', ...headers },
+                  body: JSON.stringify({ meta: {} }),
+                }),
+              );
+            }
+
+            query.mockClear();
+            expect((await cancel({ cookie: browserCookies })).status).toBe(403);
+            expect((await cancel({ cookie: browserCookies, 'X-XSRF-TOKEN': token })).status).toBe(
+              403,
+            );
+            expect(
+              (
+                await cancel({
+                  cookie: browserCookies,
+                  'X-XSRF-TOKEN': customerCsrf ?? '',
+                  authorization: 'Bearer invalid',
+                })
+              ).status,
+            ).toBe(401);
+            expect(query).not.toHaveBeenCalled();
+
+            // A valid customer session or provider bearer passes auth and reaches the PQS lookup.
+            query.mockResolvedValueOnce({ rows: [] } as never);
+            expect(
+              (await cancel({ cookie: browserCookies, 'X-XSRF-TOKEN': customerCsrf ?? '' })).status,
+            ).toBe(404);
+            query.mockResolvedValueOnce({ rows: [] } as never);
+            expect((await cancel({ authorization: `Bearer ${providerIdToken}` })).status).toBe(404);
+            expect(query).toHaveBeenCalledTimes(2);
+          }
           /** Returns the response to a customer callback with its original attempt cookie. */
           function finish(attempt: Awaited<ReturnType<typeof startCustomer>>) {
             return get(

@@ -67,11 +67,17 @@ test.each(['/app-install-requests', '/app-installs'])(
 );
 
 test.each([
-  ['accept', 'acceptAppInstallRequest', 201, ['installMeta', 'meta']],
-  ['reject', 'rejectAppInstallRequest', 204, ['meta']],
+  [
+    '/app-install-requests/{contractId}:accept',
+    'acceptAppInstallRequest',
+    201,
+    ['installMeta', 'meta'],
+  ],
+  ['/app-install-requests/{contractId}:reject', 'rejectAppInstallRequest', 204, ['meta']],
+  ['/app-installs/{contractId}:cancel', 'cancelAppInstall', 204, ['meta']],
 ] as const)(
   'OpenAPI documents the public %s path and command ID',
-  async (action, operationId, success, required) => {
+  async (path, operationId, success, required) => {
     /** Fetches the generated spec exposed by the backend. */
     const response = await createApp(appDependencies, docsConfig).handle(
       new Request('http://localhost/openapi/json'),
@@ -79,8 +85,9 @@ test.each([
     /** Reads the operation that clients use rather than the internal dispatch path. */
     const document = (await response.json()) as OpenAPIV3_1.Document;
     expect(document.paths?.['/app-install-requests/{contractAction}']).toBeUndefined();
+    expect(document.paths?.['/app-installs/{contractAction}']).toBeUndefined();
     /** Verifies the contract and command IDs are documented as distinct required inputs. */
-    const operation = document.paths?.[`/app-install-requests/{contractId}:${action}`]?.post;
+    const operation = document.paths?.[path]?.post;
     expect(operation).toMatchObject({
       operationId,
       parameters: [
