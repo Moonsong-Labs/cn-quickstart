@@ -1,5 +1,7 @@
 import { openapi } from '@elysiajs/openapi';
 import {
+  acceptAppInstallRequestOperation,
+  acceptAppInstallRequestPath,
   appInstallRequestsPath,
   appInstallsPath,
   listAppInstallRequestsOperation,
@@ -20,6 +22,7 @@ export function createApiDocumentation() {
       paths: {
         [appInstallRequestsPath]: { get: listAppInstallRequestsOperation },
         [appInstallsPath]: { get: listAppInstallsOperation },
+        [acceptAppInstallRequestPath]: { post: acceptAppInstallRequestOperation },
       },
     },
   });

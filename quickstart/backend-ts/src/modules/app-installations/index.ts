@@ -1,9 +1,10 @@
-import type { LedgerClient } from '@canton-network/core-ledger-client';
 import type { Pool } from 'pg';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../../config/ledger';
-import { AppInstall, AppInstallRequest } from '../../daml/licensing';
+import { AppInstall, AppInstallRequest, type AppInstallRequest_Accept } from '../../daml/licensing';
+import type { LedgerConnection } from '../../integrations/ledger/connect';
 import { LedgerApiError } from '../../integrations/ledger/error';
-import { listActive } from '../../integrations/pqs/contracts';
+import { exerciseChoice } from '../../integrations/ledger/exercise';
+import { findActiveById, listActive } from '../../integrations/pqs/contracts';
 
 /** Returns active installation requests visible to the authenticated party in API format. */
 export async function listAppInstallRequests(pqs: Pool, party: string) {
@@ -43,6 +44,38 @@ export async function listAppInstalls(pqs: Pool, party: string) {
     });
 }
 
+/** Accepts an active request controlled by the configured provider and returns the created installation. */
+export async function acceptAppInstallRequest(
+  pqs: Pool,
+  ledger: LedgerConnection,
+  providerParty: string,
+  contractId: string,
+  commandId: string,
+  argument: AppInstallRequest_Accept,
+) {
+  /** Lookup supplies the request parties and excludes already consumed requests. */
+  const request = await findActiveById(pqs, AppInstallRequest, contractId);
+  if (!request || request.payload.provider !== providerParty) return undefined;
+
+  /** The consuming choice returns the new contract ID without waiting for PQS ingestion. */
+  const installId = await exerciseChoice(ledger, {
+    contractId: request.contractId,
+    choice: AppInstallRequest.AppInstallRequest_Accept,
+    argument,
+    commandId,
+    actAs: [providerParty],
+    readAs: [providerParty],
+  });
+  return {
+    contractId: installId,
+    provider: request.payload.provider,
+    user: request.payload.user,
+    meta: { data: argument.installMeta.values },
+    numLicensesCreated: 0,
+    licenseNum: null,
+  };
+}
+
 /**
  * Validates commandId, the generated payload, and nonblank provider and user identifiers.
  * Submits with actAs containing only the request user and resolves with Ledger confirmation.
@@ -50,7 +83,7 @@ export async function listAppInstalls(pqs: Pool, party: string) {
  * HTTP timeout cancels the request; the submitted command may still commit.
  */
 export function createAppInstallRequest(
-  connection: { client: LedgerClient; ledgerUserId: string },
+  connection: LedgerConnection,
   request: AppInstallRequest,
   commandId: string,
 ) {

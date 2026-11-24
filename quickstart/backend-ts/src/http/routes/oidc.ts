@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { createAdminBearerVerifier } from '../../auth/admin-bearer';
 import { Sessions } from '../../auth/sessions';
 import type { ApplicationConfig } from '../../config/application';
+import type { LedgerConnection } from '../../integrations/ledger/connect';
 
 import { appInstallationRoutes } from './app-installations';
 import { initialRegistrations, type OidcRegistration, oidcTenantRoutes } from './oidc-tenants';
@@ -44,6 +45,7 @@ export function oidcRoutes(
   provider: ApplicationConfig['appProvider'],
   options: NonNullable<ApplicationConfig['oidc']>,
   pqs: Pool,
+  ledger: LedgerConnection,
 ) {
   const registrations = initialRegistrations(provider, options);
   // Keep the verified tenant with the session so /user and logout use the same registration.
@@ -105,43 +107,53 @@ export function oidcRoutes(
     return verifyBearer(authorization);
   }
 
+  /** Authorizes a trusted AppProvider bearer or a provider session with CSRF on mutations. */
+  async function authorizeAppProvider(request: Request, sessionId: unknown, csrfCookie: unknown) {
+    /** An explicit bearer takes precedence over a session cookie. */
+    const authorization = request.headers.get('authorization');
+    if (authorization !== null) return (await authenticateBearer(authorization)) ? 200 : 401;
+    /** The session must belong to the trusted issuer and configured provider party. */
+    const session = sessions.read(sessionId);
+    if (!session) return 401;
+    if (
+      session.registration.tenant.issuerUrl !== options.issuer.href ||
+      session.party !== provider.partyId
+    )
+      return 403;
+    if (
+      request.method !== 'GET' &&
+      request.method !== 'HEAD' &&
+      (session.csrf !== csrfCookie || session.csrf !== request.headers.get('x-xsrf-token'))
+    )
+      return 403;
+    return 200;
+  }
+
   return new Elysia({ name: 'oidc' })
     .onTransform(({ set }) => {
       set.headers['cache-control'] = 'no-store';
     })
     .use(
-      appInstallationRoutes(pqs, async (request, sessionId) => {
-        /** Explicit bearer credentials take precedence over a browser session. */
-        const authorization = request.headers.get('authorization');
-        if (authorization !== null)
-          return (await authenticateBearer(authorization))?.partyId ?? null;
-        return sessions.read(sessionId)?.party ?? null;
-      }),
+      appInstallationRoutes(
+        pqs,
+        ledger,
+        provider.partyId,
+        async (request, sessionId) => {
+          /** Explicit bearer credentials take precedence over a browser session. */
+          const authorization = request.headers.get('authorization');
+          if (authorization !== null)
+            return (await authenticateBearer(authorization))?.partyId ?? null;
+          return sessions.read(sessionId)?.party ?? null;
+        },
+        authorizeAppProvider,
+      ),
     )
     .use(
       oidcTenantRoutes(
         registrations,
         options.allowHttp,
         discoverClient,
-        /** Authorizes an explicit AppProvider bearer or an admin session with CSRF on mutations. */
-        async (request, sessionId, csrfCookie) => {
-          const authorization = request.headers.get('authorization');
-          if (authorization !== null) return (await authenticateBearer(authorization)) ? 200 : 401;
-          const session = sessions.read(sessionId);
-          if (!session) return 401;
-          if (
-            session.registration.tenant.issuerUrl !== options.issuer.href ||
-            session.party !== provider.partyId
-          )
-            return 403;
-          if (
-            request.method !== 'GET' &&
-            request.method !== 'HEAD' &&
-            (session.csrf !== csrfCookie || session.csrf !== request.headers.get('x-xsrf-token'))
-          )
-            return 403;
-          return 200;
-        },
+        authorizeAppProvider,
         /** Revokes sessions and unfinished browser logins belonging to this registration. */
         (registration) => {
           sessions.revokeWhere((session) => session.registration === registration);

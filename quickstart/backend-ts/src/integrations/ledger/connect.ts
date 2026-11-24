@@ -4,6 +4,9 @@ import { LedgerApiError } from './error';
 import { createOAuthTokenProvider } from './oauth-token-provider';
 import { createStaticTokenProvider } from './token-provider';
 
+/** Connection used to submit commands with the backend's ledger identity. */
+export type LedgerConnection = Awaited<ReturnType<typeof connectLedger>>;
+
 /**
  * Selects the static or OAuth token provider, initializes the SDK client, and returns
  * client and ledgerUserId. Configuration validation errors propagate unchanged. Failures

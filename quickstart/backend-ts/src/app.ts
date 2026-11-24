@@ -8,11 +8,11 @@ import { featureFlagRoutes } from './http/routes/feature-flags';
 import { healthRoutes } from './http/routes/health';
 import { oidcRoutes } from './http/routes/oidc';
 import { sharedSecretRoutes } from './http/routes/shared-secret';
-import type { connectLedger } from './integrations/ledger/connect';
+import type { LedgerConnection } from './integrations/ledger/connect';
 
 /** Supplies the initialized Ledger connection and Quickstart party settings to HTTP handlers. */
 export interface AppDependencies {
-  ledger: Awaited<ReturnType<typeof connectLedger>>;
+  ledger: LedgerConnection;
   application: ApplicationConfig;
   pqs: Pool;
 }
@@ -27,11 +27,11 @@ export function createApp(dependencies: AppDependencies, config: Config = loadCo
     .decorate('application', dependencies.application)
     .decorate('pqs', dependencies.pqs);
   if (config.apiDocsEnabled) app.use(createApiDocumentation());
-  const { application } = dependencies;
+  const { application, pqs, ledger } = dependencies;
   if (application.authMode === AuthMode.SharedSecret) {
-    app.use(sharedSecretRoutes([application.appProvider], dependencies.pqs));
+    app.use(sharedSecretRoutes(application.appProvider, pqs, ledger));
   } else {
-    app.use(oidcRoutes(application.appProvider, application.oidc, dependencies.pqs));
+    app.use(oidcRoutes(application.appProvider, application.oidc, pqs, ledger));
   }
   return app.use(healthRoutes).use(featureFlagRoutes(dependencies.application.authMode));
 }

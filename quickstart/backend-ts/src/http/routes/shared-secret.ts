@@ -2,12 +2,15 @@ import { Elysia } from 'elysia';
 import type { Pool } from 'pg';
 import { Sessions } from '../../auth/sessions';
 import { resolveSharedSecretUser, type Tenant } from '../../auth/shared-secret-user';
+import type { LedgerConnection } from '../../integrations/ledger/connect';
 
 import { appInstallationRoutes } from './app-installations';
 import { tenantRegistrationRoutes } from './tenant-registration';
 
 /** Registers shared-secret login, session, and tenant administration endpoints. */
-export function sharedSecretRoutes(tenants: Tenant[], pqs: Pool) {
+export function sharedSecretRoutes(provider: Tenant, pqs: Pool, ledger: LedgerConnection) {
+  /** Holds the provider and the tenants registered through the admin API. */
+  const tenants = [provider];
   const sessions = new Sessions<string>();
 
   /** Matches login names case-insensitively and preserves the registered spelling in the session. */
@@ -71,7 +74,18 @@ export function sharedSecretRoutes(tenants: Tenant[], pqs: Pool) {
       { detail: { operationId: 'getAuthenticatedUser', tags: ['Auth'] } },
     )
     .use(
-      appInstallationRoutes(pqs, (_request, sessionId) => sessionUser(sessionId)?.partyId ?? null),
+      appInstallationRoutes(
+        pqs,
+        ledger,
+        provider.partyId,
+        (_request, sessionId) => sessionUser(sessionId)?.partyId ?? null,
+        (_request, sessionId) => {
+          /** Only the internal provider's current session can mutate installation requests. */
+          const user = sessionUser(sessionId);
+          if (!user) return 401;
+          return user.isAdmin && user.partyId === provider.partyId ? 200 : 403;
+        },
+      ),
     )
     .use(tenantRegistrationRoutes(tenants, sessionUser, revokeTenantSessions))
     .post('/logout', ({ cookie: { JSESSIONID }, redirect }) => {
