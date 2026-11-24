@@ -1,6 +1,11 @@
 import type { Pool } from 'pg';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../../config/ledger';
-import { AppInstall, AppInstallRequest, type AppInstallRequest_Accept } from '../../daml/licensing';
+import {
+  AppInstall,
+  AppInstallRequest,
+  type AppInstallRequest_Accept,
+  type AppInstallRequest_Reject,
+} from '../../daml/licensing';
 import type { LedgerConnection } from '../../integrations/ledger/connect';
 import { LedgerApiError } from '../../integrations/ledger/error';
 import { exerciseChoice } from '../../integrations/ledger/exercise';
@@ -44,6 +49,13 @@ export async function listAppInstalls(pqs: Pool, party: string) {
     });
 }
 
+/** Finds an active request only when the configured AppProvider controls its choices. */
+async function findProviderInstallRequest(pqs: Pool, providerParty: string, contractId: string) {
+  /** Looks up the request by its typed template and contract ID. */
+  const request = await findActiveById(pqs, AppInstallRequest, contractId);
+  return request?.payload.provider === providerParty ? request : undefined;
+}
+
 /** Accepts an active request controlled by the configured provider and returns the created installation. */
 export async function acceptAppInstallRequest(
   pqs: Pool,
@@ -54,8 +66,8 @@ export async function acceptAppInstallRequest(
   argument: AppInstallRequest_Accept,
 ) {
   /** Lookup supplies the request parties and excludes already consumed requests. */
-  const request = await findActiveById(pqs, AppInstallRequest, contractId);
-  if (!request || request.payload.provider !== providerParty) return undefined;
+  const request = await findProviderInstallRequest(pqs, providerParty, contractId);
+  if (!request) return undefined;
 
   /** The consuming choice returns the new contract ID without waiting for PQS ingestion. */
   const installId = await exerciseChoice(ledger, {
@@ -74,6 +86,30 @@ export async function acceptAppInstallRequest(
     numLicensesCreated: 0,
     licenseNum: null,
   };
+}
+
+/** Consumes an active request controlled by the AppProvider and waits for ledger confirmation. */
+export async function rejectAppInstallRequest(
+  pqs: Pool,
+  ledger: LedgerConnection,
+  providerParty: string,
+  contractId: string,
+  commandId: string,
+  argument: AppInstallRequest_Reject,
+) {
+  /** Uses the same provider scope and active request check as acceptance. */
+  const request = await findProviderInstallRequest(pqs, providerParty, contractId);
+  if (!request) return false;
+
+  await exerciseChoice(ledger, {
+    contractId: request.contractId,
+    choice: AppInstallRequest.AppInstallRequest_Reject,
+    argument,
+    commandId,
+    actAs: [providerParty],
+    readAs: [providerParty],
+  });
+  return true;
 }
 
 /**

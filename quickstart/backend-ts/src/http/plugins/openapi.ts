@@ -6,6 +6,8 @@ import {
   appInstallsPath,
   listAppInstallRequestsOperation,
   listAppInstallsOperation,
+  rejectAppInstallRequestOperation,
+  rejectAppInstallRequestPath,
 } from '../routes/app-installations';
 
 export function createApiDocumentation() {
@@ -23,6 +25,7 @@ export function createApiDocumentation() {
         [appInstallRequestsPath]: { get: listAppInstallRequestsOperation },
         [appInstallsPath]: { get: listAppInstallsOperation },
         [acceptAppInstallRequestPath]: { post: acceptAppInstallRequestOperation },
+        [rejectAppInstallRequestPath]: { post: rejectAppInstallRequestOperation },
       },
     },
   });

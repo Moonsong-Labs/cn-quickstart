@@ -6,6 +6,7 @@ import {
   acceptAppInstallRequest,
   listAppInstallRequests,
   listAppInstalls,
+  rejectAppInstallRequest,
 } from '../../modules/app-installations';
 
 /** Paths shared by the HTTP routes and their OpenAPI operations. */
@@ -34,12 +35,23 @@ const installListResponse = t.Array(installResponse);
 const choiceMetadata = t.Object({ data: t.Optional(t.Record(t.String(), t.String())) });
 /** Keeps installation metadata distinct from acceptance metadata. */
 const acceptBody = t.Object({ installMeta: choiceMetadata, meta: choiceMetadata });
+/** Runtime and API schema for rejection metadata. */
+const rejectBody = t.Object({ meta: choiceMetadata });
+/** One runtime route handles both actions and checks installMeta for acceptance before validation. */
+const requestActionBody = t.Object({
+  ...rejectBody.properties,
+  installMeta: t.Optional(choiceMetadata),
+});
 /** Requires a nonblank command ID and passes the original value to the ledger. */
 const commandIdQuery = t.Object({ commandId: t.String({ pattern: '\\S' }) });
 /** Action suffix consumed by the route handler, distinct from the ledger contract ID. */
 const acceptSuffix = ':accept';
+/** Suffix for consuming a request without creating an installation. */
+const rejectSuffix = ':reject';
 /** Public OpenAPI path for the acceptance operation. */
 export const acceptAppInstallRequestPath = `${appInstallRequestsPath}/{contractId}${acceptSuffix}`;
+/** Public OpenAPI path for the rejection operation. */
+export const rejectAppInstallRequestPath = `${appInstallRequestsPath}/{contractId}${rejectSuffix}`;
 
 /** Media type used for installation API errors. */
 const problemMediaType = 'application/problem+json';
@@ -87,14 +99,26 @@ export const listAppInstallsOperation = listOperation(
   installListResponse,
 );
 
+/** Shared path and query inputs for the request actions. */
+const requestActionParameters = [
+  { name: 'contractId', in: 'path', required: true, schema: { type: 'string' as const } },
+  { name: 'commandId', in: 'query', required: true, schema: commandIdQuery.properties.commandId },
+];
+
+/** Error responses shared by acceptance and rejection. */
+const requestActionErrors = {
+  400: problemResponse('Invalid request'),
+  401: problemResponse('Not authenticated'),
+  403: problemResponse('Forbidden'),
+  404: problemResponse('Installation request not found'),
+  500: problemResponse('An internal server error occurred'),
+};
+
 /** OpenAPI operation for acceptance, whose suffix is routed inside the dynamic segment. */
 export const acceptAppInstallRequestOperation = {
   operationId: 'acceptAppInstallRequest',
   tags: ['App Installs Requests'],
-  parameters: [
-    { name: 'contractId', in: 'path', required: true, schema: { type: 'string' as const } },
-    { name: 'commandId', in: 'query', required: true, schema: commandIdQuery.properties.commandId },
-  ],
+  parameters: requestActionParameters,
   requestBody: {
     required: true,
     content: { 'application/json': { schema: acceptBody } },
@@ -106,11 +130,22 @@ export const acceptAppInstallRequestOperation = {
         'application/json': { schema: installResponse as unknown as OpenAPIV3.SchemaObject },
       },
     },
-    400: problemResponse('Invalid request'),
-    401: problemResponse('Not authenticated'),
-    403: problemResponse('Forbidden'),
-    404: problemResponse('Installation request not found'),
-    500: problemResponse('An internal server error occurred'),
+    ...requestActionErrors,
+  },
+};
+
+/** OpenAPI operation for rejection, which returns no content after ledger confirmation. */
+export const rejectAppInstallRequestOperation = {
+  operationId: 'rejectAppInstallRequest',
+  tags: ['App Installs Requests'],
+  parameters: requestActionParameters,
+  requestBody: {
+    required: true,
+    content: { 'application/json': { schema: rejectBody } },
+  },
+  responses: {
+    204: { description: 'AppInstallRequest rejected' },
+    ...requestActionErrors,
   },
 };
 
@@ -121,15 +156,15 @@ function hasMetadataShape(value: unknown) {
   return typeof value.data === 'object' && value.data !== null && !Array.isArray(value.data);
 }
 
-/** Sends a sanitized error for acceptance and disables caching even on parse errors. */
-function acceptanceProblem(status: number, message: string) {
+/** Sends a sanitized error for a request action and disables caching even on parse errors. */
+function requestActionProblem(status: number, message: string) {
   return Response.json(
     { message },
     { status, headers: { 'content-type': problemMediaType, 'cache-control': 'no-store' } },
   );
 }
 
-/** Exposes installation listing and acceptance using the active authentication mode. */
+/** Exposes installation listing and request actions using the active authentication mode. */
 export function appInstallationRoutes(
   pqs: Pool,
   ledger: LedgerConnection,
@@ -184,9 +219,27 @@ export function appInstallationRoutes(
     .post(
       `${appInstallRequestsPath}/:contractAction`,
       async ({ params, query, body }) => {
+        /** The transform has already checked that the action suffix is supported. */
+        const suffix = params.contractAction.endsWith(rejectSuffix) ? rejectSuffix : acceptSuffix;
         /** Removes only the action suffix, preserving the exact contract and command identifiers. */
-        const contractId = params.contractAction.slice(0, -acceptSuffix.length);
-        if (!contractId.trim()) throw acceptanceProblem(400, 'Invalid contract ID');
+        const contractId = params.contractAction.slice(0, -suffix.length);
+        if (!contractId.trim()) throw requestActionProblem(400, 'Invalid contract ID');
+
+        /** Operation metadata is passed to either Daml choice. */
+        const meta = { values: body.meta.data ?? {} };
+        if (suffix === rejectSuffix) {
+          /** Waits for the consuming choice before returning no content. */
+          const rejected = await rejectAppInstallRequest(
+            pqs,
+            ledger,
+            providerParty,
+            contractId,
+            query.commandId,
+            { meta },
+          );
+          if (!rejected) throw requestActionProblem(404, 'Installation request not found');
+          return status(204, undefined);
+        }
 
         /** Exercises the consuming choice and returns the confirmed installation directly. */
         const install = await acceptAppInstallRequest(
@@ -196,23 +249,25 @@ export function appInstallationRoutes(
           contractId,
           query.commandId,
           {
-            installMeta: { values: body.installMeta.data ?? {} },
-            meta: { values: body.meta.data ?? {} },
+            installMeta: { values: body.installMeta?.data ?? {} },
+            meta,
           },
         );
-        if (!install) throw acceptanceProblem(404, 'Installation request not found');
+        if (!install) throw requestActionProblem(404, 'Installation request not found');
         return status(201, install);
       },
       {
         // The router treats text after a parameter's colon as part of its name.
         detail: { hide: true },
         query: commandIdQuery,
-        body: acceptBody,
-        response: { 201: installResponse },
+        body: requestActionBody,
+        response: { 201: installResponse, 204: t.Void() },
         async transform({ request, params, cookie, set, body }) {
           set.headers['cache-control'] = 'no-store';
-          if (!params.contractAction.endsWith(acceptSuffix))
-            throw acceptanceProblem(404, 'Not found');
+          /** Checks the action before authorizing or submitting a command. */
+          const isAccept = params.contractAction.endsWith(acceptSuffix);
+          if (!isAccept && !params.contractAction.endsWith(rejectSuffix))
+            throw requestActionProblem(404, 'Not found');
           /** Uses the same provider authentication and CSRF rules as tenant administration. */
           const access = await authorizeAppProvider(
             request,
@@ -220,19 +275,19 @@ export function appInstallationRoutes(
             cookie['XSRF-TOKEN'].value,
           );
           if (access !== 200)
-            throw acceptanceProblem(access, access === 401 ? 'Unauthorized' : 'Forbidden');
-          if (!hasMetadataShape(body?.installMeta) || !hasMetadataShape(body?.meta))
-            throw acceptanceProblem(400, 'Invalid metadata');
+            throw requestActionProblem(access, access === 401 ? 'Unauthorized' : 'Forbidden');
+          if (!hasMetadataShape(body?.meta) || (isAccept && !hasMetadataShape(body?.installMeta)))
+            throw requestActionProblem(400, 'Invalid metadata');
         },
         error({ error, code }) {
           if (error instanceof Response) return error;
           if (code === 'PARSE' || (code === 'VALIDATION' && error.type !== 'response'))
-            return acceptanceProblem(400, 'Invalid request');
+            return requestActionProblem(400, 'Invalid request');
           console.error(
-            'Accepting installation request failed',
+            'Processing installation request failed',
             error instanceof Error ? error.name : 'unknown error',
           );
-          return acceptanceProblem(500, 'Internal Server Error');
+          return requestActionProblem(500, 'Internal Server Error');
         },
       },
     );
