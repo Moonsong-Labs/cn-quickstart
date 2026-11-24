@@ -315,6 +315,34 @@ describe('OIDC callbacks and tenant permissions', () => {
                 ? ['ROLE_ADMIN', 'AppUser', 'customer']
                 : ['AppUser', 'customer'],
           });
+          if (scenario === 'success') {
+            query.mockResolvedValueOnce({
+              rows: [
+                {
+                  contract_id: 'customer-install',
+                  payload: {
+                    provider: 'configured-party',
+                    user: 'customer',
+                    meta: { values: {} },
+                    numLicensesCreated: '2',
+                  },
+                },
+              ],
+            } as never);
+            /** Lists installations through the external tenant's OIDC session. */
+            const installs = await get('/app-installs', browserCookies);
+            expect(installs.status).toBe(200);
+            expect(await installs.json()).toEqual([
+              {
+                contractId: 'customer-install',
+                provider: 'configured-party',
+                user: 'customer',
+                meta: { data: {} },
+                numLicensesCreated: 2,
+                licenseNum: null,
+              },
+            ]);
+          }
           expect(await (await get('/app-install-requests', browserCookies)).json()).toEqual([
             {
               contractId: 'customer',

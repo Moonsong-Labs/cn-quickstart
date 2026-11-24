@@ -64,6 +64,19 @@ function requestRow(contractId: string, user: string, provider: string, descript
   };
 }
 
+/** Builds a PQS installation with the ledger's string-encoded license count. */
+function installRow(
+  contractId: string,
+  user: string,
+  provider: string,
+  description: string,
+  numLicensesCreated: string,
+) {
+  /** Provides the common contract fields and metadata in ledger format. */
+  const row = requestRow(contractId, user, provider, description);
+  return { ...row, payload: { ...row.payload, numLicensesCreated } };
+}
+
 afterEach(async () => {
   await Promise.all(pools.splice(0).map((pool) => pool.end()));
 });
@@ -178,5 +191,139 @@ test('Hides PQS details when listing installation requests fails', async () => {
 
   expect(response.status).toBe(500);
   expect(response.headers.get('content-type')).toContain('application/problem+json');
+  expect(await response.json()).toEqual({ message: 'Internal Server Error' });
+});
+
+test('Lists only the installations visible to each party with their exact license counts', async () => {
+  /** Mixes provider-owned, customer-visible and unrelated active installations. */
+  const { app, login, register, query } = setup([
+    installRow('new-install', 'customer-party', 'provider-party', 'New install', '0'),
+    installRow('used-install', 'customer-party', 'other-provider', 'Used install', '3'),
+    installRow('large-install', 'other-customer', 'provider-party', 'Large install', '2147483648'),
+    installRow(
+      'hidden-install',
+      'other-customer',
+      'other-provider',
+      'Hidden install',
+      '9007199254740993',
+    ),
+  ]);
+  /** Registers a non-admin customer with a party different from the provider. */
+  const providerCookie = await login('app-provider');
+  expect(
+    (
+      await register(providerCookie, {
+        tenantId: 'Customer',
+        partyId: 'customer-party',
+        users: ['customer'],
+      })
+    ).status,
+  ).toBe(201);
+
+  /** Calls the listing endpoint using a real authenticated session. */
+  async function list(cookie: string) {
+    /** Reads the response issued to the current session. */
+    const response = await app.handle(
+      new Request('http://localhost/app-installs', { headers: { cookie } }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    return response.json();
+  }
+
+  /** The customer and provider can both see this installation. */
+  const newInstall = {
+    contractId: 'new-install',
+    user: 'customer-party',
+    provider: 'provider-party',
+    meta: { data: { description: 'New install' } },
+    numLicensesCreated: 0,
+    licenseNum: null,
+  };
+  /** The customer sees its installations regardless of provider. */
+  const userInstalls = await list(await login('customer'));
+  expect(userInstalls).toHaveLength(2);
+  expect(userInstalls).toEqual(
+    expect.arrayContaining([
+      newInstall,
+      {
+        contractId: 'used-install',
+        user: 'customer-party',
+        provider: 'other-provider',
+        meta: { data: { description: 'Used install' } },
+        numLicensesCreated: 3,
+        licenseNum: null,
+      },
+    ]),
+  );
+
+  /** The provider sees its installations regardless of customer. */
+  const providerInstalls = await list(providerCookie);
+  expect(providerInstalls).toHaveLength(2);
+  expect(providerInstalls).toEqual(
+    expect.arrayContaining([
+      newInstall,
+      {
+        contractId: 'large-install',
+        user: 'other-customer',
+        provider: 'provider-party',
+        meta: { data: { description: 'Large install' } },
+        numLicensesCreated: 2147483648,
+        licenseNum: null,
+      },
+    ]),
+  );
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(query).toHaveBeenCalledWith('SELECT contract_id, payload FROM active($1)', [
+    'quickstart-licensing:Licensing.AppInstall:AppInstall',
+  ]);
+});
+
+test('Returns an empty installation list for an authenticated party with no visible rows', async () => {
+  /** Supplies active rows for other parties only. */
+  const { app, login } = setup([
+    installRow('hidden-install', 'other-customer', 'other-provider', 'Hidden install', '0'),
+  ]);
+  /** Requests active installations as the configured provider. */
+  const response = await app.handle(
+    new Request('http://localhost/app-installs', {
+      headers: { cookie: await login('app-provider') },
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual([]);
+});
+
+test('Rejects an unauthenticated installation list request before querying PQS', async () => {
+  /** Tracks attempts to read installation data without a session. */
+  const { app, query } = setup([]);
+  /** Holds the response to the request with no authentication. */
+  const response = await app.handle(new Request('http://localhost/app-installs'));
+  expect(response.status).toBe(401);
+  expect(response.headers.get('content-type')).toBe('application/problem+json');
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(query).not.toHaveBeenCalled();
+});
+
+test('Returns a sanitized error when a visible license count cannot be represented exactly', async () => {
+  /** Supplies an Int64 that would round if converted to an unchecked JavaScript number. */
+  const { app, login } = setup([
+    installRow(
+      'large-install',
+      'customer-party',
+      'provider-party',
+      'Large install',
+      '9007199254740993',
+    ),
+  ]);
+  /** Requests the installation as a party that can see its count. */
+  const response = await app.handle(
+    new Request('http://localhost/app-installs', {
+      headers: { cookie: await login('app-provider') },
+    }),
+  );
+  expect(response.status).toBe(500);
+  expect(response.headers.get('content-type')).toBe('application/problem+json');
+  expect(response.headers.get('cache-control')).toBe('no-store');
   expect(await response.json()).toEqual({ message: 'Internal Server Error' });
 });

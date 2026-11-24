@@ -39,29 +39,32 @@ test('OpenAPI describes the health endpoint and its response', async () => {
   });
 });
 
-test('OpenAPI documents problem JSON for installation request errors', async () => {
-  /** Fetches the generated spec through the running application's documentation route. */
-  const response = await createApp(appDependencies, docsConfig).handle(
-    new Request('http://localhost/openapi/json'),
-  );
-  expect(response.status).toBe(200);
+test.each(['/app-install-requests', '/app-installs'])(
+  'OpenAPI documents problem JSON for errors from %s',
+  async (path) => {
+    /** Fetches the generated spec through the running application's documentation route. */
+    const response = await createApp(appDependencies, docsConfig).handle(
+      new Request('http://localhost/openapi/json'),
+    );
+    expect(response.status).toBe(200);
 
-  /** Reads the responses exposed to consumers of the listing operation. */
-  const document = (await response.json()) as OpenAPIV3_1.Document;
-  /** Confirms error media types without masking an accidental change to the success response. */
-  const responses = document.paths?.['/app-install-requests']?.get?.responses;
-  for (const [status, mediaType] of [
-    [200, 'application/json'],
-    [401, 'application/problem+json'],
-    [500, 'application/problem+json'],
-  ] as const) {
-    /** Looks up each response by its documented HTTP status. */
-    const response = responses?.[status];
-    expect(Object.keys(response && 'content' in response ? (response.content ?? {}) : {})).toEqual([
-      mediaType,
-    ]);
-  }
-});
+    /** Reads the responses exposed to consumers of the listing operation. */
+    const document = (await response.json()) as OpenAPIV3_1.Document;
+    /** Confirms error media types without masking an accidental change to the success response. */
+    const responses = document.paths?.[path]?.get?.responses;
+    for (const [status, mediaType] of [
+      [200, 'application/json'],
+      [401, 'application/problem+json'],
+      [500, 'application/problem+json'],
+    ] as const) {
+      /** Looks up each response by its documented HTTP status. */
+      const response = responses?.[status];
+      expect(
+        Object.keys(response && 'content' in response ? (response.content ?? {}) : {}),
+      ).toEqual([mediaType]);
+    }
+  },
+);
 
 test('Serves documentation from independent application instances', async () => {
   for (const app of [
