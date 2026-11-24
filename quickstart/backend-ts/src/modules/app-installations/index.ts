@@ -1,7 +1,7 @@
 import type { LedgerClient } from '@canton-network/core-ledger-client';
 import type { Pool } from 'pg';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../../config/ledger';
-import { AppInstallRequest } from '../../daml/licensing';
+import { AppInstall, AppInstallRequest } from '../../daml/licensing';
 import { LedgerApiError } from '../../integrations/ledger/error';
 import { listActive } from '../../integrations/pqs/contracts';
 
@@ -17,6 +17,30 @@ export async function listAppInstallRequests(pqs: Pool, party: string) {
       user: payload.user,
       meta: { data: payload.meta.values },
     }));
+}
+
+/** Returns active installations and their ledger counters for the authenticated party. */
+export async function listAppInstalls(pqs: Pool, party: string) {
+  /** Decoded installations retain the ledger's 64-bit counters as strings. */
+  const contracts = await listActive(pqs, AppInstall);
+  return contracts
+    .filter(({ payload }) => payload.user === party || payload.provider === party)
+    .map(({ contractId, payload }) => {
+      /** The HTTP count is a JSON number and must remain exact in the frontend. */
+      const numLicensesCreated = Number(payload.numLicensesCreated);
+      if (!Number.isSafeInteger(numLicensesCreated)) {
+        throw new Error('Installation license count exceeds the safe integer range');
+      }
+      return {
+        contractId,
+        provider: payload.provider,
+        user: payload.user,
+        meta: { data: payload.meta.values },
+        numLicensesCreated,
+        // The Java response leaves this field unset because the installation has no license number.
+        licenseNum: null,
+      };
+    });
 }
 
 /**

@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { Sessions } from '../../auth/sessions';
 import { resolveSharedSecretUser, type Tenant } from '../../auth/shared-secret-user';
 
-import { appInstallRequestRoutes } from './app-install-requests';
+import { appInstallationRoutes } from './app-installations';
 import { tenantRegistrationRoutes } from './tenant-registration';
 
 /** Registers shared-secret login, session, and tenant administration endpoints. */
@@ -71,10 +71,7 @@ export function sharedSecretRoutes(tenants: Tenant[], pqs: Pool) {
       { detail: { operationId: 'getAuthenticatedUser', tags: ['Auth'] } },
     )
     .use(
-      appInstallRequestRoutes(
-        pqs,
-        (_request, sessionId) => sessionUser(sessionId)?.partyId ?? null,
-      ),
+      appInstallationRoutes(pqs, (_request, sessionId) => sessionUser(sessionId)?.partyId ?? null),
     )
     .use(tenantRegistrationRoutes(tenants, sessionUser, revokeTenantSessions))
     .post('/logout', ({ cookie: { JSESSIONID }, redirect }) => {

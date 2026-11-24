@@ -1,8 +1,10 @@
 import { openapi } from '@elysiajs/openapi';
 import {
   appInstallRequestsPath,
+  appInstallsPath,
   listAppInstallRequestsOperation,
-} from '../routes/app-install-requests';
+  listAppInstallsOperation,
+} from '../routes/app-installations';
 
 export function createApiDocumentation() {
   return openapi({
@@ -17,6 +19,7 @@ export function createApiDocumentation() {
       tags: [{ name: 'System', description: 'Server health and operational endpoints.' }],
       paths: {
         [appInstallRequestsPath]: { get: listAppInstallRequestsOperation },
+        [appInstallsPath]: { get: listAppInstallsOperation },
       },
     },
   });

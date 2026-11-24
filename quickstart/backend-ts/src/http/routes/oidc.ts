@@ -5,7 +5,7 @@ import { createAdminBearerVerifier } from '../../auth/admin-bearer';
 import { Sessions } from '../../auth/sessions';
 import type { ApplicationConfig } from '../../config/application';
 
-import { appInstallRequestRoutes } from './app-install-requests';
+import { appInstallationRoutes } from './app-installations';
 import { initialRegistrations, type OidcRegistration, oidcTenantRoutes } from './oidc-tenants';
 
 const loginLifetimeSeconds = 300;
@@ -110,7 +110,7 @@ export function oidcRoutes(
       set.headers['cache-control'] = 'no-store';
     })
     .use(
-      appInstallRequestRoutes(pqs, async (request, sessionId) => {
+      appInstallationRoutes(pqs, async (request, sessionId) => {
         /** Explicit bearer credentials take precedence over a browser session. */
         const authorization = request.headers.get('authorization');
         if (authorization !== null)

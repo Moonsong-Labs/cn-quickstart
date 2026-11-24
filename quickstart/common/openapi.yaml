@@ -646,6 +646,8 @@ components:
           type: integer
         licenseNum:
           type: integer
+          nullable: true
+          description: Legacy field. Installation responses return null.
 
     AppInstallCreateLicenseRequest:
       type: object
