@@ -1,11 +1,13 @@
 import { Elysia } from 'elysia';
+import type { Pool } from 'pg';
 import { Sessions } from '../../auth/sessions';
 import { resolveSharedSecretUser, type Tenant } from '../../auth/shared-secret-user';
 
+import { appInstallRequestRoutes } from './app-install-requests';
 import { tenantRegistrationRoutes } from './tenant-registration';
 
 /** Registers shared-secret login, session, and tenant administration endpoints. */
-export function sharedSecretRoutes(tenants: Tenant[]) {
+export function sharedSecretRoutes(tenants: Tenant[], pqs: Pool) {
   const sessions = new Sessions<string>();
 
   /** Matches login names case-insensitively and preserves the registered spelling in the session. */
@@ -67,6 +69,12 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
         };
       },
       { detail: { operationId: 'getAuthenticatedUser', tags: ['Auth'] } },
+    )
+    .use(
+      appInstallRequestRoutes(
+        pqs,
+        (_request, sessionId) => sessionUser(sessionId)?.partyId ?? null,
+      ),
     )
     .use(tenantRegistrationRoutes(tenants, sessionUser, revokeTenantSessions))
     .post('/logout', ({ cookie: { JSESSIONID }, redirect }) => {

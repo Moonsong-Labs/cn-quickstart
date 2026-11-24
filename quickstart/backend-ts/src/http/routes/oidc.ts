@@ -1,9 +1,11 @@
 import { Elysia, t } from 'elysia';
 import * as oidc from 'openid-client';
+import type { Pool } from 'pg';
 import { createAdminBearerVerifier } from '../../auth/admin-bearer';
 import { Sessions } from '../../auth/sessions';
 import type { ApplicationConfig } from '../../config/application';
 
+import { appInstallRequestRoutes } from './app-install-requests';
 import { initialRegistrations, type OidcRegistration, oidcTenantRoutes } from './oidc-tenants';
 
 const loginLifetimeSeconds = 300;
@@ -41,6 +43,7 @@ function isLoginRejection(error: unknown): boolean {
 export function oidcRoutes(
   provider: ApplicationConfig['appProvider'],
   options: NonNullable<ApplicationConfig['oidc']>,
+  pqs: Pool,
 ) {
   const registrations = initialRegistrations(provider, options);
   // Keep the verified tenant with the session so /user and logout use the same registration.
@@ -94,10 +97,27 @@ export function oidcRoutes(
     return configuration;
   }
 
+  /** Verifies an explicit bearer using the configured AppProvider issuer. */
+  async function authenticateBearer(authorization: string) {
+    /** Discovered metadata for the trusted issuer. */
+    const config = await discover();
+    verifyBearer ??= createAdminBearerVerifier(config.serverMetadata(), provider);
+    return verifyBearer(authorization);
+  }
+
   return new Elysia({ name: 'oidc' })
     .onTransform(({ set }) => {
       set.headers['cache-control'] = 'no-store';
     })
+    .use(
+      appInstallRequestRoutes(pqs, async (request, sessionId) => {
+        /** Explicit bearer credentials take precedence over a browser session. */
+        const authorization = request.headers.get('authorization');
+        if (authorization !== null)
+          return (await authenticateBearer(authorization))?.partyId ?? null;
+        return sessions.read(sessionId)?.party ?? null;
+      }),
+    )
     .use(
       oidcTenantRoutes(
         registrations,
@@ -106,11 +126,7 @@ export function oidcRoutes(
         /** Authorizes an explicit AppProvider bearer or an admin session with CSRF on mutations. */
         async (request, sessionId, csrfCookie) => {
           const authorization = request.headers.get('authorization');
-          if (authorization !== null) {
-            const config = await discover();
-            verifyBearer ??= createAdminBearerVerifier(config.serverMetadata(), provider);
-            return (await verifyBearer(authorization)) ? 200 : 401;
-          }
+          if (authorization !== null) return (await authenticateBearer(authorization)) ? 200 : 401;
           const session = sessions.read(sessionId);
           if (!session) return 401;
           if (

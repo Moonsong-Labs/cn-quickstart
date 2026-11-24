@@ -1,7 +1,23 @@
 import type { LedgerClient } from '@canton-network/core-ledger-client';
+import type { Pool } from 'pg';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../../config/ledger';
 import { AppInstallRequest } from '../../daml/licensing';
 import { LedgerApiError } from '../../integrations/ledger/error';
+import { listActive } from '../../integrations/pqs/contracts';
+
+/** Returns active installation requests visible to the authenticated party in API format. */
+export async function listAppInstallRequests(pqs: Pool, party: string) {
+  /** Decoded active requests from the same PQS query used for other templates. */
+  const contracts = await listActive(pqs, AppInstallRequest);
+  return contracts
+    .filter(({ payload }) => payload.user === party || payload.provider === party)
+    .map(({ contractId, payload }) => ({
+      contractId,
+      provider: payload.provider,
+      user: payload.user,
+      meta: { data: payload.meta.values },
+    }));
+}
 
 /**
  * Validates commandId, the generated payload, and nonblank provider and user identifiers.

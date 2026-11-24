@@ -29,9 +29,9 @@ export function createApp(dependencies: AppDependencies, config: Config = loadCo
   if (config.apiDocsEnabled) app.use(createApiDocumentation());
   const { application } = dependencies;
   if (application.authMode === AuthMode.SharedSecret) {
-    app.use(sharedSecretRoutes([application.appProvider]));
+    app.use(sharedSecretRoutes([application.appProvider], dependencies.pqs));
   } else {
-    app.use(oidcRoutes(application.appProvider, application.oidc));
+    app.use(oidcRoutes(application.appProvider, application.oidc, dependencies.pqs));
   }
   return app.use(healthRoutes).use(featureFlagRoutes(dependencies.application.authMode));
 }
