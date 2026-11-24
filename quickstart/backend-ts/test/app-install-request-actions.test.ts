@@ -26,8 +26,13 @@ function requestRow(id: string, provider: string, user: string) {
   };
 }
 
-/** Builds the ledger transaction that returns the newly created installation ID. */
-function acceptResponse(id = contractId, installationId = 'created-installation') {
+/** Confirms a consuming installation request exercise with the result from its choice. */
+function exerciseResponse(
+  choice: string,
+  choiceArgument: LedgerCommonSchemas['ExercisedEvent']['choiceArgument'],
+  exerciseResult: LedgerCommonSchemas['ExercisedEvent']['exerciseResult'],
+  id = contractId,
+) {
   /** Describes the exercised Daml choice and its contract result. */
   const event: LedgerCommonSchemas['Event'] = {
     ExercisedEvent: {
@@ -35,23 +40,20 @@ function acceptResponse(id = contractId, installationId = 'created-installation'
       nodeId: 0,
       contractId: ContractId(AppInstallRequest).decoder.runWithException(id),
       templateId: AppInstallRequest.templateId,
-      choice: AppInstallRequest.AppInstallRequest_Accept.choiceName,
-      choiceArgument: {
-        installMeta: { values: installMeta.data },
-        meta: { values: operationMeta.data },
-      },
+      choice,
+      choiceArgument,
       actingParties: [providerParty],
       consuming: true,
       witnessParties: [providerParty],
       lastDescendantNodeId: 0,
-      exerciseResult: ContractId(AppInstall).decoder.runWithException(installationId),
+      exerciseResult,
       packageName: 'quickstart-licensing',
       acsDelta: true,
     },
   };
   return {
     transaction: {
-      updateId: 'accept-update',
+      updateId: 'request-action-update',
       offset: 42,
       events: [event],
       effectiveAt: '2026-11-24T12:00:00Z',
@@ -59,6 +61,25 @@ function acceptResponse(id = contractId, installationId = 'created-installation'
       synchronizerId: 'synchronizer::test',
     },
   };
+}
+
+/** Returns the installation contract ID produced by the accept choice. */
+function acceptResponse(id = contractId, installationId = 'created-installation') {
+  return exerciseResponse(
+    AppInstallRequest.AppInstallRequest_Accept.choiceName,
+    { installMeta: { values: installMeta.data }, meta: { values: operationMeta.data } },
+    ContractId(AppInstall).decoder.runWithException(installationId),
+    id,
+  );
+}
+
+/** Returns Daml Unit after the ledger consumes the rejected request. */
+function rejectResponse() {
+  return exerciseResponse(
+    AppInstallRequest.AppInstallRequest_Reject.choiceName,
+    { meta: { values: operationMeta.data } },
+    {},
+  );
 }
 
 /** Creates a real app with shared-secret sessions and observable PQS and ledger boundaries. */
@@ -131,6 +152,25 @@ function accept(app: ReturnType<typeof createApp>, cookie: string, id = contract
         method: 'POST',
         headers: { cookie, 'content-type': 'application/json' },
         body: JSON.stringify({ installMeta, meta: operationMeta }),
+      },
+    ),
+  );
+}
+
+/** Sends a rejection request with operation metadata and its command ID. */
+function reject(
+  app: ReturnType<typeof createApp>,
+  cookie: string,
+  id = contractId,
+  body: { meta: { data?: Record<string, string> } } = { meta: operationMeta },
+) {
+  return app.handle(
+    new Request(
+      `http://localhost/app-install-requests/${encodeURIComponent(id)}:reject?commandId=${commandId}`,
+      {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
       },
     ),
   );
@@ -286,7 +326,7 @@ test.each([
   expect(submissions).toEqual([]);
 });
 
-test('Only dispatches the supported accept action suffix', async () => {
+test('Returns 404 for an unsupported request action suffix', async () => {
   /** Provides an active request that would be accepted by the supported action. */
   const { app, login, query, submissions } = setup([
     requestRow(contractId, providerParty, 'customer-party'),
@@ -335,4 +375,109 @@ test('Normalizes empty choice metadata to empty values', async () => {
     installMeta: { values: {} },
     meta: { values: {} },
   });
+});
+
+test('Rejects a request as AppProvider and returns an empty response', async () => {
+  const { app, login, query, submissions } = setup(
+    [requestRow(contractId, providerParty, 'customer-party')],
+    rejectResponse(),
+  );
+  const response = await reject(app, await login('app-provider'));
+
+  expect(response.status).toBe(204);
+  expect(await response.text()).toBe('');
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0]?.body).toMatchObject({
+    commands: {
+      commandId,
+      actAs: [providerParty],
+      readAs: [providerParty],
+      commands: [
+        {
+          ExerciseCommand: {
+            templateId: AppInstallRequest.templateId,
+            contractId,
+            choice: AppInstallRequest.AppInstallRequest_Reject.choiceName,
+            choiceArgument: { meta: { values: operationMeta.data } },
+          },
+        },
+      ],
+    },
+  });
+});
+
+test('Allows an empty rejection metadata object and sends an empty map', async () => {
+  const { app, login, submissions } = setup(
+    [requestRow(contractId, providerParty, 'customer-party')],
+    rejectResponse(),
+  );
+  const response = await reject(app, await login('app-provider'), contractId, { meta: {} });
+
+  expect(response.status).toBe(204);
+  const body = submissions[0]?.body as {
+    commands: { commands: { ExerciseCommand: { choiceArgument: unknown } }[] };
+  };
+  expect(body.commands.commands[0]?.ExerciseCommand.choiceArgument).toEqual({
+    meta: { values: {} },
+  });
+});
+
+test.each([
+  ['missing command ID', undefined, { meta: operationMeta }],
+  ['missing operation metadata object', commandId, {}],
+  ['null operation metadata', commandId, { meta: null }],
+  ['numeric metadata map', commandId, { meta: { data: 42 } }],
+  ['nonstring metadata value', commandId, { meta: { data: { reason: 42 } } }],
+])(
+  'Returns 400 for a rejection with %s before reading PQS',
+  async (_case, queryCommandId, body) => {
+    const { app, login, query, submissions } = setup([
+      requestRow(contractId, providerParty, 'customer-party'),
+    ]);
+    const cookie = await login('app-provider');
+    const search =
+      queryCommandId === undefined ? '' : `?commandId=${encodeURIComponent(queryCommandId)}`;
+    const response = await app.handle(
+      new Request(`http://localhost/app-install-requests/${contractId}:reject${search}`, {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get('content-type')).toContain('application/problem+json');
+    expect(query).not.toHaveBeenCalled();
+    expect(submissions).toEqual([]);
+  },
+);
+
+test('Does not query PQS for a customer rejection and returns not found for absent or foreign requests', async () => {
+  const unauthorized = setup([requestRow(contractId, providerParty, 'customer-party')]);
+  const provider = await unauthorized.login('app-provider');
+  await unauthorized.registerCustomer(provider, 'customer-party');
+  const customer = await unauthorized.login('customer');
+  expect((await reject(unauthorized.app, customer)).status).toBe(403);
+  expect(unauthorized.query).not.toHaveBeenCalled();
+  expect(unauthorized.submissions).toEqual([]);
+
+  const missing = setup([]);
+  expect((await reject(missing.app, await missing.login('app-provider'))).status).toBe(404);
+  expect(missing.submissions).toEqual([]);
+
+  const foreign = setup([requestRow(contractId, 'other-provider', 'customer-party')]);
+  expect((await reject(foreign.app, await foreign.login('app-provider'))).status).toBe(404);
+  expect(foreign.submissions).toEqual([]);
+});
+
+test('Returns a sanitized ledger error when rejection fails', async () => {
+  const { app, login, submissions } = setup(
+    [requestRow(contractId, providerParty, 'customer-party')],
+    new Error('private ledger response details'),
+  );
+  const response = await reject(app, await login('app-provider'));
+  expect(response.status).toBe(500);
+  expect(await response.text()).not.toContain('private ledger response details');
+  expect(submissions).toHaveLength(1);
 });
