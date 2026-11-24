@@ -10,6 +10,7 @@ import type { CommandContext } from '../lib/context.ts';
 import { ensureDocker } from '../lib/docker.ts';
 import type { Captured } from '../lib/exec.ts';
 import { definedEnv, formatCommand, loggedRun } from '../lib/exec.ts';
+import { ensureLocalnet } from '../lib/localnet.ts';
 import { composeProject, type Project, projectFromContext } from '../lib/project.ts';
 import { askYesNo } from '../lib/prompts.ts';
 import type { CommandDeps } from '../lib/register.ts';
@@ -38,9 +39,17 @@ async function composeReady(
 
 /**
  * `docker compose` with the quickstart files, collecting the output.
+ * Ensures the pinned LocalNet cache is populated before reading config.
  * Used to list service names. Dry-run still runs this, because it only reads config.
  */
-function composeCapture(ctx: CommandContext, project: Project, args: string[]): Promise<Captured> {
+async function composeCapture(
+  ctx: CommandContext,
+  project: Project,
+  args: string[],
+): Promise<Captured> {
+  /** Ensure the pinned LocalNet checkout exists before Compose parses its files. */
+  const fetched = await ensureLocalnet(ctx, project);
+  if (fetched !== 0) return { code: fetched, stdout: '', stderr: '' };
   return ctx.runner.capture(['docker', 'compose', ...composeArgs(project.settings), ...args], {
     cwd: project.dir,
     env: composeEnv(ctx.env, project),

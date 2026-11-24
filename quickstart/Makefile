@@ -97,10 +97,18 @@ restart: ## Restart the application
 	$(QS) restart
 
 # LocalNet only: the Splice LocalNet network without the Quickstart application.
-# Needs only Docker: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
+# Needs only Docker and git: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
 # Don't run it at the same time as `make start`; both bind the same ports.
 # The application constraint files also list application modules, so use LocalNet's file only.
-LOCALNET_DIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/docker/modules/localnet)
+QUICKSTART_DIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+LOCALNET_ROW := $(shell awk -F, '/^[[:space:]]*\043/ || /^[[:space:]]*$$/ { next } { s = $$3; gsub(/^[[:space:]]+|[[:space:]]+$$/, "", s); sub(/\/+$$/, "", s); n = split(s, p, "/"); if (p[n] == "localnet") { print; exit } }' "$(QUICKSTART_DIR)/links.csv")
+LOCALNET_REPO := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$1); print $$1 }')
+LOCALNET_SHA := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$2); print $$2 }')
+LOCALNET_SOURCE := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$3); sub(/\/+$$/, "", $$3); print $$3 }')
+LOCALNET_DEST := $(shell printf '%s\n' '$(LOCALNET_ROW)' | awk -F, '{ gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$4); sub(/\/+$$/, "", $$4); print $$4 }')
+LOCALNET_CACHE_DIR := $(QUICKSTART_DIR)/$(LOCALNET_DEST)/localnet/$(LOCALNET_SHA)
+LOCALNET_DIR ?= $(LOCALNET_CACHE_DIR)
+LOCALNET_OVERRIDES_DIR := $(QUICKSTART_DIR)/docker/modules/localnet-overrides
 SPLICE_VERSION := $(shell sed -n 's/^SPLICE_VERSION=//p' .env)
 IMAGE_TAG ?= $(SPLICE_VERSION)
 RESOURCE_CONSTRAINTS_ENABLED ?= true
@@ -110,26 +118,67 @@ endif
 LOCALNET_ONLY_COMPOSE = LOCALNET_DIR="$(LOCALNET_DIR)" IMAGE_TAG="$(IMAGE_TAG)" docker compose \
 	--env-file $(LOCALNET_DIR)/compose.env \
 	--env-file $(LOCALNET_DIR)/env/common.env \
-	-f $(LOCALNET_DIR)/compose.yaml $(LOCALNET_ONLY_RESOURCE_CONSTRAINTS) \
+	--env-file $(LOCALNET_OVERRIDES_DIR)/localnet.env \
+	-f $(LOCALNET_DIR)/compose.yaml \
+	-f $(LOCALNET_OVERRIDES_DIR)/compose.yaml $(LOCALNET_ONLY_RESOURCE_CONSTRAINTS) \
 	--profile sv --profile app-provider --profile app-user
 
+# Fetch the pinned Splice LocalNet tree into the cache when using the default LOCALNET_DIR.
+# Uses the same git commands and arguments as `qs vendor` so this path stays free of Bun.
+.PHONY: ensure-localnet
+ensure-localnet:
+	@if [ "$(LOCALNET_DIR)" = "$(LOCALNET_CACHE_DIR)" ] && [ ! -d "$(LOCALNET_DIR)" ]; then \
+	  set -euo pipefail; \
+	  if ! [[ "$(LOCALNET_SHA)" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$$ ]]; then \
+	    echo "Invalid LocalNet commit SHA in links.csv: $(LOCALNET_SHA)" >&2; exit 1; \
+	  fi; \
+	  if [ -z "$(LOCALNET_REPO)" ] || [[ "$(LOCALNET_REPO)" == -* ]]; then \
+	    echo "Invalid LocalNet repo in links.csv: $(LOCALNET_REPO)" >&2; exit 1; \
+	  fi; \
+	  if [ -z "$(LOCALNET_SOURCE)" ] || [[ "$(LOCALNET_SOURCE)" == -* ]] || [[ "$(LOCALNET_SOURCE)" == /* ]] || [[ "/$(LOCALNET_SOURCE)/" == */../* ]]; then \
+	    echo "Invalid LocalNet source path in links.csv: $(LOCALNET_SOURCE)" >&2; exit 1; \
+	  fi; \
+	  if [ -z "$(LOCALNET_DEST)" ] || [[ "$(LOCALNET_DEST)" == -* ]] || [[ "$(LOCALNET_DEST)" == /* ]] || [[ "/$(LOCALNET_DEST)/" == */../* ]]; then \
+	    echo "Invalid LocalNet destination path in links.csv: $(LOCALNET_DEST)" >&2; exit 1; \
+	  fi; \
+	  cache_parent="$$(dirname "$(LOCALNET_DIR)")"; \
+	  mkdir -p "$$cache_parent"; \
+	  tmp=$$(mktemp -d "$$cache_parent/.qs-vendor-XXXXXX"); \
+	  trap 'rm -rf "$$tmp"' EXIT; \
+	  git init --quiet "$$tmp"; \
+	  git -C "$$tmp" remote add origin "$(LOCALNET_REPO)"; \
+	  git -C "$$tmp" sparse-checkout set --cone "$(LOCALNET_SOURCE)"; \
+	  git -C "$$tmp" fetch --depth 1 --filter=blob:none origin "$(LOCALNET_SHA)"; \
+	  git -C "$$tmp" checkout --quiet --detach FETCH_HEAD; \
+	  if [ ! -d "$$tmp/$(LOCALNET_SOURCE)" ]; then \
+	    echo "Checkout has no '$(LOCALNET_SOURCE)' at $(LOCALNET_SHA)." >&2; exit 1; \
+	  fi; \
+	  LC_ALL=C; export LC_ALL; shopt -s nullglob; \
+	  for patch in "$(LOCALNET_OVERRIDES_DIR)"/patches/*.patch; do \
+	    git -C "$$tmp" apply --directory="$(LOCALNET_SOURCE)" "$$patch"; \
+	  done; \
+	  if [ ! -d "$(LOCALNET_DIR)" ]; then \
+	    mv "$$tmp/$(LOCALNET_SOURCE)" "$(LOCALNET_DIR)"; \
+	  fi; \
+	fi
+
 .PHONY: start-localnet
-start-localnet: ## Start only Splice LocalNet, without building or starting the application
+start-localnet: ensure-localnet ## Start only Splice LocalNet, without building or starting the application
 	@docker info >/dev/null
 	$(LOCALNET_ONLY_COMPOSE) up -d
 
 .PHONY: stop-localnet
-stop-localnet: ## Stop LocalNet started with start-localnet, keeping its data
+stop-localnet: ensure-localnet ## Stop LocalNet started with start-localnet, keeping its data
 	@docker info >/dev/null
 	$(LOCALNET_ONLY_COMPOSE) down
 
 .PHONY: clean-localnet
-clean-localnet: ## Stop LocalNet started with start-localnet and remove its data
+clean-localnet: ensure-localnet ## Stop LocalNet started with start-localnet and remove its data
 	@docker info >/dev/null
 	$(LOCALNET_ONLY_COMPOSE) down -v
 
 .PHONY: status-localnet
-status-localnet: ## Show status of LocalNet started with start-localnet
+status-localnet: ensure-localnet ## Show status of LocalNet started with start-localnet
 	@docker info >/dev/null
 	$(LOCALNET_ONLY_COMPOSE) ps
 

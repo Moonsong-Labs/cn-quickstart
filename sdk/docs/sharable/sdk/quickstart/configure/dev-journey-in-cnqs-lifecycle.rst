@@ -148,7 +148,9 @@ The ``LocalNet`` environment is defined in the Docker Compose files:
 
 -  quickstart/compose.yaml
 
--  quickstart/docker/modules/localnet/compose.yaml
+-  quickstart/.cache/localnet/<sha>/compose.yaml (fetched from the commit pinned in ``quickstart/links.csv``)
+
+-  quickstart/docker/modules/localnet-overrides/compose.yaml (QuickStart overrides layered on top of LocalNet)
 
 Key configuration files:
 
@@ -156,15 +158,17 @@ Key configuration files:
 
 -  quickstart/.env.local: Local environment overrides
 
--  quickstart/docker/modules/localnet/compose.env: LocalNet module configuration
+-  quickstart/docker/modules/localnet-overrides/localnet.env: QuickStart environment overrides for LocalNet
 
--  quickstart/docker/modules/localnet/env/common.env: Network-specific configuration
+-  quickstart/.cache/localnet/<sha>/compose.env: LocalNet module configuration
 
--  quickstart/docker/modules/localnet/conf/console/app.conf: Canton console configuration
+-  quickstart/.cache/localnet/<sha>/env/common.env: Network-specific configuration
 
--  quickstart/docker/modules/localnet/conf/canton/: Canton node configurations
+-  quickstart/.cache/localnet/<sha>/conf/console/app.conf: Canton console configuration
 
--  quickstart/docker/modules/localnet/conf/splice/: Splice application configurations
+-  quickstart/.cache/localnet/<sha>/conf/canton/: Canton node configurations
+
+-  quickstart/.cache/localnet/<sha>/conf/splice/: Splice application configurations
 
 LocalNet persists data through Docker volumes. 
 Its network topology can be modified to meet specific business requirements.

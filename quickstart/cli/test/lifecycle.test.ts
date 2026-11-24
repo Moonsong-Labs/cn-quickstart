@@ -11,7 +11,7 @@ import { runClean, runRestart, runStart } from '../src/commands/stack.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import type { Runner } from '../src/lib/exec.ts';
 import { scriptedIo } from './io.ts';
-import { projectCleaner, tempProject } from './project-fixture.ts';
+import { projectCleaner, TEST_LOCALNET_SHA, tempProject } from './project-fixture.ts';
 import { fakeRunner } from './runner.ts';
 
 /** Temp checkouts for this file. */
@@ -433,7 +433,7 @@ describe('console and shell', () => {
     expect(cmd.slice(0, 2)).toEqual(['docker', 'compose']);
     expect(cmd).toContain('compose.yaml');
     expect(cmd.slice(-5)).toEqual(['run', '--rm', '--name', 'canton-console', 'console']);
-    expect(cmd).toContain(`${dir}/docker/modules/localnet/resource-constraints.yaml`);
+    expect(cmd).toContain(`${dir}/.cache/localnet/${TEST_LOCALNET_SHA}/resource-constraints.yaml`);
   });
 
   test('shell names the container and uses the daml-shell files', async () => {

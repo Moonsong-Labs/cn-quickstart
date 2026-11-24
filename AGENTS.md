@@ -20,7 +20,7 @@ All `make` commands run from the `quickstart/` directory.
 
 ```bash
 cd quickstart
-make start-localnet   # needs only Docker
+make start-localnet   # needs only Docker and git
 make status-localnet
 make clean-localnet   # stop and remove data when done
 ```
@@ -32,6 +32,7 @@ Don't run `make setup`, `make build` or `make start` for this. `make start` alwa
 ## LocalNet facts
 
 - Three validators: App User (port prefix `2`), App Provider (`3`) and Super Validator (`4`). The Super Validator also runs the synchronizer.
+- Upstream LocalNet files are fetched on demand from the commit pinned in `quickstart/links.csv` into the git-ignored cache `quickstart/.cache/localnet/<sha>/`. QuickStart-specific overrides live in `quickstart/docker/modules/localnet-overrides/` (`compose.yaml`, `localnet.env`, and optional `patches/*.patch`). Set `LOCALNET_DIR` to point at an existing local copy offline.
 - JSON Ledger API: `http://localhost:2975`, `:3975`, `:4975`. gRPC Ledger API: `:2901`, `:3901`, `:4901`. Host ports bind to `127.0.0.1` unless `HOST_BIND_IP` is set.
 - Readiness: `curl -f http://localhost:3975/readyz` (JSON Ledger API) and `curl -f http://localhost:3903/api/validator/readyz` (validator).
 - Authentication without OAuth2 (`make start-localnet`, or `make setup` with OAuth2 off): JWT signed with HS256, secret `unsafe`, audience `https://canton.network.global`, subject `ledger-api-user`. The env files write the audience as `${AUTH_..._AUDIENCE:-https://canton.network.global}`; use the resolved URL.

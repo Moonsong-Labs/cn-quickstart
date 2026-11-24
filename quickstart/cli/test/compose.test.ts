@@ -1,10 +1,22 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { type ComposeCall, composeArgs, composeEnv } from '../src/lib/compose.ts';
-import type { Project, Settings } from '../src/lib/project.ts';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { type ComposeCall, compose, composeArgs, composeEnv } from '../src/lib/compose.ts';
+import type { CommandContext } from '../src/lib/context.ts';
+import type { Runner } from '../src/lib/exec.ts';
+import { type Project, readProject, type Settings } from '../src/lib/project.ts';
+import { scriptedIo } from './io.ts';
+import { projectCleaner, TEST_LOCALNET_SHA, tempProject } from './project-fixture.ts';
+import { fakeRunner } from './runner.ts';
+
+/** Temp checkouts for Compose cache-fetch tests. */
+const cleaner = projectCleaner();
+
+afterEach(() => cleaner.cleanup());
 
 /** Captured `make -n compose-config` argument lists, keyed by the five Makefile variables. */
 const cases = JSON.parse(
@@ -28,7 +40,7 @@ function settingsFor(key: string): Settings {
     splice: '0.8.4',
     dockerNetwork: 'quickstart',
     modulesDir: '<project>/docker/modules',
-    localnetDir: '<project>/docker/modules/localnet',
+    localnetDir: '<project>/.cache/localnet/<sha>',
     extraComposeFiles: [],
     extraEnvFiles: [],
   };
@@ -155,7 +167,7 @@ function oneshotSettings(key: string): Settings {
     splice: '0.8.4',
     dockerNetwork: 'quickstart',
     modulesDir: '<project>/docker/modules',
-    localnetDir: '<project>/docker/modules/localnet',
+    localnetDir: '<project>/.cache/localnet/<sha>',
     extraComposeFiles: [],
     extraEnvFiles: [],
   };
@@ -196,5 +208,108 @@ describe('composeArgs console, shell, and install request', () => {
     expect(args.indexOf('./mine.env')).toBeGreaterThan(
       args.indexOf(`${settings.modulesDir}/daml-shell/compose.env`),
     );
+  });
+});
+
+describe('compose cache fetch', () => {
+  test('fetches LocalNet into the cache before running docker compose when missing', async () => {
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\nPARTY_HINT=App-User-1\n');
+    /** Expected commit-keyed cache directory, deleted to simulate a cold cache. */
+    const cacheDir = join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA);
+    await rm(cacheDir, { recursive: true, force: true });
+    /** Recorded commands across both git fetch and docker compose. */
+    const calls: string[][] = [];
+    /** Temporary sparse checkout created by `git init`, populated on `checkout`. */
+    let tmp = '';
+    /** Runner that populates the sparse checkout on `git checkout` and records every call. */
+    const runner: Runner = {
+      async run(cmd) {
+        calls.push(cmd);
+        if (cmd[0] === 'git' && cmd[1] === 'init') tmp = cmd.at(-1) ?? '';
+        if (cmd[0] === 'git' && cmd.includes('checkout')) {
+          /** Simulated sparse checkout tree. */
+          const source = join(tmp, 'cluster/compose/localnet');
+          await mkdir(source, { recursive: true });
+          await writeFile(join(source, 'compose.yaml'), 'services: {}\n');
+        }
+        return 0;
+      },
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      lines() {
+        return (async function* empty() {})();
+      },
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    const project = readProject(dir, {});
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(calls.some((cmd) => cmd[0] === 'git' && cmd.includes('fetch'))).toBe(true);
+    expect(calls.at(-1)?.slice(0, 2)).toEqual(['docker', 'compose']);
+    expect(calls.at(-1)).toContain(`${cacheDir}/compose.yaml`);
+    expect(calls.at(-1)).toContain(`${dir}/docker/modules/localnet-overrides/compose.yaml`);
+  });
+
+  test('does not fetch when LOCALNET_DIR is explicitly set', async () => {
+    const dir = await tempProject(cleaner.dirs, 'LOCALNET_DIR=/custom/offline/localnet\n');
+    const fake = fakeRunner();
+    const project = readProject(dir, {});
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(fake.calls.map((call) => call.cmd[0])).toEqual(['docker']);
+    expect(fake.calls[0]?.cmd).toContain('/custom/offline/localnet/compose.yaml');
+  });
+
+  test('stops before docker compose when the LocalNet fetch fails', async () => {
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\n');
+    await rm(join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA), { recursive: true, force: true });
+    /** Recorded commands. Compose must not run after a failed git fetch. */
+    const calls: string[][] = [];
+    const runner: Runner = {
+      run(cmd) {
+        calls.push(cmd);
+        return Promise.resolve(cmd.includes('fetch') ? 1 : 0);
+      },
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      lines() {
+        return (async function* empty() {})();
+      },
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    const project = readProject(dir, {});
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(1);
+    expect(calls.some((cmd) => cmd[0] === 'docker')).toBe(false);
   });
 });

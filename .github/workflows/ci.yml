@@ -74,6 +74,7 @@ jobs:
               - 'quickstart/config/**'
               - 'quickstart/compose.yaml'
               - 'quickstart/.env'
+              - 'quickstart/links.csv'
               - 'quickstart/Makefile'
               - '.github/workflows/ci.yml'
             ledger:
@@ -83,6 +84,7 @@ jobs:
               - 'quickstart/config/**'
               - 'quickstart/compose.yaml'
               - 'quickstart/.env'
+              - 'quickstart/links.csv'
               - 'quickstart/Makefile'
               - 'quickstart/cli/package.json'
               - 'quickstart/frontend/package.json'
@@ -212,6 +214,10 @@ jobs:
       NEEDRESTART_MODE: a
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: quickstart/.cache/localnet
+          key: localnet-${{ hashFiles('quickstart/links.csv', 'quickstart/docker/modules/localnet-overrides/patches/*.patch') }}
       - uses: ./.github/actions/integration/test
 
   backend-integration:
@@ -228,6 +234,10 @@ jobs:
       COMPOSE_PROGRESS: plain
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: quickstart/.cache/localnet
+          key: localnet-${{ hashFiles('quickstart/links.csv', 'quickstart/docker/modules/localnet-overrides/patches/*.patch') }}
       - uses: ./.github/actions/typescript/backend-integration
 
   ci-ok:

@@ -6,6 +6,7 @@ import { composeArgs, composeEnv } from '../lib/compose.ts';
 import type { CommandContext } from '../lib/context.ts';
 import { ensureDocker } from '../lib/docker.ts';
 import { formatCommand } from '../lib/exec.ts';
+import { ensureLocalnet } from '../lib/localnet.ts';
 import { composeProject } from '../lib/project.ts';
 import type { CommandDeps } from '../lib/register.ts';
 import { bad, paint } from '../lib/style.ts';
@@ -25,7 +26,10 @@ export async function runInstallRequest(ctx: CommandContext): Promise<number> {
   /** Daemon check. Skipped for `--dry-run`. */
   const docker = await ensureDocker(ctx);
   if (docker !== 0) return docker;
-  /** Full command. Output is collected so a missing network can be recognised. */
+  /** Ensure the pinned LocalNet checkout exists before Compose reads its env files. */
+  const fetched = await ensureLocalnet(ctx, project);
+  if (fetched !== 0) return fetched;
+  /** Full command. Output is collected so a missing network can be recognized. */
   const cmd = [
     'docker',
     'compose',

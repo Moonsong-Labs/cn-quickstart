@@ -3,6 +3,7 @@
 
 import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { vendorGitSteps, vendorPatchCmd } from '../src/lib/localnet.ts';
 import { runCli } from '../src/main.ts';
 import { scriptedIo } from './io.ts';
 import { projectCleaner, tempProject } from './project-fixture.ts';
@@ -85,14 +86,61 @@ describe('Makefile workspace install', () => {
   });
 });
 
+/**
+ * Parse the `git ...;` lines from `ensure-localnet` and normalize shell/Make placeholders
+ * to tokens so they can be compared directly against `vendorGitSteps` and `vendorPatchCmd`.
+ */
+function makefileGitSteps(makefile: string): string[][] {
+  /** Tab-indented recipe lines of the `ensure-localnet` target. */
+  const recipe = targetRecipe(makefile, 'ensure-localnet');
+  /** Normalized git invocations in recipe order. */
+  const commands: string[][] = [];
+  for (const raw of recipe) {
+    /** Line stripped of trailing Make line continuation and statement terminator. */
+    const cleaned = raw
+      .replace(/\s*\\$/, '')
+      .replace(/;$/, '')
+      .trim();
+    if (!cleaned.startsWith('git ')) continue;
+    /** Normalized token list matching the argv layout used by `localnet.ts`. */
+    const tokens = cleaned
+      .split(/\s+/)
+      .map((token) =>
+        token
+          .replaceAll('"$$tmp"', '<tmp>')
+          .replaceAll('"$(LOCALNET_REPO)"', '<repo>')
+          .replaceAll('"$(LOCALNET_SOURCE)"', '<source>')
+          .replaceAll('"$(LOCALNET_SHA)"', '<sha>')
+          .replaceAll('"$$patch"', '<patch>'),
+      );
+    commands.push(tokens);
+  }
+  return commands;
+}
+
 describe('Makefile localnet targets', () => {
-  test('localnet targets call docker compose and not qs', () => {
+  test('localnet targets fetch into the cache, layer overrides, and do not invoke qs', () => {
     /** Makefile next to this package. LocalNet-only targets must run without Bun. */
     const makefile = readFileSync(new URL('../../Makefile', import.meta.url), 'utf8');
-    /** Assignment of the LocalNet directory. Compose files are resolved from it. */
-    const localnet = /^LOCALNET_DIR := (.+)$/m.exec(makefile)?.[1];
-    expect(localnet).toBe(
-      '$(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/docker/modules/localnet)',
+    /** Assignment of the cache directory derived from `links.csv`. */
+    const cacheDir = /^LOCALNET_CACHE_DIR := (.+)$/m.exec(makefile)?.[1];
+    expect(cacheDir).toBe('$(QUICKSTART_DIR)/$(LOCALNET_DEST)/localnet/$(LOCALNET_SHA)');
+    /** Default assignment of `LOCALNET_DIR`. `?=` lets callers override it offline. */
+    const localnet = /^LOCALNET_DIR \?= (.+)$/m.exec(makefile)?.[1];
+    expect(localnet).toBe('$(LOCALNET_CACHE_DIR)');
+    /** Assignment of the overrides directory. */
+    const overrides = /^LOCALNET_OVERRIDES_DIR := (.+)$/m.exec(makefile)?.[1];
+    expect(overrides).toBe('$(QUICKSTART_DIR)/docker/modules/localnet-overrides');
+    /** LocalNet-only Compose invocation. Must layer the override env and compose files after LocalNet's. */
+    expect(makefile).toContain('--env-file $(LOCALNET_DIR)/env/common.env');
+    expect(makefile).toContain('--env-file $(LOCALNET_OVERRIDES_DIR)/localnet.env');
+    expect(makefile.indexOf('--env-file $(LOCALNET_OVERRIDES_DIR)/localnet.env')).toBeGreaterThan(
+      makefile.indexOf('--env-file $(LOCALNET_DIR)/env/common.env'),
+    );
+    expect(makefile).toContain('-f $(LOCALNET_DIR)/compose.yaml');
+    expect(makefile).toContain('-f $(LOCALNET_OVERRIDES_DIR)/compose.yaml');
+    expect(makefile.indexOf('-f $(LOCALNET_OVERRIDES_DIR)/compose.yaml')).toBeGreaterThan(
+      makefile.indexOf('-f $(LOCALNET_DIR)/compose.yaml'),
     );
     /** Image tag. It comes from the committed Splice pin, not from `make setup`. */
     expect(makefile).toContain("SPLICE_VERSION := $(shell sed -n 's/^SPLICE_VERSION=//p' .env)");
@@ -103,6 +151,9 @@ describe('Makefile localnet targets', () => {
       'clean-localnet',
       'status-localnet',
     ] as const) {
+      /** Target header line. Every LocalNet-only target must depend on `ensure-localnet`. */
+      const header = makefile.split('\n').find((line) => line.startsWith(`${target}:`));
+      expect(header, target).toContain('ensure-localnet');
       /** Recipe for this target. It checks Docker, then runs Compose. */
       const recipe = targetRecipe(makefile, target);
       expect(recipe[0], target).toBe('@docker info >/dev/null');
@@ -115,6 +166,15 @@ describe('Makefile localnet targets', () => {
         target,
       ).toBe(true);
     }
+  });
+
+  test('ensure-localnet runs the exact same git commands and arguments as qs vendor', () => {
+    /** Makefile next to this package. Its sparse fetch must stay aligned with `localnet.ts`. */
+    const makefile = readFileSync(new URL('../../Makefile', import.meta.url), 'utf8');
+    expect(makefileGitSteps(makefile)).toEqual([
+      ...vendorGitSteps('<tmp>', '<repo>', '<source>', '<sha>'),
+      vendorPatchCmd('<tmp>', '<source>', '<patch>'),
+    ]);
   });
 });
 

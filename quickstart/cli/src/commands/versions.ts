@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { Command } from 'commander';
 import type { CommandContext } from '../lib/context.ts';
 import { definedEnv, loggedRun } from '../lib/exec.ts';
+import { assertSha, readLocalnetRow, rewriteLinksSha } from '../lib/localnet.ts';
 import { projectFromContext } from '../lib/project.ts';
 import type { CommandDeps } from '../lib/register.ts';
 
@@ -119,6 +120,13 @@ export async function runVersionsSync(ctx: CommandContext, options: SyncOptions)
   ctx.io.note(`SDK ${sdk}\n`);
   /** Previous Splice pin, so the summary can say whether it moved. */
   const previousSplice = project.settings.splice;
+  /** Pinned LocalNet row in `links.csv`, updated when Splice moves to a new version. */
+  const localnetRow = previousSplice !== published.version ? readLocalnetRow(project.dir) : null;
+  /** New Splice tag commit SHA for `links.csv`, resolved before any file is written. */
+  const nextLocalnetSha =
+    localnetRow !== null
+      ? await publishedSpliceCommit(ctx, project.dir, localnetRow.repo, published.version)
+      : undefined;
   /**
    * True when the tag is already present.
    * Checked before any write, and only on a real run. `--force` is what allows it to stay.
@@ -135,6 +143,9 @@ export async function runVersionsSync(ctx: CommandContext, options: SyncOptions)
   if (options.copy && !ctx.dryRun) await assertSiblingSplice(project.dir);
   await rewriteManifests(ctx, project.dir, sdk);
   await rewriteSpliceVersion(ctx, project.dir, published.version);
+  if (localnetRow !== null && nextLocalnetSha !== undefined) {
+    await rewriteLocalnetPin(ctx, project.dir, localnetRow.sha, nextLocalnetSha);
+  }
   /** Proto pin. Reported so a person can decide whether it should move too. */
   const runtime = project.fileEnv.get('DAML_RUNTIME_VERSION');
   if (runtime !== undefined) ctx.io.note(`DAML_RUNTIME_VERSION stays ${runtime}\n`);
@@ -147,9 +158,6 @@ export async function runVersionsSync(ctx: CommandContext, options: SyncOptions)
     /** Tag status. A dirty tree is refused so the tag is not attached to the previous pins. */
     const tagged = await tagSplice(ctx, project.dir, published.version, tagExists);
     if (tagged !== 0) return tagged;
-  }
-  if (previousSplice !== published.version) {
-    ctx.io.note('Run qs vendor localnet after updating links.csv.\n');
   }
   return 0;
 }
@@ -226,6 +234,71 @@ async function rewriteManifests(
     const current = readSdkLine(text) ?? '(none)';
     ctx.io.note(`${file}: sdk-version ${current} -> ${sdk}\n`);
     if (!ctx.dryRun) await writeFile(file, rewriteSdkVersion(text, sdk));
+  }
+}
+
+/**
+ * Resolve the commit SHA for Splice release tag `version` in `repo` via `git ls-remote`.
+ * Prefers the dereferenced `^{}` commit object when `version` is an annotated tag.
+ * Throws when `repo` is unsafe, `git ls-remote` fails, or the tag is not found.
+ */
+async function publishedSpliceCommit(
+  ctx: CommandContext,
+  projectDir: string,
+  repo: string,
+  version: string,
+): Promise<string> {
+  if (repo.startsWith('-')) {
+    throw new Error(`Vendor repo '${repo}' must not be a git option.`);
+  }
+  /** Tag ref for the Splice release. */
+  const tagRef = `refs/tags/${version}`;
+  /** Dereferenced tag ref, returned alongside `tagRef` for annotated tags. */
+  const peeledRef = `${tagRef}^{}`;
+  /** Remote ref lookup. Runs even under `--dry-run` because `capture` is read-only. */
+  const result = await ctx.runner.capture(['git', 'ls-remote', '--tags', repo, tagRef, peeledRef], {
+    cwd: projectDir,
+    env: definedEnv(ctx.env),
+  });
+  if (result.code !== 0) {
+    throw new Error(`Could not resolve Splice tag '${version}' from ${repo}.`);
+  }
+  /** Commit SHA for `tagRef` (overridden by `peeledRef` when the tag is annotated). */
+  let sha: string | undefined;
+  for (const raw of result.stdout.split(/\r?\n/)) {
+    /** Two tab-separated fields: `<oid>\t<ref>`. */
+    const [oid, ref] = raw.trim().split(/\s+/);
+    if (!oid || !ref) continue;
+    if (ref === peeledRef) {
+      sha = oid;
+      break;
+    }
+    if (ref === tagRef) sha = oid;
+  }
+  if (sha === undefined) {
+    throw new Error(`Could not find Splice tag '${version}' in ${repo}.`);
+  }
+  assertSha(sha);
+  return sha;
+}
+
+/**
+ * Update the `localnet` commit SHA in `links.csv`, keeping comments and other rows unchanged.
+ * `--dry-run` prints the change and does not write.
+ */
+async function rewriteLocalnetPin(
+  ctx: CommandContext,
+  projectDir: string,
+  currentSha: string,
+  nextSha: string,
+): Promise<void> {
+  /** Path to `links.csv` in the quickstart checkout. */
+  const path = join(projectDir, 'links.csv');
+  /** Current file text. */
+  const text = await readFile(path, 'utf8');
+  ctx.io.note(`links.csv: localnet ${currentSha} -> ${nextSha}\n`);
+  if (!ctx.dryRun) {
+    await writeFile(path, rewriteLinksSha(text, 'localnet', nextSha));
   }
 }
 
