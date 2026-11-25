@@ -7,12 +7,12 @@ import { Link, NavLink } from 'react-router-dom';
 import { useUserStore } from '../stores/userStore';
 
 const NAV_LINK =
-  'tw:flex tw:items-center tw:gap-3 tw:rounded-lg tw:px-3 tw:py-2.5 tw:text-base tw:no-underline tw:transition-colors';
+  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-base no-underline transition-colors';
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return isActive
-    ? `${NAV_LINK} tw:bg-brand-700 tw:font-medium tw:text-white tw:hover:text-white`
-    : `${NAV_LINK} tw:text-neutral-800 tw:hover:bg-neutral-200 tw:hover:text-neutral-900`;
+    ? `${NAV_LINK} bg-brand-700 font-medium text-white hover:text-white`
+    : `${NAV_LINK} text-neutral-800 hover:bg-neutral-200 hover:text-neutral-900`;
 }
 
 /** The app shell's navigation, with the signed-in user at the bottom. */
@@ -26,17 +26,17 @@ const Sidebar: React.FC = () => {
   const isProvider = user?.isAdmin ?? false;
 
   return (
-    <aside className="tw:sticky tw:top-0 tw:flex tw:h-screen tw:w-64 tw:shrink-0 tw:flex-col tw:border-r tw:border-neutral-200 tw:bg-neutral-100 tw:px-4 tw:py-7">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-100 px-4 py-7">
       <Link
         to="/"
-        className="tw:px-3 tw:text-2xl tw:font-extrabold tw:tracking-tight tw:text-neutral-900 tw:no-underline tw:hover:text-neutral-900"
+        className="px-3 text-2xl font-extrabold tracking-tight text-neutral-900 no-underline hover:text-neutral-900"
       >
         QuickStart
       </Link>
       {user && (
         <nav
           aria-label="Main"
-          className="tw:mt-10 tw:flex tw:flex-col tw:gap-1"
+          className="mt-10 flex flex-col gap-1"
         >
           <NavLink
             to="/app-installs"
@@ -63,25 +63,25 @@ const Sidebar: React.FC = () => {
           )}
         </nav>
       )}
-      <div className="tw:mt-auto tw:px-2">
+      <div className="mt-auto px-2">
         {user ? (
-          <div className="tw:flex tw:items-center tw:gap-3">
-            <span className="tw:flex tw:size-10 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:border-2 tw:border-neutral-700 tw:text-neutral-700">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-neutral-700 text-neutral-700">
               <PersonIcon />
             </span>
-            <div className="tw:min-w-0">
+            <div className="min-w-0">
               <p
                 id="user-name"
-                className="tw:mb-0 tw:truncate tw:font-semibold tw:leading-tight"
+                className="mb-0 truncate font-semibold leading-tight"
               >
                 {user.name}
               </p>
-              <p className="tw:mb-0 tw:text-sm tw:text-neutral-600">
+              <p className="mb-0 text-sm text-neutral-600">
                 {isProvider ? 'App Provider' : 'App User'}
               </p>
               <button
                 type="button"
-                className="tw:mt-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:text-brand-700 tw:underline tw:hover:text-brand-800"
+                className="mt-1 border-0 bg-transparent p-0 text-sm text-brand-700 underline hover:text-brand-800"
                 onClick={logout}
               >
                 Log out
@@ -92,7 +92,7 @@ const Sidebar: React.FC = () => {
           !loading && (
             <Link
               to="/login"
-              className="tw:font-medium tw:text-brand-700 tw:hover:text-brand-800"
+              className="font-medium text-brand-700 hover:text-brand-800"
             >
               Log in
             </Link>

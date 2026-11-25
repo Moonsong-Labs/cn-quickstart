@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { type ButtonVariant, buttonClass } from './controls';
 
 type ModalProps = {
   show: boolean;
@@ -9,16 +10,20 @@ type ModalProps = {
   onConfirm?: () => void;
   children?: React.ReactNode; // body content
   footer?: React.ReactNode; // optional footer; default renders a Close button
-  size?: 'sm' | 'lg' | 'xl'; // Bootstrap sizes
+  size?: keyof typeof DIALOG_WIDTH;
   centered?: boolean; // center vertically
   backdrop?: 'static' | true | false; // 'static' disables outside click to close
   zIndexBase?: number; // base z-index for backdrop; modal = base+5
-  className?: string; // extra classes for the .modal container
-  dialogClassName?: string; // extra classes for the .modal-dialog
-  contentClassName?: string; // extra classes for the .modal-content
-  confirmButtonClassName?: string; // extra classes for the confirm button
+  confirmVariant?: ButtonVariant;
   confirmButtonLabel?: string;
   confirmButtonDisabled?: boolean;
+};
+
+const DIALOG_WIDTH = {
+  sm: 'max-w-sm',
+  md: 'max-w-lg',
+  lg: 'max-w-3xl',
+  xl: 'max-w-6xl',
 };
 
 export default function Modal({
@@ -28,14 +33,11 @@ export default function Modal({
   onConfirm,
   children,
   footer,
-  size,
+  size = 'md',
   centered = true,
   backdrop = 'static',
   zIndexBase = 1500,
-  className = '',
-  dialogClassName = '',
-  contentClassName = '',
-  confirmButtonClassName = '',
+  confirmVariant = 'secondary',
   confirmButtonLabel = 'Close',
   confirmButtonDisabled = false,
 }: ModalProps) {
@@ -54,23 +56,12 @@ export default function Modal({
 
   if (!show) return null;
 
-  const dialogClasses = [
-    'modal-dialog',
-    centered ? 'modal-dialog-centered' : '',
-    size ? `modal-${size}` : '',
-    dialogClassName,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const modalClasses = ['modal', 'show', 'd-block', className].filter(Boolean).join(' ');
-
   return createPortal(
     <>
       {backdrop === true ? (
         <button
           type="button"
-          className="modal-backdrop fade show"
+          className="fixed inset-0 bg-black/50"
           style={{ zIndex: zIndexBase }}
           aria-label="Close dialog"
           onClick={onClose}
@@ -78,41 +69,51 @@ export default function Modal({
       ) : (
         backdrop !== false && (
           <div
-            className="modal-backdrop fade show"
+            className="fixed inset-0 bg-black/50"
             style={{ zIndex: zIndexBase }}
           />
         )
       )}
       <div
-        className={modalClasses}
+        className={`fixed inset-0 flex justify-center overflow-y-auto p-4 font-sans text-neutral-900 ${centered ? 'items-center' : 'items-start'}`}
         role="dialog"
         aria-modal="true"
         style={{ zIndex: zIndexBase + 5 }}
       >
-        <div className={dialogClasses}>
-          <div className={['modal-content', contentClassName].filter(Boolean).join(' ')}>
-            <div className="modal-header">
-              <h5 className="modal-title">{title}</h5>
+        <div className={`w-full rounded-xl bg-white shadow-xl ${DIALOG_WIDTH[size]}`}>
+          <div className="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-4">
+            <h5 className="text-lg font-semibold">{title}</h5>
+            <button
+              type="button"
+              className="cursor-pointer rounded-md p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+              aria-label="Close"
+              onClick={onClose}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M3 3l10 10M13 3 3 13" />
+              </svg>
+            </button>
+          </div>
+          <div className="px-6 py-5">{children}</div>
+          <div className="flex justify-end gap-2 border-t border-neutral-200 px-6 py-4">
+            {footer ?? (
               <button
                 type="button"
-                className="btn-close"
-                aria-label="Close"
-                onClick={onClose}
-              />
-            </div>
-            <div className="modal-body">{children}</div>
-            <div className="modal-footer">
-              {footer ?? (
-                <button
-                  type="button"
-                  className={`btn btn-secondary ${confirmButtonClassName}`}
-                  disabled={confirmButtonDisabled}
-                  onClick={() => (onConfirm ? onConfirm() : onClose())}
-                >
-                  {confirmButtonLabel}
-                </button>
-              )}
-            </div>
+                className={buttonClass(confirmVariant)}
+                disabled={confirmButtonDisabled}
+                onClick={() => (onConfirm ? onConfirm() : onClose())}
+              >
+                {confirmButtonLabel}
+              </button>
+            )}
           </div>
         </div>
       </div>

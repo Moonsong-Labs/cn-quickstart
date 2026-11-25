@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import type { License, LicenseRenewRequest } from '../openapi';
 import { toISO_8601 } from '../utils/duration';
 import { formatDateTime } from '../utils/format';
+import { DEADLINE_PASSED, FIELD } from './controls';
 import DurationInput from './DurationInput';
 import Modal from './Modal.tsx';
 
@@ -61,7 +62,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
       show={show}
       title="Renew License"
       confirmButtonLabel="Issue License Renewal Request"
-      confirmButtonClassName="btn-success"
+      confirmVariant="primary"
       confirmButtonDisabled={!renewData.description.trim()}
       onClose={onClose}
       onConfirm={handleRenew}
@@ -72,7 +73,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
       <div>
         <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
       </div>
-      <div className={`${license?.isExpired && 'deadline-passed'}`}>
+      <div className={license?.isExpired ? DEADLINE_PASSED : undefined}>
         <strong>Expires at:</strong> {formatDateTime(license?.expiresAt)}
       </div>
 
@@ -114,7 +115,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
               id="renew-fee"
               type="number"
               min={0}
-              className="form-control"
+              className={FIELD}
               value={renewData.feeAmount}
               onChange={(e) => updateField('feeAmount')(Number(e.target.value) || 0)}
               style={{ width: '120px' }}
@@ -160,7 +161,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
           <div>
             <input
               id="renew-description"
-              className="form-control mb-2 input-renew-description"
+              className={`${FIELD} mb-2 w-full input-renew-description`}
               placeholder=""
               value={renewData.description}
               onChange={(e) => updateField('description')(e.target.value)}

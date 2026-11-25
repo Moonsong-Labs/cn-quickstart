@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { FIELD } from './controls';
 
 export default function DurationInput({
   id,
@@ -52,7 +53,7 @@ export default function DurationInput({
         id={id}
         type="number"
         min={1}
-        className="form-control"
+        className={FIELD}
         value={num}
         onChange={(e) => {
           const n = Number(e.target.value) || 0;
@@ -61,7 +62,7 @@ export default function DurationInput({
         style={{ width: '120px', ...(inputStyle || {}) }}
       />
       <select
-        className="form-select"
+        className={FIELD}
         value={unit}
         onChange={(e) => {
           const u = (e.target.value as string) || (unitOptions[0] ? unitOptions[0][0] : 'd');

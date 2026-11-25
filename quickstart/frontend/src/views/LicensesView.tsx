@@ -3,8 +3,10 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buttonClass, DEADLINE_PASSED, TABLE } from '../components/controls';
 import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
 import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
+import PageHeader from '../components/PageHeader';
 import type { License, LicenseRenewRequest } from '../openapi.d.ts';
 import { useLicenseStore } from '../stores/licenseStore';
 import { useUserStore } from '../stores/userStore';
@@ -104,72 +106,123 @@ const LicensesView: React.FC = () => {
 
   return (
     <div>
-      <h2>Licenses</h2>
-      <table
-        className="table table-fixed"
-        id="licenses-table"
-      >
-        <thead>
-          <tr>
-            <th style={{ width: '220px' }}>License Contract ID</th>
-            {user?.isAdmin && <th style={{ width: '150px' }}>User</th>}
-            <th style={{ width: '200px' }}>Expires At</th>
-            <th style={{ width: '110px' }}>License #</th>
-            <th style={{ width: '100px' }}>Pending Renewals</th>
-            <th style={{ width: '100px' }}>Accepted Renewals</th>
-            <th style={{ width: '130px' }}>Status</th>
-            <th style={{ width: '300px' }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {licenses.map((license) => {
-            return (
-              <tr
-                key={license.contractId}
-                className="license-row"
+      <PageHeader
+        title="Licenses"
+        subtitle="Licensing Demo"
+      />
+      <div className="overflow-x-auto px-10 py-8">
+        <table
+          className={TABLE.table}
+          id="licenses-table"
+        >
+          <thead>
+            <tr>
+              <th
+                className={TABLE.th}
+                style={{ width: '100px' }}
               >
-                <td className="ellipsis-cell license-contract-id">{license.contractId}</td>
-                {user?.isAdmin && <td className="ellipsis-cell license-user">{license.user}</td>}
-                <td
-                  className={`ellipsis-cell license-expires-at ${license.isExpired && 'deadline-passed'}`}
+                License Contract ID
+              </th>
+              {user?.isAdmin && (
+                <th
+                  className={TABLE.th}
+                  style={{ width: '120px' }}
                 >
-                  {formatDateTime(license.expiresAt)}
-                </td>
-                <td className="ellipsis-cell license-number">{license.licenseNum}</td>
-                <td className="ellipsis-cell">
-                  {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
-                </td>
-                <td className="ellipsis-cell">
-                  {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
-                </td>
-                <td className="ellipsis-cell license-status">
-                  {license.isExpired ? 'EXPIRED' : 'ACTIVE'}
-                </td>
-                <td className="license-actions">
-                  {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-actions-license"
-                      onClick={() => openRenewalModal(license.contractId)}
-                    >
-                      Renewals
-                    </button>
+                  User
+                </th>
+              )}
+              <th
+                className={TABLE.th}
+                style={{ width: '190px' }}
+              >
+                Expires At
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '70px' }}
+              >
+                License #
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '80px' }}
+              >
+                Pending Renewals
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '80px' }}
+              >
+                Accepted Renewals
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '80px' }}
+              >
+                Status
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '210px' }}
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {licenses.map((license) => {
+              return (
+                <tr
+                  key={license.contractId}
+                  className="license-row"
+                >
+                  <td className={`${TABLE.td} truncate license-contract-id`}>
+                    {license.contractId}
+                  </td>
+                  {user?.isAdmin && (
+                    <td className={`${TABLE.td} truncate license-user`}>{license.user}</td>
                   )}
-                  {license.expiresAt && license.isExpired && (
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-expire-license"
-                      onClick={() => openArchiveModal(license.contractId)}
-                    >
-                      Archive
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td
+                    className={`${TABLE.td} truncate license-expires-at ${license.isExpired ? DEADLINE_PASSED : ''}`}
+                  >
+                    {formatDateTime(license.expiresAt)}
+                  </td>
+                  <td className={`${TABLE.td} truncate license-number`}>{license.licenseNum}</td>
+                  <td className={`${TABLE.td} truncate`}>
+                    {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
+                  </td>
+                  <td className={`${TABLE.td} truncate`}>
+                    {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
+                  </td>
+                  <td className={`${TABLE.td} truncate license-status`}>
+                    {license.isExpired ? 'EXPIRED' : 'ACTIVE'}
+                  </td>
+                  <td className={`${TABLE.td} license-actions`}>
+                    {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
+                      <button
+                        type="button"
+                        className={`${buttonClass('primary')} btn-actions-license mr-2`}
+                        onClick={() => openRenewalModal(license.contractId)}
+                      >
+                        Renewals
+                      </button>
+                    )}
+                    {license.expiresAt && license.isExpired && (
+                      <button
+                        type="button"
+                        className={`${buttonClass('danger')} btn-expire-license`}
+                        onClick={() => openArchiveModal(license.contractId)}
+                      >
+                        Archive
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <LicenseRenewalRequestModal
         show={showRenewalModal && !!selectedLicense}

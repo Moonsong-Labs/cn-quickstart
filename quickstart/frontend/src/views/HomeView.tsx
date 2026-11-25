@@ -4,6 +4,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '../components/PageHeader';
 import { useUserStore } from '../stores/userStore';
 
 const HomeView: React.FC = () => {
@@ -21,9 +22,10 @@ const HomeView: React.FC = () => {
   }
 
   return (
-    <main>
-      <h1>Home</h1>
-    </main>
+    <PageHeader
+      title="Home"
+      subtitle="Licensing Demo"
+    />
   );
 };
 

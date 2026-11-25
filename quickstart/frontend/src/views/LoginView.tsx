@@ -4,6 +4,8 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import api from '../api';
+import { buttonClass, FIELD, LABEL } from '../components/controls';
+import PageHeader from '../components/PageHeader';
 import type { Client, FeatureFlags, LoginLink } from '../openapi';
 import { useToast } from '../stores/toastStore';
 
@@ -37,62 +39,64 @@ const LoginView: React.FC = () => {
     void fetchFeatureFlags();
   }, [displayError]);
 
-  return featureFlags?.authMode === 'oauth2' ? (
-    <div className="container">
-      <h2>Login with OAuth 2.0</h2>
-      <table className="table table-striped">
-        <tbody>
-          {loginLinks.map((link) => (
-            <tr key={link.url}>
-              <td>
+  const isOAuth2 = featureFlags?.authMode === 'oauth2';
+
+  return (
+    <>
+      <PageHeader
+        title="Login"
+        subtitle={isOAuth2 ? 'Login with OAuth 2.0' : 'Login with a shared secret'}
+      />
+      <div className="px-10 py-8">
+        {isOAuth2 ? (
+          <ul className="flex max-w-sm flex-col gap-2">
+            {loginLinks.map((link) => (
+              <li key={link.url}>
                 <a
-                  className="btn btn-link"
+                  className={`${buttonClass('secondary', 'lg')} w-full`}
                   href={link.url}
                 >
                   {link.name}
                 </a>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div>AppProvider user: app-provider, password: abc123</div>
-      <div>AppUser user: app-user, password: abc123</div>
-    </div>
-  ) : (
-    <div className="login-container">
-      <h1 className="login-title">Login</h1>
-      <form
-        name="f"
-        action="login/shared-secret"
-        method="POST"
-        className="login-form"
-      >
-        <div className="form-group">
-          <label
-            htmlFor="username"
-            className="form-label"
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <form
+            name="f"
+            action="login/shared-secret"
+            method="POST"
+            className="flex max-w-md items-end gap-3"
           >
-            User:
-          </label>
-          <input
-            type="text"
-            id="username"
-            name="username"
-            className="form-input"
-          />
-          <button
-            type="submit"
-            name="submit"
-            className="form-button"
-          >
-            Sign in
-          </button>
+            <div className="flex flex-1 flex-col gap-1">
+              <label
+                htmlFor="username"
+                className={LABEL}
+              >
+                User:
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                className={FIELD}
+              />
+            </div>
+            <button
+              type="submit"
+              name="submit"
+              className={buttonClass('primary')}
+            >
+              Sign in
+            </button>
+          </form>
+        )}
+        <div className="mt-6 text-sm text-neutral-600">
+          <div>AppProvider user: app-provider{isOAuth2 && ', password: abc123'}</div>
+          <div>AppUser user: app-user{isOAuth2 && ', password: abc123'}</div>
         </div>
-      </form>
-      <div>AppProvider user: app-provider</div>
-      <div>AppUser user: app-user</div>
-    </div>
+      </div>
+    </>
   );
 };
 

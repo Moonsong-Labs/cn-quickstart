@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import LicenseRenewModal from '../components/LicenseRenewModal.tsx';
 import type { License, LicenseRenewalRequest, LicenseRenewRequest } from '../openapi';
+import { buttonClass, DEADLINE_PASSED, TABLE } from './controls';
 import Modal from './Modal.tsx';
 
 type Props = {
@@ -71,8 +72,6 @@ export default function LicenseRenewalRequestModal({
       backdrop="static"
       size="xl"
       zIndexBase={1500}
-      dialogClassName="auto-width-modal"
-      contentClassName="auto-width-content"
     >
       <LicenseRenewModal
         show={showNewModal && isAdmin}
@@ -89,30 +88,80 @@ export default function LicenseRenewalRequestModal({
       {isAdmin && (
         <button
           type="button"
-          className="btn btn-success btn-issue-renewal"
+          className={`${buttonClass('primary')} btn-issue-renewal`}
           onClick={() => setShowNewModal(true)}
         >
           New
         </button>
       )}
 
-      <div className="renewals">
+      <div className="renewals mt-5">
         <table
-          className="table table-fixed xtable-bordered"
+          className={TABLE.table}
           id="renewals-table"
         >
           <thead>
             <tr>
-              <th style={{ width: '110px' }}>Renewal Contract ID</th>
-              <th style={{ width: '110px' }}>Request Id</th>
-              <th style={{ width: '100px' }}>Requested At</th>
-              <th style={{ width: '50px' }}>Extension</th>
-              <th style={{ width: '30px' }}>Fee</th>
-              <th style={{ width: '100px' }}>Prepare Until</th>
-              <th style={{ width: '100px' }}>Settle Before</th>
-              <th style={{ width: '100px' }}>Description</th>
-              <th style={{ width: '150px', minWidth: '150px' }}>Status</th>
-              <th style={{ width: '220px' }}>Actions</th>
+              <th
+                className={TABLE.th}
+                style={{ width: '110px' }}
+              >
+                Renewal Contract ID
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '110px' }}
+              >
+                Request Id
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '100px' }}
+              >
+                Requested At
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '50px' }}
+              >
+                Extension
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '30px' }}
+              >
+                Fee
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '100px' }}
+              >
+                Prepare Until
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '100px' }}
+              >
+                Settle Before
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '100px' }}
+              >
+                Description
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '150px', minWidth: '150px' }}
+              >
+                Status
+              </th>
+              <th
+                className={TABLE.th}
+                style={{ width: '220px' }}
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -123,44 +172,44 @@ export default function LicenseRenewalRequestModal({
                   className="renewal-row"
                 >
                   <td
-                    className="ellipsis-cell renewal-contract-id"
+                    className={`${TABLE.td} truncate renewal-contract-id`}
                     data-testid="renewal-contract-id"
                   >
                     {renewal.contractId}
                   </td>
                   <td
-                    className="ellipsis-cell renewal-request-id"
+                    className={`${TABLE.td} truncate renewal-request-id`}
                     data-testid="renewal-request-id"
                   >
                     {renewal.requestId}
                   </td>
-                  <td className="ellipsis-cell renewal-requested-at">
+                  <td className={`${TABLE.td} truncate renewal-requested-at`}>
                     {formatDateTime(renewal.requestedAt)}
                   </td>
-                  <td className="ellipsis-cell">{renewal.licenseExtensionDuration}</td>
-                  <td className="ellipsis-cell">{renewal.licenseFeeAmount}</td>
+                  <td className={`${TABLE.td} truncate`}>{renewal.licenseExtensionDuration}</td>
+                  <td className={`${TABLE.td} truncate`}>{renewal.licenseFeeAmount}</td>
                   <td
-                    className={`ellipsis-cell ${renewal.prepareDeadlinePassed && 'deadline-passed'}`}
+                    className={`${TABLE.td} truncate ${renewal.prepareDeadlinePassed ? DEADLINE_PASSED : ''}`}
                   >
                     {formatDateTime(renewal.prepareUntil)}
                   </td>
                   <td
-                    className={`ellipsis-cell ${renewal.settleDeadlinePassed && 'deadline-passed'}`}
+                    className={`${TABLE.td} truncate ${renewal.settleDeadlinePassed ? DEADLINE_PASSED : ''}`}
                   >
                     {formatDateTime(renewal.settleBefore)}
                     {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
                          date component and remove server side computation of settleDeadlinePassed */}
                   </td>
-                  <td className="ellipsis-cell">{renewal.description}</td>
-                  <td className="ellipsis-cell">{makeStatus(renewal)}</td>
-                  <td className="renewals-actions">
+                  <td className={`${TABLE.td} truncate`}>{renewal.description}</td>
+                  <td className={`${TABLE.td} truncate`}>{makeStatus(renewal)}</td>
+                  <td className={`${TABLE.td} renewals-actions`}>
                     {isAdmin &&
                       !renewal.settleDeadlinePassed &&
                       renewal.allocationCid &&
                       license && (
                         <button
                           type="button"
-                          className="btn btn-success btn-complete-renewal"
+                          className={`${buttonClass('primary')} btn-complete-renewal mr-2`}
                           onClick={() => {
                             if (!renewal.allocationCid) return;
                             void onCompleteRenewal(
@@ -176,7 +225,7 @@ export default function LicenseRenewalRequestModal({
                     {isAdmin && renewal && (
                       <button
                         type="button"
-                        className="btn btn-danger btn-withdraw"
+                        className={`${buttonClass('danger')} btn-withdraw`}
                         onClick={() => {
                           void onWithdraw(renewal.contractId);
                         }}
@@ -188,6 +237,7 @@ export default function LicenseRenewalRequestModal({
                       <>
                         Please accept the allocation request in your{' '}
                         <a
+                          className="font-medium text-brand-700 underline"
                           href={`${userWallet}/allocations`}
                           target="_blank"
                           rel="noopener"

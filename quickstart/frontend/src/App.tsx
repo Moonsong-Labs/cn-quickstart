@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: 0BSD
 
 import type React from 'react';
-import './App.css';
 import { Route, Routes } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import ToastNotification from './components/ToastNotification';
@@ -28,33 +27,21 @@ const App: React.FC = () => {
 
   return (
     <AppProviders>
-      <div className="tw:flex tw:min-h-screen tw:bg-white tw:font-sans tw:text-neutral-900">
+      <div className="flex min-h-screen bg-white font-sans text-neutral-900">
         <Sidebar />
-        <main className="tw:min-w-0 tw:flex-1">
+        <main className="min-w-0 flex-1">
           <Routes>
             <Route
               path="/"
-              element={
-                <BootstrapPage>
-                  <HomeView />
-                </BootstrapPage>
-              }
+              element={<HomeView />}
             />
             <Route
               path="/tenants"
-              element={
-                <BootstrapPage>
-                  <TenantRegistrationView />
-                </BootstrapPage>
-              }
+              element={<TenantRegistrationView />}
             />
             <Route
               path="/login"
-              element={
-                <BootstrapPage>
-                  <LoginView />
-                </BootstrapPage>
-              }
+              element={<LoginView />}
             />
             <Route
               path="/app-installs"
@@ -62,11 +49,7 @@ const App: React.FC = () => {
             />
             <Route
               path="/licenses"
-              element={
-                <BootstrapPage>
-                  <LicensesView />
-                </BootstrapPage>
-              }
+              element={<LicensesView />}
             />
           </Routes>
         </main>
@@ -75,11 +58,6 @@ const App: React.FC = () => {
     </AppProviders>
   );
 };
-
-/** The Bootstrap container that the views not yet redesigned lay out in. */
-const BootstrapPage = ({ children }: { children: React.ReactNode }) => (
-  <div className="container mt-4">{children}</div>
-);
 
 const composeProviders = (...providers: React.ComponentType<{ children: React.ReactNode }>[]) => {
   return providers.reduce(

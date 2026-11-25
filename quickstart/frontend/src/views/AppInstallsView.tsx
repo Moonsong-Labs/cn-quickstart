@@ -3,6 +3,7 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { type ButtonVariant, buttonClass } from '../components/controls';
 import PageHeader from '../components/PageHeader';
 import {
   type InstallAction,
@@ -44,15 +45,11 @@ const ACTION_LABEL: Record<InstallAction, string> = {
   cancel: 'Cancel installation',
 };
 
-const BUTTON_BASE =
-  'tw:rounded-lg tw:px-6 tw:py-2.5 tw:text-base tw:font-semibold tw:transition-colors tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-brand-600';
-
-const ACTION_STYLE: Record<InstallAction, string> = {
-  accept: 'tw:border tw:border-brand-700 tw:bg-brand-700 tw:text-white tw:hover:bg-brand-800',
-  createLicense:
-    'tw:border tw:border-brand-700 tw:bg-brand-700 tw:text-white tw:hover:bg-brand-800',
-  reject: 'tw:border tw:border-neutral-300 tw:bg-white tw:text-neutral-800 tw:hover:bg-neutral-100',
-  cancel: 'tw:border tw:border-red-300 tw:bg-white tw:text-red-700 tw:hover:bg-red-50',
+const ACTION_VARIANT: Record<InstallAction, ButtonVariant> = {
+  accept: 'primary',
+  createLicense: 'primary',
+  reject: 'secondary',
+  cancel: 'danger',
 };
 
 const AppInstallsView: React.FC = () => {
@@ -72,7 +69,7 @@ const AppInstallsView: React.FC = () => {
 
   if (!user) {
     return loading ? null : (
-      <p className="tw:px-10 tw:py-8 tw:text-neutral-600">Log in to see installations.</p>
+      <p className="px-10 py-8 text-neutral-600">Log in to see installations.</p>
     );
   }
 
@@ -94,22 +91,22 @@ const AppInstallsView: React.FC = () => {
   };
 
   return (
-    <div className="tw:flex tw:min-h-screen tw:flex-col">
+    <div className="flex min-h-screen flex-col">
       <PageHeader
         title={title}
         subtitle="Licensing Demo"
       />
       {selected === undefined ? (
-        <div className="tw:px-10 tw:py-8">
-          <p className="tw:mb-1 tw:font-medium">No installation requests yet.</p>
+        <div className="px-10 py-8">
+          <p className="mb-1 font-medium">No installation requests yet.</p>
           <RequestHint />
         </div>
       ) : (
-        <div className="tw:flex tw:flex-1">
-          <div className="tw:flex tw:w-96 tw:shrink-0 tw:flex-col tw:border-r tw:border-neutral-200 tw:p-5">
+        <div className="flex flex-1">
+          <div className="flex w-96 shrink-0 flex-col border-r border-neutral-200 p-5">
             <ul
               aria-label={title}
-              className="tw:m-0 tw:flex tw:list-none tw:flex-col tw:gap-2 tw:p-0"
+              className="m-0 flex list-none flex-col gap-2 p-0"
             >
               {unifiedInstalls.map((item) => (
                 <InstallListItem
@@ -122,13 +119,13 @@ const AppInstallsView: React.FC = () => {
                 />
               ))}
             </ul>
-            <div className="tw:mt-6 tw:px-1">
+            <div className="mt-6 px-1">
               <RequestHint />
             </div>
           </div>
           <section
             aria-label="Installation details"
-            className="tw:min-w-0 tw:flex-1 tw:px-10 tw:py-8"
+            className="min-w-0 flex-1 px-10 py-8"
           >
             <InstallDetail
               item={selected}
@@ -144,7 +141,7 @@ const AppInstallsView: React.FC = () => {
 };
 
 const RequestHint: React.FC = () => (
-  <p className="tw:mb-0 tw:text-sm tw:text-neutral-500">
+  <p className="mb-0 text-sm text-neutral-500">
     Run <code>make create-app-install-request</code> to send a new request.
   </p>
 );
@@ -176,21 +173,21 @@ const InstallListItem: React.FC<InstallListItemProps> = ({
         type="button"
         aria-current={isSelected ? 'true' : undefined}
         onClick={onSelect}
-        className={`tw:flex tw:w-full tw:items-start tw:justify-between tw:gap-3 tw:rounded-lg tw:border-0 tw:border-l-4 tw:px-4 tw:py-3 tw:text-left tw:transition-colors ${
+        className={`flex w-full items-start justify-between gap-3 rounded-lg border-0 border-l-4 px-4 py-3 text-left transition-colors ${
           isSelected
-            ? 'tw:border-brand-700 tw:bg-brand-50'
-            : 'tw:border-transparent tw:bg-white tw:hover:bg-neutral-50'
+            ? 'border-brand-700 bg-brand-50'
+            : 'border-transparent bg-white hover:bg-neutral-50'
         }`}
       >
-        <span className="tw:min-w-0">
-          <span className="tw:block tw:truncate tw:font-semibold">
+        <span className="min-w-0">
+          <span className="block truncate font-semibold">
             {partyHint(viewer === 'provider' ? item.user : item.provider)}
           </span>
-          <span className="tw:block tw:text-sm tw:text-neutral-600">{line}</span>
+          <span className="block text-sm text-neutral-600">{line}</span>
           {metaValues.map((value) => (
             <span
               key={value}
-              className="tw:block tw:truncate tw:font-mono tw:text-xs tw:text-neutral-500"
+              className="block truncate font-mono text-xs text-neutral-500"
             >
               {value}
             </span>
@@ -213,24 +210,24 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
   const metaEntries = Object.entries(item.meta?.data ?? {});
 
   return (
-    <div className="tw:max-w-3xl">
-      <div className="tw:flex tw:items-center tw:gap-3">
-        <h2 className="tw:mb-0 tw:text-3xl tw:font-bold tw:tracking-tight">
+    <div className="max-w-3xl">
+      <div className="flex items-center gap-3">
+        <h2 className="mb-0 text-3xl font-bold tracking-tight">
           {stage.status === 'requested' ? 'Installation request' : 'Installation'}
         </h2>
         <StatusBadge status={stage.status} />
       </div>
 
-      <dl className="tw:mt-6 tw:mb-0 tw:grid tw:grid-cols-[10rem_1fr] tw:gap-y-3">
-        <dt className="tw:font-normal tw:text-neutral-600">
+      <dl className="mt-6 mb-0 grid grid-cols-[10rem_1fr] gap-y-3">
+        <dt className="font-normal text-neutral-600">
           {viewer === 'provider' ? 'User' : 'Provider'}
         </dt>
-        <dd className="tw:mb-0">{partyHint(viewer === 'provider' ? item.user : item.provider)}</dd>
+        <dd className="mb-0">{partyHint(viewer === 'provider' ? item.user : item.provider)}</dd>
         {stage.status === 'installed' && (
           <>
-            <dt className="tw:font-normal tw:text-neutral-600">Licenses</dt>
+            <dt className="font-normal text-neutral-600">Licenses</dt>
             <dd
-              className="tw:mb-0"
+              className="mb-0"
               data-testid="num-licenses"
             >
               {item.numLicensesCreated}
@@ -240,17 +237,17 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
         {metaEntries.map(([key, value]) => (
           <div
             key={key}
-            className="tw:contents"
+            className="contents"
           >
-            <dt className="tw:font-normal tw:text-neutral-600">{key}</dt>
-            <dd className="tw:mb-0 tw:font-mono tw:text-sm tw:leading-6">{value}</dd>
+            <dt className="font-normal text-neutral-600">{key}</dt>
+            <dd className="mb-0 font-mono text-sm leading-6">{value}</dd>
           </div>
         ))}
       </dl>
 
-      <div className="tw:mt-6 tw:border-t tw:border-neutral-200 tw:pt-6">
-        <h3 className="tw:mb-3 tw:text-xl tw:font-bold">Next step</h3>
-        <p className="tw:mb-0">
+      <div className="mt-6 border-t border-neutral-200 pt-6">
+        <h3 className="mb-3 text-xl font-bold">Next step</h3>
+        <p className="mb-0">
           {stage.turn !== null && (
             <TurnBadge
               turn={stage.turn}
@@ -261,38 +258,34 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
         </p>
         {stage.actions.length > 0 && (
           <>
-            <div className="tw:mt-5 tw:flex tw:flex-wrap tw:gap-3">
+            <div className="mt-5 flex flex-wrap gap-3">
               {stage.actions.map((action) => (
                 <button
                   key={action}
                   type="button"
-                  className={`${BUTTON_BASE} ${ACTION_STYLE[action]}`}
+                  className={buttonClass(ACTION_VARIANT[action], 'lg')}
                   onClick={() => onAction(action)}
                 >
                   {ACTION_LABEL[action]}
                 </button>
               ))}
             </div>
-            <p className="tw:mt-3 tw:mb-0 tw:text-sm tw:text-neutral-500">
+            <p className="mt-3 mb-0 text-sm text-neutral-500">
               Your validator node signs these actions for your party.
             </p>
           </>
         )}
       </div>
 
-      <details className="tw:mt-8 tw:border-t tw:border-neutral-200 tw:pt-5">
-        <summary className="tw:cursor-pointer tw:font-semibold">Technical details</summary>
-        <dl className="tw:mt-3 tw:mb-0 tw:grid tw:grid-cols-[10rem_1fr] tw:gap-x-4 tw:gap-y-2 tw:text-sm">
-          <dt className="tw:font-normal tw:text-neutral-600">Contract ID</dt>
-          <dd className="tw:mb-0 tw:font-mono tw:text-xs tw:leading-5 tw:break-all">
-            {item.contractId}
-          </dd>
-          <dt className="tw:font-normal tw:text-neutral-600">Provider</dt>
-          <dd className="tw:mb-0 tw:font-mono tw:text-xs tw:leading-5 tw:break-all">
-            {item.provider}
-          </dd>
-          <dt className="tw:font-normal tw:text-neutral-600">User</dt>
-          <dd className="tw:mb-0 tw:font-mono tw:text-xs tw:leading-5 tw:break-all">{item.user}</dd>
+      <details className="mt-8 border-t border-neutral-200 pt-5">
+        <summary className="cursor-pointer font-semibold">Technical details</summary>
+        <dl className="mt-3 mb-0 grid grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-sm">
+          <dt className="font-normal text-neutral-600">Contract ID</dt>
+          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.contractId}</dd>
+          <dt className="font-normal text-neutral-600">Provider</dt>
+          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.provider}</dd>
+          <dt className="font-normal text-neutral-600">User</dt>
+          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.user}</dd>
         </dl>
       </details>
     </div>
@@ -301,19 +294,19 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
 
 const StatusBadge: React.FC<{ status: InstallStage['status'] }> = ({ status }) =>
   status === 'requested' ? (
-    <span className="tw:shrink-0 tw:rounded-md tw:bg-amber-100 tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-amber-800">
+    <span className="shrink-0 rounded-md bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-800">
       Requested
     </span>
   ) : (
-    <span className="tw:shrink-0 tw:rounded-md tw:bg-brand-50 tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-brand-800">
+    <span className="shrink-0 rounded-md bg-brand-50 px-2.5 py-1 text-sm font-medium text-brand-800">
       Installed
     </span>
   );
 
 const TurnBadge: React.FC<{ turn: Role; viewer: Role }> = ({ turn, viewer }) => (
   <span
-    className={`tw:mr-2 tw:inline-block tw:rounded-full tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-semibold ${
-      turn === viewer ? 'tw:bg-brand-700 tw:text-white' : 'tw:bg-neutral-100 tw:text-neutral-700'
+    className={`mr-2 inline-block rounded-full px-2.5 py-0.5 text-sm font-semibold ${
+      turn === viewer ? 'bg-brand-700 text-white' : 'bg-neutral-100 text-neutral-700'
     }`}
   >
     {turn === viewer ? 'Your turn' : `Waiting for ${ROLE_NAME[turn]}`}

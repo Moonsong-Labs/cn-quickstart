@@ -3,11 +3,11 @@
 
 import type React from 'react';
 
-/** The title band at the top of a redesigned page. */
+/** The title band at the top of a page. */
 const PageHeader: React.FC<{ title: string; subtitle: string }> = ({ title, subtitle }) => (
-  <header className="tw:border-b tw:border-neutral-200 tw:px-10 tw:pt-8 tw:pb-6">
-    <h1 className="tw:mb-1 tw:text-3xl tw:font-bold tw:tracking-tight">{title}</h1>
-    <p className="tw:mb-0 tw:text-neutral-600">{subtitle}</p>
+  <header className="border-b border-neutral-200 px-10 pt-8 pb-6">
+    <h1 className="mb-1 text-3xl font-bold tracking-tight">{title}</h1>
+    <p className="mb-0 text-neutral-600">{subtitle}</p>
   </header>
 );
 
