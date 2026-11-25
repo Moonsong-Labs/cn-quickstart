@@ -6,9 +6,11 @@ import { useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useUserStore } from '../stores/userStore';
 
+/** The classes every nav link shares. The icon is centered in the rail and starts the row in the full sidebar. */
 const NAV_LINK =
   'focus-ring flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors lg:justify-start';
 
+/** The classes for a nav link: the primary color on the active route, a hover color on the others. */
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return isActive
     ? `${NAV_LINK} bg-primary font-medium text-primary-foreground`
@@ -114,6 +116,7 @@ const Sidebar: React.FC = () => {
   );
 };
 
+/** A nav link's text. Below `lg` it is visually hidden and stays for screen readers. */
 const NavLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <span className="sr-only lg:not-sr-only">{children}</span>
 );
@@ -135,6 +138,7 @@ const Icon: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </svg>
 );
 
+/** Stacked layers, the icon of Installations. */
 const LayersIcon: React.FC = () => (
   <Icon>
     <path d="M12 3 2 8l10 5 10-5-10-5Z" />
@@ -142,6 +146,7 @@ const LayersIcon: React.FC = () => (
   </Icon>
 );
 
+/** A card with a stripe, the icon of Licenses. */
 const LicenseIcon: React.FC = () => (
   <Icon>
     <rect
@@ -155,6 +160,7 @@ const LicenseIcon: React.FC = () => (
   </Icon>
 );
 
+/** Two people, the icon of Tenants. */
 const TenantsIcon: React.FC = () => (
   <Icon>
     <circle
@@ -167,6 +173,7 @@ const TenantsIcon: React.FC = () => (
   </Icon>
 );
 
+/** One person, the avatar of the signed-in user. */
 const PersonIcon: React.FC = () => (
   <Icon>
     <circle

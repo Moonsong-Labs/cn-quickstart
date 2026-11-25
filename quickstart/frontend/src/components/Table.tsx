@@ -3,6 +3,7 @@
 
 import type { ComponentPropsWithoutRef } from 'react';
 
+/** A native table's props, except `className`, which `Table` owns, plus the column layout. */
 type TableProps = Omit<ComponentPropsWithoutRef<'table'>, 'className'> & {
   /** `fixed` takes the column widths from the header cells, so long values truncate instead. */
   layout?: 'auto' | 'fixed';
@@ -30,18 +31,20 @@ export function Th(props: Omit<ComponentPropsWithoutRef<'th'>, 'className'>) {
   );
 }
 
+/** The classes for each way a cell fits a value wider than its column. */
 const OVERFLOW = {
   wrap: '',
   nowrap: 'whitespace-nowrap',
   truncate: 'truncate',
 };
 
+/** A native cell's props, except `className`, which `Td` owns, plus how the value fits. */
 type TdProps = Omit<ComponentPropsWithoutRef<'td'>, 'className'> & {
   /** How a value wider than its column fits: it wraps, stays on one line, or ends with an ellipsis. */
   overflow?: keyof typeof OVERFLOW;
 };
 
-/** A body cell. */
+/** A body cell. It passes its other props to the native `td`, and `overflow` defaults to `wrap`. */
 export function Td({ overflow = 'wrap', ...props }: TdProps) {
   return (
     <td
