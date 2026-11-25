@@ -69,7 +69,7 @@ export default function LicenseRenewalRequestModal({
   return (
     <Modal
       show={show}
-      title={<div>License Renewal Requests</div>}
+      title="License Renewal Requests"
       onClose={handleClose}
       size="xl"
     >

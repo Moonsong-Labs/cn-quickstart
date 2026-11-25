@@ -16,7 +16,7 @@ export default function LicenseArchiveModal({ show, license, onClose, onArchive 
   return (
     <Modal
       show={show}
-      title={<div>Archive License</div>}
+      title="Archive License"
       onClose={() => {
         setExpireDescription('');
         onClose();
