@@ -1,8 +1,12 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
+import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { LedgerClient } from '@canton-network/core-ledger-client';
 import { LEDGER_REQUEST_TIMEOUT_MS } from '../src/config/ledger';
 import { AppInstallRequest } from '../src/daml/licensing';
 import { createLedgerClient } from '../src/integrations/ledger/client';
+import { LedgerApiError } from '../src/integrations/ledger/error';
+import { createStaticTokenProvider } from '../src/integrations/ledger/token-provider';
 import { createAppInstallRequest } from '../src/modules/app-installations';
 
 // The SDK client and generated bindings are real; the participant HTTP responses are simulated.
@@ -184,26 +188,43 @@ test('Rejects when the participant becomes unreachable after initialization', as
 });
 
 test('Rejects a connection lost after receipt without reporting success or resubmitting', async () => {
-  const { connection, state } = await setup(
-    () =>
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.error(new Error('connection lost'));
-          },
-        }),
-        { headers: { 'content-type': 'application/json' } },
-      ),
-  );
-
-  await expect(
-    createAppInstallRequest(connection, payload, 'lost-response-command'),
-  ).rejects.toMatchObject({
-    name: 'LedgerApiError',
-    commandId: 'lost-response-command',
-    cause: expect.any(Error),
+  const submissions: string[] = [];
+  const server = createServer((request, response) => {
+    if (request.method === 'GET' && request.url === '/v2/version') {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ version: '3.5.2' }));
+      return;
+    }
+    request.once('end', () => {
+      submissions.push(`${request.method} ${request.url}`);
+      // Close the socket after receiving the command, with no HTTP response.
+      response.destroy();
+    });
+    request.resume();
   });
-  expect(state.requests).toHaveLength(1);
+  const listening = once(server, 'listening');
+  server.listen(0, '127.0.0.1');
+  await listening;
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing participant port');
+    const ledgerUserId = 'app-user-backend';
+    const client = await createLedgerClient({
+      baseUrl: new URL(`http://127.0.0.1:${address.port}`),
+      accessTokenProvider: createStaticTokenProvider({ token: 'user-token', ledgerUserId }),
+    });
+    const result = await createAppInstallRequest(
+      { client, ledgerUserId },
+      payload,
+      'lost-response-command',
+    ).catch((error: unknown) => error);
+    if (!(result instanceof LedgerApiError)) throw new Error('Expected a ledger failure');
+    expect(result.commandId).toBe('lost-response-command');
+    expect(result.cause).toBeDefined();
+    expect(submissions).toEqual(['POST /v2/commands/submit-and-wait']);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 test('Rejects blank identifiers and malformed payloads before invoking the SDK', () => {
