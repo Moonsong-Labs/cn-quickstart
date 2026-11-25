@@ -4,7 +4,7 @@
 import type React from 'react';
 import './App.css';
 import { Route, Routes } from 'react-router-dom';
-import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import ToastNotification from './components/ToastNotification';
 import { AppInstallProvider } from './stores/appInstallStore.tsx';
 import { LicenseProvider } from './stores/licenseStore';
@@ -28,35 +28,58 @@ const App: React.FC = () => {
 
   return (
     <AppProviders>
-      <Header />
-      <main className="container mt-4">
-        <Routes>
-          <Route
-            path="/"
-            element={<HomeView />}
-          />
-          <Route
-            path="/tenants"
-            element={<TenantRegistrationView />}
-          />
-          <Route
-            path="/login"
-            element={<LoginView />}
-          />
-          <Route
-            path="/app-installs"
-            element={<AppInstallsView />}
-          />
-          <Route
-            path="/licenses"
-            element={<LicensesView />}
-          />
-        </Routes>
-      </main>
+      <div className="tw:flex tw:min-h-screen tw:bg-white tw:font-sans tw:text-neutral-900">
+        <Sidebar />
+        <main className="tw:min-w-0 tw:flex-1">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <BootstrapPage>
+                  <HomeView />
+                </BootstrapPage>
+              }
+            />
+            <Route
+              path="/tenants"
+              element={
+                <BootstrapPage>
+                  <TenantRegistrationView />
+                </BootstrapPage>
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                <BootstrapPage>
+                  <LoginView />
+                </BootstrapPage>
+              }
+            />
+            <Route
+              path="/app-installs"
+              element={<AppInstallsView />}
+            />
+            <Route
+              path="/licenses"
+              element={
+                <BootstrapPage>
+                  <LicensesView />
+                </BootstrapPage>
+              }
+            />
+          </Routes>
+        </main>
+      </div>
       <ToastNotification />
     </AppProviders>
   );
 };
+
+/** The Bootstrap container that the views not yet redesigned lay out in. */
+const BootstrapPage = ({ children }: { children: React.ReactNode }) => (
+  <div className="container mt-4">{children}</div>
+);
 
 const composeProviders = (...providers: React.ComponentType<{ children: React.ReactNode }>[]) => {
   return providers.reduce(

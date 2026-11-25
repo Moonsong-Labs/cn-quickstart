@@ -4,7 +4,7 @@ import RowOps from '../../utils/rowOps';
 const APP_PROVIDER_APP_INSTALLS_URL = 'http://app-provider.localhost:3000/app-installs';
 
 export enum Status {
-  AwaitingAcceptance = 'Waiting for acceptance',
+  AwaitingAcceptance = 'Requested',
   Accepted = 'Installed',
 }
 
@@ -20,41 +20,40 @@ export default class AppInstalls extends RowOps {
     super(page);
   }
 
+  /** The panel that shows the selected item's status and actions. */
+  private detail = (): Locator => this.page.getByRole('region', { name: 'Installation details' });
+
   /** Installation items are list items. Each shows its request metadata, which holds the test tag. */
   override findRowBy = (pattern: string | RegExp): Locator => {
     return this.page.getByRole('listitem').filter({ hasText: pattern });
   };
 
-  button = (name: string, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('button', { name: name });
-  };
-
-  status = (name: Status, row: Locator = this.matchingRow): Locator => {
-    return row.getByText(name, { exact: true });
-  };
-
-  licenseCount = (row: Locator = this.matchingRow): Locator => {
-    return row.getByTestId('num-licenses');
-  };
+  /** Selects the matching item, so that the detail panel shows it. */
+  override async withRowMatching(
+    pattern: string | RegExp,
+    withRow: (row: Locator) => Promise<void>,
+  ): Promise<void> {
+    await super.withRowMatching(pattern, async (row) => {
+      await row.getByRole('button').click();
+      await withRow(row);
+    });
+  }
 
   public async goto(): Promise<void> {
     await this.page.goto(APP_PROVIDER_APP_INSTALLS_URL);
   }
 
-  public async assertStatus(status: Status, row: Locator = this.matchingRow): Promise<void> {
-    await expect(this.status(status, row)).toBeVisible();
+  public async assertStatus(status: Status): Promise<void> {
+    await expect(this.detail().getByText(status, { exact: true })).toBeVisible();
   }
 
-  public async clickButton(button: Button, row: Locator = this.matchingRow): Promise<void> {
-    await this.button(button, row).click();
+  public async clickButton(button: Button): Promise<void> {
+    await this.detail().getByRole('button', { name: button }).click();
   }
 
-  public async assertLicenseCountIs(
-    licenseCount: number,
-    row: Locator = this.matchingRow,
-  ): Promise<void> {
+  public async assertLicenseCountIs(licenseCount: number): Promise<void> {
     await expect(
-      this.licenseCount(row),
+      this.detail().getByTestId('num-licenses'),
       `There should be ${licenseCount} license(s) for the AppInstall`,
     ).toHaveText(licenseCount.toString());
   }
