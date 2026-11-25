@@ -50,6 +50,10 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  code {
+    @apply rounded-md bg-muted px-1.5 py-0.5 text-foreground box-decoration-clone;
+  }
 }
 
 @utility focus-ring {
