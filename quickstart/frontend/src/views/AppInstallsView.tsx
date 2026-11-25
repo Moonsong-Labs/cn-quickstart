@@ -105,8 +105,8 @@ const AppInstallsView: React.FC = () => {
           <RequestHint />
         </PageBody>
       ) : (
-        <div className="flex flex-1">
-          <div className="flex w-96 shrink-0 flex-col border-r border-border p-5">
+        <div className="flex flex-1 flex-col lg:flex-row">
+          <div className="flex shrink-0 flex-col border-b border-border p-5 lg:w-96 lg:border-r lg:border-b-0">
             <ul
               aria-label={title}
               className="flex flex-col gap-2"
@@ -166,7 +166,7 @@ const InstallListItem: React.FC<InstallListItemProps> = ({
   isSelected,
   onSelect,
 }) => {
-  const metaValues = Object.values(item.meta?.data ?? {});
+  const metaEntries = Object.entries(item.meta?.data ?? {});
   const line =
     stage.status === 'installed'
       ? `${item.numLicensesCreated} ${item.numLicensesCreated === 1 ? 'license' : 'licenses'}`
@@ -189,9 +189,9 @@ const InstallListItem: React.FC<InstallListItemProps> = ({
             {partyHint(viewer === 'provider' ? item.user : item.provider)}
           </span>
           <span className="block text-sm text-muted-foreground">{line}</span>
-          {metaValues.map((value) => (
+          {metaEntries.map(([key, value]) => (
             <span
-              key={value}
+              key={key}
               className="block truncate font-mono text-xs text-subtle-foreground"
             >
               {value}

@@ -7,7 +7,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { useUserStore } from '../stores/userStore';
 
 const NAV_LINK =
-  'focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors';
+  'focus-ring flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors lg:justify-start';
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return isActive
@@ -15,7 +15,10 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
     : `${NAV_LINK} text-foreground-secondary hover:bg-sidebar-hover hover:text-foreground`;
 }
 
-/** The app shell's navigation, with the signed-in user at the bottom. */
+/**
+ * The app shell's navigation, with the signed-in user at the bottom. Below the `lg` breakpoint it
+ * narrows to a rail of icons, and its labels stay for screen readers.
+ */
 const Sidebar: React.FC = () => {
   const { user, loading, fetchUser, logout } = useUserStore();
 
@@ -26,12 +29,18 @@ const Sidebar: React.FC = () => {
   const isProvider = user?.isAdmin ?? false;
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-7">
+    <aside className="sticky top-0 flex h-screen w-20 shrink-0 flex-col border-r border-border bg-sidebar px-2 py-7 lg:w-64 lg:px-4">
       <Link
         to="/"
-        className="focus-ring px-3 text-2xl font-extrabold tracking-tight"
+        className="focus-ring px-3 text-center text-2xl font-extrabold tracking-tight lg:text-left"
       >
-        QuickStart
+        <span
+          aria-hidden="true"
+          className="lg:hidden"
+        >
+          Q
+        </span>
+        <span className="sr-only lg:not-sr-only">QuickStart</span>
       </Link>
       {user && (
         <nav
@@ -43,14 +52,14 @@ const Sidebar: React.FC = () => {
             className={navLinkClass}
           >
             <LayersIcon />
-            {isProvider ? 'Installations' : 'Applications'}
+            <NavLabel>{isProvider ? 'Installations' : 'Applications'}</NavLabel>
           </NavLink>
           <NavLink
             to="/licenses"
             className={navLinkClass}
           >
             <LicenseIcon />
-            Licenses
+            <NavLabel>Licenses</NavLabel>
           </NavLink>
           {isProvider && (
             <NavLink
@@ -58,27 +67,29 @@ const Sidebar: React.FC = () => {
               className={navLinkClass}
             >
               <TenantsIcon />
-              Tenants
+              <NavLabel>Tenants</NavLabel>
             </NavLink>
           )}
         </nav>
       )}
-      <div className="mt-auto px-2">
+      <div className="mt-auto text-center lg:px-2 lg:text-left">
         {user ? (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-center gap-2 lg:flex-row lg:gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-current text-label">
               <PersonIcon />
             </span>
             <div className="min-w-0">
-              <p
-                id="user-name"
-                className="truncate font-semibold leading-tight"
-              >
-                {user.name}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {isProvider ? 'App Provider' : 'App User'}
-              </p>
+              <div className="sr-only lg:not-sr-only">
+                <p
+                  id="user-name"
+                  className="truncate font-semibold leading-tight"
+                >
+                  {user.name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {isProvider ? 'App Provider' : 'App User'}
+                </p>
+              </div>
               <button
                 type="button"
                 className="focus-ring mt-1 cursor-pointer text-sm text-primary underline hover:text-primary-hover"
@@ -102,6 +113,10 @@ const Sidebar: React.FC = () => {
     </aside>
   );
 };
+
+const NavLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="sr-only lg:not-sr-only">{children}</span>
+);
 
 /** A decorative stroke icon. Each nav link names itself in text. */
 const Icon: React.FC<{ children: React.ReactNode }> = ({ children }) => (

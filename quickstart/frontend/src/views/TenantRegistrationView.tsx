@@ -193,7 +193,7 @@ const TenantRegistrationView: React.FC = () => {
         </form>
 
         <div className="mt-4">
-          <h3 className="mb-3 text-xl font-bold">Existing Tenant Registrations</h3>
+          <h2 className="mb-3 text-xl font-bold">Existing Tenant Registrations</h2>
           <Table>
             <thead>
               <tr>

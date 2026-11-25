@@ -17,11 +17,13 @@ const CODE: Record<Size, string> = {
   sm: 'text-xs leading-5',
 };
 
-/** Rows of terms and their values, in two aligned columns. */
+/** Rows of terms and their values in two aligned columns. Below `sm`, each term sits above its value. */
 export function DescriptionList({ size = 'md', children }: { size?: Size; children: ReactNode }) {
   return (
     <SizeContext.Provider value={size}>
-      <dl className={`grid grid-cols-[10rem_1fr] ${LIST[size]}`}>{children}</dl>
+      <dl className={`grid grid-cols-1 sm:grid-cols-[10rem_1fr] ${LIST[size]}`}>
+        {children}
+      </dl>
     </SizeContext.Provider>
   );
 }
@@ -36,12 +38,12 @@ type DescriptionItemProps = Omit<ComponentPropsWithoutRef<'dd'>, 'className'> & 
 export function DescriptionItem({ term, code = false, ...props }: DescriptionItemProps) {
   const size = useContext(SizeContext);
   return (
-    <>
+    <div className="sm:contents">
       <dt className="text-muted-foreground">{term}</dt>
       <dd
         {...props}
-        className={code ? `font-mono break-all ${CODE[size]}` : undefined}
+        className={`mt-0.5 sm:mt-0 ${code ? `font-mono break-all ${CODE[size]}` : 'break-words'}`}
       />
-    </>
+    </div>
   );
 }

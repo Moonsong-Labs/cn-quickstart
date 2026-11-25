@@ -100,16 +100,16 @@ export default function LicenseRenewalRequestModal({
         >
           <thead>
             <tr>
-              <Th style={{ width: '110px' }}>Renewal Contract ID</Th>
-              <Th style={{ width: '110px' }}>Request Id</Th>
+              <Th style={{ width: '90px' }}>Renewal Contract ID</Th>
+              <Th style={{ width: '90px' }}>Request Id</Th>
               <Th style={{ width: '100px' }}>Requested At</Th>
-              <Th style={{ width: '50px' }}>Extension</Th>
-              <Th style={{ width: '30px' }}>Fee</Th>
+              <Th style={{ width: '90px' }}>Extension</Th>
+              <Th style={{ width: '60px' }}>Fee</Th>
               <Th style={{ width: '100px' }}>Prepare Until</Th>
               <Th style={{ width: '100px' }}>Settle Before</Th>
               <Th style={{ width: '100px' }}>Description</Th>
               <Th style={{ width: '150px', minWidth: '150px' }}>Status</Th>
-              <Th style={{ width: '220px' }}>Actions</Th>
+              <Th style={{ width: '190px' }}>Actions</Th>
             </tr>
           </thead>
           <tbody>

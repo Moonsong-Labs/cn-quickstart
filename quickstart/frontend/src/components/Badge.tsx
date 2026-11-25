@@ -26,7 +26,9 @@ export function Badge({
   children: ReactNode;
 }) {
   return (
-    <span className={`inline-block shrink-0 text-sm ${SHAPE[shape]} ${TONE[tone]}`}>
+    <span
+      className={`inline-block shrink-0 text-sm whitespace-nowrap ${SHAPE[shape]} ${TONE[tone]}`}
+    >
       {children}
     </span>
   );
