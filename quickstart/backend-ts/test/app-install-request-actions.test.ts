@@ -1,4 +1,5 @@
-import { afterEach, expect, spyOn, test } from 'bun:test';
+import { afterEach, expect, mock, spyOn, test } from 'bun:test';
+import type { JsCantonError } from '@canton-network/core-ledger-client';
 import type { LedgerCommonSchemas } from '@canton-network/core-ledger-client-types';
 import { ContractId } from '@daml/types';
 import { Pool } from 'pg';
@@ -90,11 +91,14 @@ function setup(rows: object[], ledgerResponse: unknown = acceptResponse()) {
   const query = spyOn(pqs, 'query').mockResolvedValue({ rows } as never);
   /** Captures Ledger API submissions made by the app provider. */
   const submissions: { path: string; body: unknown }[] = [];
+  const ledgerResult = mock(async () => {
+    if (ledgerResponse instanceof Error) throw ledgerResponse;
+    return ledgerResponse;
+  });
   const client = {
     async post(path: string, body: unknown) {
       submissions.push({ path, body });
-      if (ledgerResponse instanceof Error) throw ledgerResponse;
-      return ledgerResponse;
+      return ledgerResult();
     },
   };
   /** Uses the provider party configured for this test's authorization checks. */
@@ -140,14 +144,19 @@ function setup(rows: object[], ledgerResponse: unknown = acceptResponse()) {
     expect(response.status).toBe(201);
   }
 
-  return { app, login, registerCustomer, query, submissions };
+  return { app, login, registerCustomer, query, submissions, ledgerResult };
 }
 
 /** Sends an acceptance request with the API's query command ID and metadata shape. */
-function accept(app: ReturnType<typeof createApp>, cookie: string, id = contractId) {
+function accept(
+  app: ReturnType<typeof createApp>,
+  cookie: string,
+  id = contractId,
+  acceptanceCommandId = commandId,
+) {
   return app.handle(
     new Request(
-      `http://localhost/app-install-requests/${encodeURIComponent(id)}:accept?commandId=${commandId}`,
+      `http://localhost/app-install-requests/${encodeURIComponent(id)}:accept?commandId=${acceptanceCommandId}`,
       {
         method: 'POST',
         headers: { cookie, 'content-type': 'application/json' },
@@ -282,8 +291,46 @@ test('Returns not found without submitting when the request is absent or belongs
   expect(foreign.submissions).toEqual([]);
 });
 
+test('Returns 404 when PQS still lists an installation request already accepted on Canton', async () => {
+  const { app, login, query, submissions, ledgerResult } = setup([
+    requestRow(contractId, providerParty, 'customer-party'),
+  ]);
+  const provider = await login('app-provider');
+  expect((await accept(app, provider)).status).toBe(201);
+
+  // PQS keeps returning the same row while Canton has already consumed the request.
+  ledgerResult.mockRejectedValueOnce({
+    code: 'CONTRACT_NOT_FOUND',
+    cause: `Contract could not be found with id ${contractId}`,
+    context: {},
+    errorCategory: 11,
+    grpcCodeValue: 5,
+  } satisfies JsCantonError);
+  // A distinct command ID makes this a new exercise instead of a replay of the first command.
+  const secondCommandId = 'second-accept-command';
+  const response = await accept(app, provider, contractId, secondCommandId);
+
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(submissions).toHaveLength(2);
+  expect(submissions[1]?.body).toMatchObject({
+    commands: {
+      commandId: secondCommandId,
+      commands: [
+        {
+          ExerciseCommand: {
+            contractId,
+            choice: AppInstallRequest.AppInstallRequest_Accept.choiceName,
+          },
+        },
+      ],
+    },
+  });
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ message: 'Installation request not found' });
+});
+
 test('Returns a sanitized ledger error when acceptance fails', async () => {
-  /** Simulates a permission or stale-contract error from the Ledger API. */
+  /** Simulates an unexpected failure from the Ledger API. */
   const { app, login, submissions } = setup(
     [requestRow(contractId, providerParty, 'customer-party')],
     new Error('private ledger response details'),
