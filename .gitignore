@@ -32,9 +32,11 @@ gradle-app.setting
 # backups
 *.bak
 
-# IDEs
+# IDEs & local agent configs
 .vscode/
 .cursor/
+.agents/
+.claude/
 
 # MacOS
 .DS_Store
