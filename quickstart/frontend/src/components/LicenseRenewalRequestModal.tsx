@@ -7,8 +7,7 @@ import { OverdueMark } from './OverdueMark';
 import { Table, Td, Th } from './Table';
 
 type Props = {
-  show: boolean;
-  license: License | null;
+  license: License;
   onClose: () => void;
   isAdmin: boolean;
   userWallet: string;
@@ -22,8 +21,11 @@ type Props = {
   formatDateTime: (iso?: string) => string;
 };
 
+/**
+ * The renewal requests of one license, with the dialog for a new request nested inside. The caller
+ * mounts it only while it shows, so the nested dialog starts closed each time it opens.
+ */
 export default function LicenseRenewalRequestModal({
-  show,
   license,
   onClose,
   isAdmin,
@@ -68,7 +70,7 @@ export default function LicenseRenewalRequestModal({
 
   return (
     <Modal
-      show={show}
+      show
       title="License Renewal Requests"
       onClose={handleClose}
       size="xl"
@@ -82,7 +84,7 @@ export default function LicenseRenewalRequestModal({
 
       <div className="flex flex-col gap-5">
         <div>
-          <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
+          <strong>License Contract ID:</strong> {license.contractId.substring(0, 24)}...
         </div>
         {isAdmin && (
           <div>
@@ -110,7 +112,7 @@ export default function LicenseRenewalRequestModal({
             </tr>
           </thead>
           <tbody>
-            {license?.renewalRequests?.map((renewal) => (
+            {license.renewalRequests?.map((renewal) => (
               <tr key={renewal.contractId}>
                 <Td
                   overflow="truncate"
@@ -141,24 +143,21 @@ export default function LicenseRenewalRequestModal({
                 <Td overflow="truncate">{makeStatus(renewal)}</Td>
                 <Td>
                   <div className="flex flex-wrap items-center gap-2">
-                    {isAdmin &&
-                      !renewal.settleDeadlinePassed &&
-                      renewal.allocationCid &&
-                      license && (
-                        <Button
-                          variant="primary"
-                          onClick={() => {
-                            if (!renewal.allocationCid) return;
-                            void onCompleteRenewal(
-                              license.contractId,
-                              renewal.contractId,
-                              renewal.allocationCid,
-                            );
-                          }}
-                        >
-                          Complete Renewal
-                        </Button>
-                      )}
+                    {isAdmin && !renewal.settleDeadlinePassed && renewal.allocationCid && (
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          if (!renewal.allocationCid) return;
+                          void onCompleteRenewal(
+                            license.contractId,
+                            renewal.contractId,
+                            renewal.allocationCid,
+                          );
+                        }}
+                      >
+                        Complete Renewal
+                      </Button>
+                    )}
                     {isAdmin && (
                       <Button
                         variant="danger"

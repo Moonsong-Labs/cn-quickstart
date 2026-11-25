@@ -168,17 +168,18 @@ const LicensesView: React.FC = () => {
         </Table>
       </PageBody>
 
-      <LicenseRenewalRequestModal
-        show={showRenewalModal && !!selectedLicense}
-        license={selectedLicense}
-        onClose={closeRenewalsModal}
-        isAdmin={isAdmin}
-        userWallet={userWallet}
-        onIssueRenewal={handleRenew}
-        onCompleteRenewal={handleCompleteRenewal}
-        onWithdraw={handleRenewalWithdraw}
-        formatDateTime={formatDateTime}
-      />
+      {showRenewalModal && selectedLicense && (
+        <LicenseRenewalRequestModal
+          license={selectedLicense}
+          onClose={closeRenewalsModal}
+          isAdmin={isAdmin}
+          userWallet={userWallet}
+          onIssueRenewal={handleRenew}
+          onCompleteRenewal={handleCompleteRenewal}
+          onWithdraw={handleRenewalWithdraw}
+          formatDateTime={formatDateTime}
+        />
+      )}
 
       <LicenseArchiveModal
         show={showArchiveModal && !!selectedLicense}
