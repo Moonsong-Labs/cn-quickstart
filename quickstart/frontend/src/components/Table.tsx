@@ -25,7 +25,7 @@ export function Th(props: Omit<ComponentPropsWithoutRef<'th'>, 'className'>) {
   return (
     <th
       {...props}
-      className="overflow-hidden border-b border-neutral-300 px-2 py-2 text-left font-semibold"
+      className="overflow-hidden border-b border-border-strong px-2 py-2 text-left font-semibold"
     />
   );
 }
@@ -46,7 +46,7 @@ export function Td({ overflow = 'wrap', ...props }: TdProps) {
   return (
     <td
       {...props}
-      className={`border-b border-neutral-200 px-2 py-2 align-middle ${OVERFLOW[overflow]}`}
+      className={`border-b border-border px-2 py-2 align-middle ${OVERFLOW[overflow]}`}
     />
   );
 }

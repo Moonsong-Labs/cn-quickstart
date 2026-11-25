@@ -67,9 +67,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
       confirmButtonDisabled={!renewData.description.trim()}
       onClose={onClose}
       onConfirm={handleRenew}
-      backdrop="static"
       size="xl"
-      zIndexBase={2000}
     >
       <div className="flex flex-col gap-6">
         <div>

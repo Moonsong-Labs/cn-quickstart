@@ -7,7 +7,7 @@ export function OverdueMark() {
     <>
       <span
         aria-hidden="true"
-        className="ml-1 font-bold text-red-600"
+        className="ml-1 font-bold text-danger-solid"
       >
         !
       </span>

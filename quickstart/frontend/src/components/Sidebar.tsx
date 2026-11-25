@@ -7,12 +7,12 @@ import { Link, NavLink } from 'react-router-dom';
 import { useUserStore } from '../stores/userStore';
 
 const NAV_LINK =
-  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-base no-underline transition-colors';
+  'focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors';
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return isActive
-    ? `${NAV_LINK} bg-brand-700 font-medium text-white hover:text-white`
-    : `${NAV_LINK} text-neutral-800 hover:bg-neutral-200 hover:text-neutral-900`;
+    ? `${NAV_LINK} bg-primary font-medium text-primary-foreground`
+    : `${NAV_LINK} text-foreground-secondary hover:bg-sidebar-hover hover:text-foreground`;
 }
 
 /** The app shell's navigation, with the signed-in user at the bottom. */
@@ -26,10 +26,10 @@ const Sidebar: React.FC = () => {
   const isProvider = user?.isAdmin ?? false;
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-100 px-4 py-7">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-sidebar px-4 py-7">
       <Link
         to="/"
-        className="px-3 text-2xl font-extrabold tracking-tight text-neutral-900 no-underline hover:text-neutral-900"
+        className="focus-ring px-3 text-2xl font-extrabold tracking-tight"
       >
         QuickStart
       </Link>
@@ -66,22 +66,22 @@ const Sidebar: React.FC = () => {
       <div className="mt-auto px-2">
         {user ? (
           <div className="flex items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-neutral-700 text-neutral-700">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-current text-label">
               <PersonIcon />
             </span>
             <div className="min-w-0">
               <p
                 id="user-name"
-                className="mb-0 truncate font-semibold leading-tight"
+                className="truncate font-semibold leading-tight"
               >
                 {user.name}
               </p>
-              <p className="mb-0 text-sm text-neutral-600">
+              <p className="text-sm text-muted-foreground">
                 {isProvider ? 'App Provider' : 'App User'}
               </p>
               <button
                 type="button"
-                className="mt-1 border-0 bg-transparent p-0 text-sm text-brand-700 underline hover:text-brand-800"
+                className="focus-ring mt-1 cursor-pointer text-sm text-primary underline hover:text-primary-hover"
                 onClick={logout}
               >
                 Log out
@@ -92,7 +92,7 @@ const Sidebar: React.FC = () => {
           !loading && (
             <Link
               to="/login"
-              className="font-medium text-brand-700 hover:text-brand-800"
+              className="focus-ring font-medium text-primary hover:text-primary-hover"
             >
               Log in
             </Link>

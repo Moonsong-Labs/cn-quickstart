@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: 0BSD
 
 const TONE = {
-  neutral: 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900',
-  inverse: 'text-white/80 hover:bg-white/10 hover:text-white',
+  neutral: 'text-subtle-foreground hover:bg-muted hover:text-foreground',
+  inverse: 'text-inverse/80 hover:bg-inverse/10 hover:text-inverse',
 };
 
 /** The × button that closes a dialog or a notification. `inverse` sits on a dark background. */
@@ -19,7 +19,7 @@ export function CloseButton({
       type="button"
       aria-label="Close"
       onClick={onClick}
-      className={`cursor-pointer rounded-md p-1 ${TONE[tone]}`}
+      className={`focus-ring cursor-pointer rounded-md p-1 ${TONE[tone]}`}
     >
       <svg
         width="16"

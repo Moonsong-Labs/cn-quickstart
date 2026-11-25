@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
 import { Button } from '../components/Button';
 import { Input, Label } from '../components/Form';
-import PageHeader from '../components/PageHeader';
+import { Page, PageBody } from '../components/Page';
 import { Table, Td, Th } from '../components/Table';
 import type { Client, FeatureFlags } from '../openapi';
 import type { TenantRegistrationRequest } from '../openapi.d.ts';
@@ -101,12 +101,11 @@ const TenantRegistrationView: React.FC = () => {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Tenants"
-        subtitle="Tenant registrations"
-      />
-      <div className="px-10 py-8">
+    <Page
+      title="Tenants"
+      subtitle="Tenant registrations"
+    >
+      <PageBody>
         <form
           className="flex max-w-2xl flex-col gap-3"
           onSubmit={handleSubmit}
@@ -240,8 +239,8 @@ const TenantRegistrationView: React.FC = () => {
             </tbody>
           </Table>
         </div>
-      </div>
-    </div>
+      </PageBody>
+    </Page>
   );
 };
 

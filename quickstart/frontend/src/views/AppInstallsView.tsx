@@ -3,8 +3,10 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { Badge } from '../components/Badge';
 import { Button, type ButtonVariant } from '../components/Button';
-import PageHeader from '../components/PageHeader';
+import { DescriptionItem, DescriptionList } from '../components/DescriptionList';
+import { Page, PageBody } from '../components/Page';
 import {
   type InstallAction,
   type InstallNote,
@@ -69,7 +71,9 @@ const AppInstallsView: React.FC = () => {
 
   if (!user) {
     return loading ? null : (
-      <p className="px-10 py-8 text-neutral-600">Log in to see installations.</p>
+      <PageBody>
+        <p className="text-muted-foreground">Log in to see installations.</p>
+      </PageBody>
     );
   }
 
@@ -91,22 +95,21 @@ const AppInstallsView: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <PageHeader
-        title={title}
-        subtitle="Licensing Demo"
-      />
+    <Page
+      title={title}
+      subtitle="Licensing Demo"
+    >
       {selected === undefined ? (
-        <div className="px-10 py-8">
+        <PageBody>
           <p className="mb-1 font-medium">No installation requests yet.</p>
           <RequestHint />
-        </div>
+        </PageBody>
       ) : (
         <div className="flex flex-1">
-          <div className="flex w-96 shrink-0 flex-col border-r border-neutral-200 p-5">
+          <div className="flex w-96 shrink-0 flex-col border-r border-border p-5">
             <ul
               aria-label={title}
-              className="m-0 flex list-none flex-col gap-2 p-0"
+              className="flex flex-col gap-2"
             >
               {unifiedInstalls.map((item) => (
                 <InstallListItem
@@ -125,23 +128,25 @@ const AppInstallsView: React.FC = () => {
           </div>
           <section
             aria-label="Installation details"
-            className="min-w-0 flex-1 px-10 py-8"
+            className="min-w-0 flex-1"
           >
-            <InstallDetail
-              item={selected}
-              stage={installStage(selected, unifiedInstalls, viewer)}
-              viewer={viewer}
-              onAction={(action) => run(action, selected)}
-            />
+            <PageBody>
+              <InstallDetail
+                item={selected}
+                stage={installStage(selected, unifiedInstalls, viewer)}
+                viewer={viewer}
+                onAction={(action) => run(action, selected)}
+              />
+            </PageBody>
           </section>
         </div>
       )}
-    </div>
+    </Page>
   );
 };
 
 const RequestHint: React.FC = () => (
-  <p className="mb-0 text-sm text-neutral-500">
+  <p className="text-sm text-subtle-foreground">
     Run <code>make create-app-install-request</code> to send a new request.
   </p>
 );
@@ -173,21 +178,21 @@ const InstallListItem: React.FC<InstallListItemProps> = ({
         type="button"
         aria-current={isSelected ? 'true' : undefined}
         onClick={onSelect}
-        className={`flex w-full items-start justify-between gap-3 rounded-lg border-0 border-l-4 px-4 py-3 text-left transition-colors ${
+        className={`focus-ring flex w-full cursor-pointer items-start justify-between gap-3 rounded-lg border-l-4 px-4 py-3 text-left transition-colors ${
           isSelected
-            ? 'border-brand-700 bg-brand-50'
-            : 'border-transparent bg-white hover:bg-neutral-50'
+            ? 'border-primary bg-primary-subtle'
+            : 'border-transparent bg-background hover:bg-muted-subtle'
         }`}
       >
         <span className="min-w-0">
           <span className="block truncate font-semibold">
             {partyHint(viewer === 'provider' ? item.user : item.provider)}
           </span>
-          <span className="block text-sm text-neutral-600">{line}</span>
+          <span className="block text-sm text-muted-foreground">{line}</span>
           {metaValues.map((value) => (
             <span
               key={value}
-              className="block truncate font-mono text-xs text-neutral-500"
+              className="block truncate font-mono text-xs text-subtle-foreground"
             >
               {value}
             </span>
@@ -212,47 +217,49 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
   return (
     <div className="max-w-3xl">
       <div className="flex items-center gap-3">
-        <h2 className="mb-0 text-3xl font-bold tracking-tight">
+        <h2 className="text-3xl font-bold tracking-tight">
           {stage.status === 'requested' ? 'Installation request' : 'Installation'}
         </h2>
         <StatusBadge status={stage.status} />
       </div>
 
-      <dl className="mt-6 mb-0 grid grid-cols-[10rem_1fr] gap-y-3">
-        <dt className="font-normal text-neutral-600">
-          {viewer === 'provider' ? 'User' : 'Provider'}
-        </dt>
-        <dd className="mb-0">{partyHint(viewer === 'provider' ? item.user : item.provider)}</dd>
-        {stage.status === 'installed' && (
-          <>
-            <dt className="font-normal text-neutral-600">Licenses</dt>
-            <dd
-              className="mb-0"
+      <div className="mt-6">
+        <DescriptionList>
+          <DescriptionItem term={viewer === 'provider' ? 'User' : 'Provider'}>
+            {partyHint(viewer === 'provider' ? item.user : item.provider)}
+          </DescriptionItem>
+          {stage.status === 'installed' && (
+            <DescriptionItem
+              term="Licenses"
               data-testid="num-licenses"
             >
               {item.numLicensesCreated}
-            </dd>
-          </>
-        )}
-        {metaEntries.map(([key, value]) => (
-          <div
-            key={key}
-            className="contents"
-          >
-            <dt className="font-normal text-neutral-600">{key}</dt>
-            <dd className="mb-0 font-mono text-sm leading-6">{value}</dd>
-          </div>
-        ))}
-      </dl>
+            </DescriptionItem>
+          )}
+          {metaEntries.map(([key, value]) => (
+            <DescriptionItem
+              key={key}
+              term={key}
+              code
+            >
+              {value}
+            </DescriptionItem>
+          ))}
+        </DescriptionList>
+      </div>
 
-      <div className="mt-6 border-t border-neutral-200 pt-6">
+      <div className="mt-6 border-t border-border pt-6">
         <h3 className="mb-3 text-xl font-bold">Next step</h3>
-        <p className="mb-0">
+        <p>
           {stage.turn !== null && (
-            <TurnBadge
-              turn={stage.turn}
-              viewer={viewer}
-            />
+            <span className="mr-2">
+              <Badge
+                shape="pill"
+                tone={stage.turn === viewer ? 'primary' : 'neutral'}
+              >
+                {stage.turn === viewer ? 'Your turn' : `Waiting for ${ROLE_NAME[stage.turn]}`}
+              </Badge>
+            </span>
           )}
           {NOTE_TEXT[stage.note]}
         </p>
@@ -270,23 +277,37 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
                 </Button>
               ))}
             </div>
-            <p className="mt-3 mb-0 text-sm text-neutral-500">
+            <p className="mt-3 text-sm text-subtle-foreground">
               Your validator node signs these actions for your party.
             </p>
           </>
         )}
       </div>
 
-      <details className="mt-8 border-t border-neutral-200 pt-5">
-        <summary className="cursor-pointer font-semibold">Technical details</summary>
-        <dl className="mt-3 mb-0 grid grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="font-normal text-neutral-600">Contract ID</dt>
-          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.contractId}</dd>
-          <dt className="font-normal text-neutral-600">Provider</dt>
-          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.provider}</dd>
-          <dt className="font-normal text-neutral-600">User</dt>
-          <dd className="mb-0 font-mono text-xs leading-5 break-all">{item.user}</dd>
-        </dl>
+      <details className="mt-8 border-t border-border pt-5">
+        <summary className="focus-ring cursor-pointer font-semibold">Technical details</summary>
+        <div className="mt-3">
+          <DescriptionList size="sm">
+            <DescriptionItem
+              term="Contract ID"
+              code
+            >
+              {item.contractId}
+            </DescriptionItem>
+            <DescriptionItem
+              term="Provider"
+              code
+            >
+              {item.provider}
+            </DescriptionItem>
+            <DescriptionItem
+              term="User"
+              code
+            >
+              {item.user}
+            </DescriptionItem>
+          </DescriptionList>
+        </div>
       </details>
     </div>
   );
@@ -294,23 +315,9 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
 
 const StatusBadge: React.FC<{ status: InstallStage['status'] }> = ({ status }) =>
   status === 'requested' ? (
-    <span className="shrink-0 rounded-md bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-800">
-      Requested
-    </span>
+    <Badge tone="warning">Requested</Badge>
   ) : (
-    <span className="shrink-0 rounded-md bg-brand-50 px-2.5 py-1 text-sm font-medium text-brand-800">
-      Installed
-    </span>
+    <Badge tone="success">Installed</Badge>
   );
-
-const TurnBadge: React.FC<{ turn: Role; viewer: Role }> = ({ turn, viewer }) => (
-  <span
-    className={`mr-2 inline-block rounded-full px-2.5 py-0.5 text-sm font-semibold ${
-      turn === viewer ? 'bg-brand-700 text-white' : 'bg-neutral-100 text-neutral-700'
-    }`}
-  >
-    {turn === viewer ? 'Your turn' : `Waiting for ${ROLE_NAME[turn]}`}
-  </span>
-);
 
 export default AppInstallsView;

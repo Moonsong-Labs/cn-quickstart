@@ -4,7 +4,7 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
+import { Page } from '../components/Page';
 import { useUserStore } from '../stores/userStore';
 
 const HomeView: React.FC = () => {
@@ -22,7 +22,7 @@ const HomeView: React.FC = () => {
   }
 
   return (
-    <PageHeader
+    <Page
       title="Home"
       subtitle="Licensing Demo"
     />

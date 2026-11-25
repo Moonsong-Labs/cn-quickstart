@@ -27,7 +27,7 @@ const App: React.FC = () => {
 
   return (
     <AppProviders>
-      <div className="flex min-h-screen bg-white font-sans text-neutral-900">
+      <div className="flex min-h-screen">
         <Sidebar />
         <main className="min-w-0 flex-1">
           <Routes>

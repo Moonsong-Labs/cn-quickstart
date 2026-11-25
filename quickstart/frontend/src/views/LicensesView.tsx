@@ -7,7 +7,7 @@ import { Button } from '../components/Button';
 import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
 import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
 import { OverdueMark } from '../components/OverdueMark';
-import PageHeader from '../components/PageHeader';
+import { Page, PageBody } from '../components/Page';
 import { Table, Td, Th } from '../components/Table';
 import type { License, LicenseRenewRequest } from '../openapi.d.ts';
 import { useLicenseStore } from '../stores/licenseStore';
@@ -107,12 +107,11 @@ const LicensesView: React.FC = () => {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Licenses"
-        subtitle="Licensing Demo"
-      />
-      <div className="px-10 py-8">
+    <Page
+      title="Licenses"
+      subtitle="Licensing Demo"
+    >
+      <PageBody>
         <Table
           layout="fixed"
           id="licenses-table"
@@ -172,7 +171,7 @@ const LicensesView: React.FC = () => {
             })}
           </tbody>
         </Table>
-      </div>
+      </PageBody>
 
       <LicenseRenewalRequestModal
         show={showRenewalModal && !!selectedLicense}
@@ -192,7 +191,7 @@ const LicensesView: React.FC = () => {
         onClose={closeArchiveModal}
         onArchive={handleArchive}
       />
-    </div>
+    </Page>
   );
 };
 

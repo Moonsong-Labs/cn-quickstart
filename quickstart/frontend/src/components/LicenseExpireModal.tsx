@@ -27,9 +27,7 @@ export default function LicenseArchiveModal({ show, license, onClose, onArchive 
         setExpireDescription('');
         onClose();
       }}
-      backdrop="static"
       size="lg"
-      zIndexBase={1500}
       confirmVariant="danger"
       confirmButtonLabel="Archive"
     >

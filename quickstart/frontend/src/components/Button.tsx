@@ -14,7 +14,7 @@ interface ButtonStyle {
 }
 
 const BASE =
-  'inline-flex cursor-pointer items-center justify-center rounded-lg border font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-50';
+  'focus-ring inline-flex cursor-pointer items-center justify-center rounded-lg border font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50';
 
 const SIZE: Record<ButtonSize, string> = {
   md: 'px-4 py-2 text-sm',
@@ -22,9 +22,9 @@ const SIZE: Record<ButtonSize, string> = {
 };
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'border-brand-700 bg-brand-700 text-white hover:bg-brand-800',
-  secondary: 'border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100',
-  danger: 'border-red-300 bg-white text-red-700 hover:bg-red-50',
+  primary: 'border-primary bg-primary text-primary-foreground hover:bg-primary-hover',
+  secondary: 'border-border-strong bg-background text-foreground-secondary hover:bg-muted',
+  danger: 'border-danger-border bg-background text-danger hover:bg-danger-subtle',
 };
 
 function buttonClassName({ variant = 'secondary', size = 'md' }: ButtonStyle) {

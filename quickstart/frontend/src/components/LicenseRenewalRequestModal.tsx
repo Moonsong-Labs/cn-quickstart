@@ -71,9 +71,7 @@ export default function LicenseRenewalRequestModal({
       show={show}
       title={<div>License Renewal Requests</div>}
       onClose={handleClose}
-      backdrop="static"
       size="xl"
-      zIndexBase={1500}
     >
       <LicenseRenewModal
         show={showNewModal && isAdmin}
@@ -180,7 +178,7 @@ export default function LicenseRenewalRequestModal({
                       <>
                         Please accept the allocation request in your{' '}
                         <a
-                          className="font-medium text-brand-700 underline"
+                          className="focus-ring font-medium text-primary underline hover:text-primary-hover"
                           href={`${userWallet}/allocations`}
                           target="_blank"
                           rel="noopener"

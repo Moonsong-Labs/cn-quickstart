@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import api from '../api';
 import { Button, ButtonLink } from '../components/Button';
 import { Input, Label } from '../components/Form';
-import PageHeader from '../components/PageHeader';
+import { Page, PageBody } from '../components/Page';
 import type { Client, FeatureFlags, LoginLink } from '../openapi';
 import { useToast } from '../stores/toastStore';
 
@@ -43,12 +43,11 @@ const LoginView: React.FC = () => {
   const isOAuth2 = featureFlags?.authMode === 'oauth2';
 
   return (
-    <>
-      <PageHeader
-        title="Login"
-        subtitle={isOAuth2 ? 'Login with OAuth 2.0' : 'Login with a shared secret'}
-      />
-      <div className="px-10 py-8">
+    <Page
+      title="Login"
+      subtitle={isOAuth2 ? 'Login with OAuth 2.0' : 'Login with a shared secret'}
+    >
+      <PageBody>
         {isOAuth2 ? (
           <ul className="flex max-w-sm flex-col gap-2">
             {loginLinks.map((link) => (
@@ -89,12 +88,12 @@ const LoginView: React.FC = () => {
             </Button>
           </form>
         )}
-        <div className="mt-6 text-sm text-neutral-600">
+        <div className="mt-6 text-sm text-muted-foreground">
           <div>AppProvider user: app-provider{isOAuth2 && ', password: abc123'}</div>
           <div>AppUser user: app-user{isOAuth2 && ', password: abc123'}</div>
         </div>
-      </div>
-    </>
+      </PageBody>
+    </Page>
   );
 };
 
