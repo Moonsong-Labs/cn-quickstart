@@ -149,7 +149,7 @@ const AppInstallsView: React.FC = () => {
 
 const RequestHint: React.FC = () => (
   <p className="text-sm text-subtle-foreground">
-    Run <code>make create-app-install-request</code> to send a new request.
+    Run <code>make create-app-install-request</code> to submit a new request.
   </p>
 );
 
