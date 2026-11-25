@@ -342,6 +342,33 @@ test('Returns a sanitized ledger error when acceptance fails', async () => {
   expect(submissions).toHaveLength(1);
 });
 
+test('Logs the command and update IDs when the confirmed acceptance result cannot be decoded', async () => {
+  const ledgerResponse = exerciseResponse(
+    AppInstallRequest.AppInstallRequest_Accept.choiceName,
+    { installMeta: { values: installMeta.data }, meta: { values: operationMeta.data } },
+    {},
+  );
+  const { app, login } = setup(
+    [requestRow(contractId, providerParty, 'customer-party')],
+    ledgerResponse,
+  );
+  const provider = await login('app-provider');
+  const log = spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const response = await accept(app, provider);
+
+    expect(log).toHaveBeenCalledWith('Processing installation action failed', {
+      errorName: 'LedgerApiError',
+      commandId,
+      updateId: ledgerResponse.transaction.updateId,
+    });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ message: 'Internal Server Error' });
+  } finally {
+    log.mockRestore();
+  }
+});
+
 test.each([
   ['missing command ID', undefined, { installMeta, meta: operationMeta }],
   ['whitespace-only command ID', '   ', { installMeta, meta: operationMeta }],

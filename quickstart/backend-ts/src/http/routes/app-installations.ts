@@ -2,6 +2,7 @@ import { type Context, Elysia, status, t, ValidationError } from 'elysia';
 import type { OpenAPIV3 } from 'openapi-types';
 import type { Pool } from 'pg';
 import type { LedgerConnection } from '../../integrations/ledger/connect';
+import { LedgerApiError } from '../../integrations/ledger/error';
 import {
   acceptAppInstallRequest,
   cancelAppInstall,
@@ -190,10 +191,13 @@ function installationActionError({ error, code }: { error: unknown; code: unknow
   if (error instanceof Response) return error;
   if (code === 'PARSE' || (error instanceof ValidationError && error.type !== 'response'))
     return installationActionProblem(400, 'Invalid request');
-  console.error(
-    'Processing installation action failed',
-    error instanceof Error ? error.name : 'unknown error',
-  );
+  console.error('Processing installation action failed', {
+    errorName: error instanceof Error ? error.name : 'unknown error',
+    ...(error instanceof LedgerApiError && {
+      commandId: error.commandId,
+      updateId: error.updateId,
+    }),
+  });
   return installationActionProblem(500, 'Internal Server Error');
 }
 
