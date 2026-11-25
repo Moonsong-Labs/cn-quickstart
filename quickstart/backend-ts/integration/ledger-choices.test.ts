@@ -521,7 +521,7 @@ test(
       name: 'LedgerApiError',
       commandId,
       updateId: undefined,
-      cause: { grpcCodeValue: GRPC_NOT_FOUND },
+      cause: { grpcCodeValue: GRPC_NOT_FOUND, code: 'CONTRACT_NOT_FOUND' },
     });
   },
   TEST_TIMEOUT_MS,

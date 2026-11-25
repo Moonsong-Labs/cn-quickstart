@@ -1,3 +1,4 @@
+import { isJsCantonError } from '@canton-network/core-ledger-client';
 import { type Context, Elysia, status, t, ValidationError } from 'elysia';
 import type { OpenAPIV3 } from 'openapi-types';
 import type { Pool } from 'pg';
@@ -187,10 +188,19 @@ function installationActionProblem(status: number, message: string) {
 }
 
 /** Maps invalid input and unexpected failures to the installation API's problem responses. */
-function installationActionError({ error, code }: { error: unknown; code: unknown }) {
+function installationActionError(
+  { error, code }: { error: unknown; code: unknown },
+  notFoundMessage: string,
+) {
   if (error instanceof Response) return error;
   if (code === 'PARSE' || (error instanceof ValidationError && error.type !== 'response'))
     return installationActionProblem(400, 'Invalid request');
+  if (
+    error instanceof LedgerApiError &&
+    isJsCantonError(error.cause) &&
+    error.cause.code === 'CONTRACT_NOT_FOUND'
+  )
+    return installationActionProblem(404, notFoundMessage);
   console.error('Processing installation action failed', {
     errorName: error instanceof Error ? error.name : 'unknown error',
     ...(error instanceof LedgerApiError && {
@@ -318,7 +328,7 @@ export function appInstallationRoutes(
             throw installationActionProblem(400, 'Invalid metadata');
           if (!isAccept) delete body.installMeta;
         },
-        error: installationActionError,
+        error: (context) => installationActionError(context, 'Installation request not found'),
       },
     )
     .post(
@@ -361,7 +371,7 @@ export function appInstallationRoutes(
           if (!hasMetadataShape(body?.meta))
             throw installationActionProblem(400, 'Invalid metadata');
         },
-        error: installationActionError,
+        error: (context) => installationActionError(context, 'Installation not found'),
       },
     );
 }
