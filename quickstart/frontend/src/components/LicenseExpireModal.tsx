@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { License } from '../openapi';
-import { FIELD } from './controls';
+import { Input, Label } from './Form';
 import Modal from './Modal.tsx';
 
 type Props = {
@@ -38,19 +38,14 @@ export default function LicenseArchiveModal({ show, license, onClose, onArchive 
           <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
         </div>
         <div className="flex items-center gap-2">
-          <label
-            htmlFor="expire-description"
-            className="shrink-0 text-sm font-medium text-neutral-700"
-          >
-            Description:
-          </label>
-          <input
-            id="expire-description"
-            className={`${FIELD} input-expire-description min-w-0 flex-1`}
-            placeholder=""
-            value={expireDescription}
-            onChange={(e) => setExpireDescription(e.target.value)}
-          />
+          <Label htmlFor="expire-description">Description:</Label>
+          <div className="min-w-0 flex-1">
+            <Input
+              id="expire-description"
+              value={expireDescription}
+              onChange={(e) => setExpireDescription(e.target.value)}
+            />
+          </div>
         </div>
       </div>
     </Modal>

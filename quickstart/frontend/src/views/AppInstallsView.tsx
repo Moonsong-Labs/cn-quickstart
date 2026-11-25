@@ -3,7 +3,7 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { type ButtonVariant, buttonClass } from '../components/controls';
+import { Button, type ButtonVariant } from '../components/Button';
 import PageHeader from '../components/PageHeader';
 import {
   type InstallAction,
@@ -260,14 +260,14 @@ const InstallDetail: React.FC<InstallDetailProps> = ({ item, stage, viewer, onAc
           <>
             <div className="mt-5 flex flex-wrap gap-3">
               {stage.actions.map((action) => (
-                <button
+                <Button
                   key={action}
-                  type="button"
-                  className={buttonClass(ACTION_VARIANT[action], 'lg')}
+                  variant={ACTION_VARIANT[action]}
+                  size="lg"
                   onClick={() => onAction(action)}
                 >
                   {ACTION_LABEL[action]}
-                </button>
+                </Button>
               ))}
             </div>
             <p className="mt-3 mb-0 text-sm text-neutral-500">

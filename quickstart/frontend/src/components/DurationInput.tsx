@@ -1,19 +1,14 @@
-import type { CSSProperties } from 'react';
-import { FIELD } from './controls';
+import { Input, Select } from './Form';
 
 export default function DurationInput({
   id,
   value,
   onChange,
-  inputStyle,
-  selectStyle,
   units,
 }: {
   id?: string;
   value?: string;
   onChange: (v: string) => void;
-  inputStyle?: CSSProperties;
-  selectStyle?: CSSProperties;
   units?: Map<string, string> | string;
 }) {
   const m = /^(\d+)([smhd])$/.exec(value || '');
@@ -48,38 +43,39 @@ export default function DurationInput({
   const unit = m ? m[2] : unitOptions[0] ? unitOptions[0][0] : 'd';
 
   return (
-    <>
-      <input
-        id={id}
-        type="number"
-        min={1}
-        className={FIELD}
-        value={num}
-        onChange={(e) => {
-          const n = Number(e.target.value) || 0;
-          onChange(`${n}${unit}`);
-        }}
-        style={{ width: '120px', ...(inputStyle || {}) }}
-      />
-      <select
-        className={FIELD}
-        value={unit}
-        onChange={(e) => {
-          const u = (e.target.value as string) || (unitOptions[0] ? unitOptions[0][0] : 'd');
-          const n = Number(num) || 0;
-          onChange(`${n}${u}`);
-        }}
-        style={{ width: '120px', ...(selectStyle || {}) }}
-      >
-        {unitOptions.map(([key, label]) => (
-          <option
-            key={key}
-            value={key}
-          >
-            {label}
-          </option>
-        ))}
-      </select>
-    </>
+    <div className="flex items-center gap-2">
+      <div className="w-30">
+        <Input
+          id={id}
+          type="number"
+          min={1}
+          value={num}
+          onChange={(e) => {
+            const n = Number(e.target.value) || 0;
+            onChange(`${n}${unit}`);
+          }}
+        />
+      </div>
+      <div className="w-30">
+        <Select
+          aria-label="Unit"
+          value={unit}
+          onChange={(e) => {
+            const u = (e.target.value as string) || (unitOptions[0] ? unitOptions[0][0] : 'd');
+            const n = Number(num) || 0;
+            onChange(`${n}${u}`);
+          }}
+        >
+          {unitOptions.map(([key, label]) => (
+            <option
+              key={key}
+              value={key}
+            >
+              {label}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
   );
 }

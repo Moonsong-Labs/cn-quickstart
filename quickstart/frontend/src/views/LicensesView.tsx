@@ -3,10 +3,12 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { buttonClass, DEADLINE_PASSED, TABLE } from '../components/controls';
+import { Button } from '../components/Button';
 import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
 import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
+import { OverdueMark } from '../components/OverdueMark';
 import PageHeader from '../components/PageHeader';
+import { Table, Td, Th } from '../components/Table';
 import type { License, LicenseRenewRequest } from '../openapi.d.ts';
 import { useLicenseStore } from '../stores/licenseStore';
 import { useUserStore } from '../stores/userStore';
@@ -110,118 +112,66 @@ const LicensesView: React.FC = () => {
         title="Licenses"
         subtitle="Licensing Demo"
       />
-      <div className="overflow-x-auto px-10 py-8">
-        <table
-          className={TABLE.table}
+      <div className="px-10 py-8">
+        <Table
+          layout="fixed"
           id="licenses-table"
         >
           <thead>
             <tr>
-              <th
-                className={TABLE.th}
-                style={{ width: '100px' }}
-              >
-                License Contract ID
-              </th>
-              {user?.isAdmin && (
-                <th
-                  className={TABLE.th}
-                  style={{ width: '120px' }}
-                >
-                  User
-                </th>
-              )}
-              <th
-                className={TABLE.th}
-                style={{ width: '190px' }}
-              >
-                Expires At
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '70px' }}
-              >
-                License #
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '80px' }}
-              >
-                Pending Renewals
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '80px' }}
-              >
-                Accepted Renewals
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '80px' }}
-              >
-                Status
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '210px' }}
-              >
-                Actions
-              </th>
+              <Th style={{ width: '100px' }}>License Contract ID</Th>
+              {user?.isAdmin && <Th style={{ width: '120px' }}>User</Th>}
+              <Th style={{ width: '190px' }}>Expires At</Th>
+              <Th style={{ width: '70px' }}>License #</Th>
+              <Th style={{ width: '80px' }}>Pending Renewals</Th>
+              <Th style={{ width: '80px' }}>Accepted Renewals</Th>
+              <Th style={{ width: '80px' }}>Status</Th>
+              <Th style={{ width: '210px' }}>Actions</Th>
             </tr>
           </thead>
           <tbody>
             {licenses.map((license) => {
               return (
-                <tr
-                  key={license.contractId}
-                  className="license-row"
-                >
-                  <td className={`${TABLE.td} truncate license-contract-id`}>
-                    {license.contractId}
-                  </td>
-                  {user?.isAdmin && (
-                    <td className={`${TABLE.td} truncate license-user`}>{license.user}</td>
-                  )}
-                  <td
-                    className={`${TABLE.td} truncate license-expires-at ${license.isExpired ? DEADLINE_PASSED : ''}`}
-                  >
+                <tr key={license.contractId}>
+                  <Td overflow="truncate">{license.contractId}</Td>
+                  {user?.isAdmin && <Td overflow="truncate">{license.user}</Td>}
+                  <Td overflow="truncate">
                     {formatDateTime(license.expiresAt)}
-                  </td>
-                  <td className={`${TABLE.td} truncate license-number`}>{license.licenseNum}</td>
-                  <td className={`${TABLE.td} truncate`}>
+                    {license.isExpired && <OverdueMark />}
+                  </Td>
+                  <Td overflow="truncate">{license.licenseNum}</Td>
+                  <Td overflow="truncate">
                     {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
-                  </td>
-                  <td className={`${TABLE.td} truncate`}>
+                  </Td>
+                  <Td overflow="truncate">
                     {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
-                  </td>
-                  <td className={`${TABLE.td} truncate license-status`}>
-                    {license.isExpired ? 'EXPIRED' : 'ACTIVE'}
-                  </td>
-                  <td className={`${TABLE.td} license-actions`}>
-                    {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
-                      <button
-                        type="button"
-                        className={`${buttonClass('primary')} btn-actions-license mr-2`}
-                        onClick={() => openRenewalModal(license.contractId)}
-                      >
-                        Renewals
-                      </button>
-                    )}
-                    {license.expiresAt && license.isExpired && (
-                      <button
-                        type="button"
-                        className={`${buttonClass('danger')} btn-expire-license`}
-                        onClick={() => openArchiveModal(license.contractId)}
-                      >
-                        Archive
-                      </button>
-                    )}
-                  </td>
+                  </Td>
+                  <Td overflow="truncate">{license.isExpired ? 'EXPIRED' : 'ACTIVE'}</Td>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
+                        <Button
+                          variant="primary"
+                          onClick={() => openRenewalModal(license.contractId)}
+                        >
+                          Renewals
+                        </Button>
+                      )}
+                      {license.expiresAt && license.isExpired && (
+                        <Button
+                          variant="danger"
+                          onClick={() => openArchiveModal(license.contractId)}
+                        >
+                          Archive
+                        </Button>
+                      )}
+                    </div>
+                  </Td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
 
       <LicenseRenewalRequestModal

@@ -4,7 +4,8 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import api from '../api';
-import { buttonClass, FIELD, LABEL } from '../components/controls';
+import { Button, ButtonLink } from '../components/Button';
+import { Input, Label } from '../components/Form';
 import PageHeader from '../components/PageHeader';
 import type { Client, FeatureFlags, LoginLink } from '../openapi';
 import { useToast } from '../stores/toastStore';
@@ -51,13 +52,16 @@ const LoginView: React.FC = () => {
         {isOAuth2 ? (
           <ul className="flex max-w-sm flex-col gap-2">
             {loginLinks.map((link) => (
-              <li key={link.url}>
-                <a
-                  className={`${buttonClass('secondary', 'lg')} w-full`}
+              <li
+                key={link.url}
+                className="grid"
+              >
+                <ButtonLink
+                  size="lg"
                   href={link.url}
                 >
                   {link.name}
-                </a>
+                </ButtonLink>
               </li>
             ))}
           </ul>
@@ -69,26 +73,20 @@ const LoginView: React.FC = () => {
             className="flex max-w-md items-end gap-3"
           >
             <div className="flex flex-1 flex-col gap-1">
-              <label
-                htmlFor="username"
-                className={LABEL}
-              >
-                User:
-              </label>
-              <input
+              <Label htmlFor="username">User:</Label>
+              <Input
                 type="text"
                 id="username"
                 name="username"
-                className={FIELD}
               />
             </div>
-            <button
+            <Button
               type="submit"
               name="submit"
-              className={buttonClass('primary')}
+              variant="primary"
             >
               Sign in
-            </button>
+            </Button>
           </form>
         )}
         <div className="mt-6 text-sm text-neutral-600">

@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { type ButtonVariant, buttonClass } from './controls';
+import { Button, type ButtonVariant } from './Button';
+import { CloseButton } from './CloseButton';
 
 type ModalProps = {
   show: boolean;
@@ -83,36 +84,18 @@ export default function Modal({
         <div className={`w-full rounded-xl bg-white shadow-xl ${DIALOG_WIDTH[size]}`}>
           <div className="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-4">
             <h5 className="text-lg font-semibold">{title}</h5>
-            <button
-              type="button"
-              className="cursor-pointer rounded-md p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-              aria-label="Close"
-              onClick={onClose}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M3 3l10 10M13 3 3 13" />
-              </svg>
-            </button>
+            <CloseButton onClick={onClose} />
           </div>
           <div className="px-6 py-5">{children}</div>
           <div className="flex justify-end gap-2 border-t border-neutral-200 px-6 py-4">
             {footer ?? (
-              <button
-                type="button"
-                className={buttonClass(confirmVariant)}
+              <Button
+                variant={confirmVariant}
                 disabled={confirmButtonDisabled}
                 onClick={() => (onConfirm ? onConfirm() : onClose())}
               >
                 {confirmButtonLabel}
-              </button>
+              </Button>
             )}
           </div>
         </div>

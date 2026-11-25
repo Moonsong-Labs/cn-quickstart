@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import LicenseRenewModal from '../components/LicenseRenewModal.tsx';
 import type { License, LicenseRenewalRequest, LicenseRenewRequest } from '../openapi';
-import { buttonClass, DEADLINE_PASSED, TABLE } from './controls';
+import { Button } from './Button';
 import Modal from './Modal.tsx';
+import { OverdueMark } from './OverdueMark';
+import { Table, Td, Th } from './Table';
 
 type Props = {
   show: boolean;
@@ -80,159 +82,100 @@ export default function LicenseRenewalRequestModal({
         onClose={handleClose}
       />
 
-      <div>
-        <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
-      </div>
-
-      <br />
-      {isAdmin && (
-        <button
-          type="button"
-          className={`${buttonClass('primary')} btn-issue-renewal`}
-          onClick={() => setShowNewModal(true)}
-        >
-          New
-        </button>
-      )}
-
-      <div className="renewals mt-5">
-        <table
-          className={TABLE.table}
+      <div className="flex flex-col gap-5">
+        <div>
+          <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
+        </div>
+        {isAdmin && (
+          <div>
+            <Button
+              variant="primary"
+              onClick={() => setShowNewModal(true)}
+            >
+              New
+            </Button>
+          </div>
+        )}
+        <Table
+          layout="fixed"
           id="renewals-table"
         >
           <thead>
             <tr>
-              <th
-                className={TABLE.th}
-                style={{ width: '110px' }}
-              >
-                Renewal Contract ID
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '110px' }}
-              >
-                Request Id
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '100px' }}
-              >
-                Requested At
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '50px' }}
-              >
-                Extension
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '30px' }}
-              >
-                Fee
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '100px' }}
-              >
-                Prepare Until
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '100px' }}
-              >
-                Settle Before
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '100px' }}
-              >
-                Description
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '150px', minWidth: '150px' }}
-              >
-                Status
-              </th>
-              <th
-                className={TABLE.th}
-                style={{ width: '220px' }}
-              >
-                Actions
-              </th>
+              <Th style={{ width: '110px' }}>Renewal Contract ID</Th>
+              <Th style={{ width: '110px' }}>Request Id</Th>
+              <Th style={{ width: '100px' }}>Requested At</Th>
+              <Th style={{ width: '50px' }}>Extension</Th>
+              <Th style={{ width: '30px' }}>Fee</Th>
+              <Th style={{ width: '100px' }}>Prepare Until</Th>
+              <Th style={{ width: '100px' }}>Settle Before</Th>
+              <Th style={{ width: '100px' }}>Description</Th>
+              <Th style={{ width: '150px', minWidth: '150px' }}>Status</Th>
+              <Th style={{ width: '220px' }}>Actions</Th>
             </tr>
           </thead>
           <tbody>
             {license?.renewalRequests?.map((renewal) => {
               return (
-                <tr
-                  key={renewal.contractId}
-                  className="renewal-row"
-                >
-                  <td
-                    className={`${TABLE.td} truncate renewal-contract-id`}
+                <tr key={renewal.contractId}>
+                  <Td
+                    overflow="truncate"
                     data-testid="renewal-contract-id"
                   >
                     {renewal.contractId}
-                  </td>
-                  <td
-                    className={`${TABLE.td} truncate renewal-request-id`}
+                  </Td>
+                  <Td
+                    overflow="truncate"
                     data-testid="renewal-request-id"
                   >
                     {renewal.requestId}
-                  </td>
-                  <td className={`${TABLE.td} truncate renewal-requested-at`}>
-                    {formatDateTime(renewal.requestedAt)}
-                  </td>
-                  <td className={`${TABLE.td} truncate`}>{renewal.licenseExtensionDuration}</td>
-                  <td className={`${TABLE.td} truncate`}>{renewal.licenseFeeAmount}</td>
-                  <td
-                    className={`${TABLE.td} truncate ${renewal.prepareDeadlinePassed ? DEADLINE_PASSED : ''}`}
-                  >
+                  </Td>
+                  <Td overflow="truncate">{formatDateTime(renewal.requestedAt)}</Td>
+                  <Td overflow="truncate">{renewal.licenseExtensionDuration}</Td>
+                  <Td overflow="truncate">{renewal.licenseFeeAmount}</Td>
+                  <Td overflow="truncate">
                     {formatDateTime(renewal.prepareUntil)}
-                  </td>
-                  <td
-                    className={`${TABLE.td} truncate ${renewal.settleDeadlinePassed ? DEADLINE_PASSED : ''}`}
-                  >
+                    {renewal.prepareDeadlinePassed && <OverdueMark />}
+                  </Td>
+                  <Td overflow="truncate">
                     {formatDateTime(renewal.settleBefore)}
+                    {renewal.settleDeadlinePassed && <OverdueMark />}
                     {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
                          date component and remove server side computation of settleDeadlinePassed */}
-                  </td>
-                  <td className={`${TABLE.td} truncate`}>{renewal.description}</td>
-                  <td className={`${TABLE.td} truncate`}>{makeStatus(renewal)}</td>
-                  <td className={`${TABLE.td} renewals-actions`}>
-                    {isAdmin &&
-                      !renewal.settleDeadlinePassed &&
-                      renewal.allocationCid &&
-                      license && (
-                        <button
-                          type="button"
-                          className={`${buttonClass('primary')} btn-complete-renewal mr-2`}
+                  </Td>
+                  <Td overflow="truncate">{renewal.description}</Td>
+                  <Td overflow="truncate">{makeStatus(renewal)}</Td>
+                  <Td>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isAdmin &&
+                        !renewal.settleDeadlinePassed &&
+                        renewal.allocationCid &&
+                        license && (
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              if (!renewal.allocationCid) return;
+                              void onCompleteRenewal(
+                                license.contractId,
+                                renewal.contractId,
+                                renewal.allocationCid,
+                              );
+                            }}
+                          >
+                            Complete Renewal
+                          </Button>
+                        )}
+                      {isAdmin && renewal && (
+                        <Button
+                          variant="danger"
                           onClick={() => {
-                            if (!renewal.allocationCid) return;
-                            void onCompleteRenewal(
-                              license.contractId,
-                              renewal.contractId,
-                              renewal.allocationCid,
-                            );
+                            void onWithdraw(renewal.contractId);
                           }}
                         >
-                          Complete Renewal
-                        </button>
+                          Withdraw
+                        </Button>
                       )}
-                    {isAdmin && renewal && (
-                      <button
-                        type="button"
-                        className={`${buttonClass('danger')} btn-withdraw`}
-                        onClick={() => {
-                          void onWithdraw(renewal.contractId);
-                        }}
-                      >
-                        Withdraw
-                      </button>
-                    )}
+                    </div>
                     {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
                       <>
                         Please accept the allocation request in your{' '}
@@ -247,12 +190,12 @@ export default function LicenseRenewalRequestModal({
                         .
                       </>
                     )}
-                  </td>
+                  </Td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+        </Table>
       </div>
     </Modal>
   );

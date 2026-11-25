@@ -3,6 +3,7 @@
 
 import type React from 'react';
 import { useToast } from '../stores/toastStore';
+import { CloseButton } from './CloseButton';
 
 const ToastNotification: React.FC = () => {
   const { message, show, hideError } = useToast();
@@ -27,24 +28,10 @@ const ToastNotification: React.FC = () => {
       >
         <div className="flex items-center justify-between border-b border-white/20 px-4 py-2">
           <strong>{headerText}</strong>
-          <button
-            type="button"
-            className="cursor-pointer rounded-md p-1 text-white/80 hover:bg-white/10 hover:text-white"
+          <CloseButton
+            tone="inverse"
             onClick={hideError}
-            aria-label="Close"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M3 3l10 10M13 3 3 13" />
-            </svg>
-          </button>
+          />
         </div>
         <div className="px-4 py-3 break-words">{message}</div>
       </div>

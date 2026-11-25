@@ -4,8 +4,10 @@
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
-import { buttonClass, FIELD, LABEL, TABLE } from '../components/controls';
+import { Button } from '../components/Button';
+import { Input, Label } from '../components/Form';
 import PageHeader from '../components/PageHeader';
+import { Table, Td, Th } from '../components/Table';
 import type { Client, FeatureFlags } from '../openapi';
 import type { TenantRegistrationRequest } from '../openapi.d.ts';
 import { useTenantRegistrationStore } from '../stores/tenantRegistrationStore';
@@ -106,38 +108,26 @@ const TenantRegistrationView: React.FC = () => {
       />
       <div className="px-10 py-8">
         <form
-          className="max-w-2xl"
+          className="flex max-w-2xl flex-col gap-3"
           onSubmit={handleSubmit}
         >
-          <div className="mb-3">
-            <label
-              htmlFor="tenantId"
-              className={`${LABEL} mb-1 block`}
-            >
-              Tenant ID:
-            </label>
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="tenantId">Tenant ID:</Label>
+            <Input
               type="text"
               id="tenantId"
               name="tenantId"
-              className={`${FIELD} w-full`}
               value={formData.tenantId}
               onChange={handleChange}
               required
             />
           </div>
-          <div className="mb-3">
-            <label
-              htmlFor="partyId"
-              className={`${LABEL} mb-1 block`}
-            >
-              PartyId:
-            </label>
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="partyId">PartyId:</Label>
+            <Input
               type="text"
               id="partyId"
               name="partyId"
-              className={`${FIELD} w-full`}
               value={formData.partyId}
               onChange={handleChange}
               required
@@ -145,35 +135,23 @@ const TenantRegistrationView: React.FC = () => {
           </div>
           {featureFlags?.authMode === 'oauth2' && (
             <>
-              <div className="mb-3">
-                <label
-                  htmlFor="clientId"
-                  className={`${LABEL} mb-1 block`}
-                >
-                  Client ID:
-                </label>
-                <input
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="clientId">Client ID:</Label>
+                <Input
                   type="text"
                   id="clientId"
                   name="clientId"
-                  className={`${FIELD} w-full`}
                   value={formData.clientId}
                   onChange={handleChange}
                   required
                 />
               </div>
-              <div className="mb-3">
-                <label
-                  htmlFor="issuerUrl"
-                  className={`${LABEL} mb-1 block`}
-                >
-                  Issuer URL:
-                </label>
-                <input
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="issuerUrl">Issuer URL:</Label>
+                <Input
                   type="text"
                   id="issuerUrl"
                   name="issuerUrl"
-                  className={`${FIELD} w-full`}
                   value={formData.issuerUrl}
                   onChange={handleChange}
                   required
@@ -181,35 +159,23 @@ const TenantRegistrationView: React.FC = () => {
               </div>
             </>
           )}
-          <div className="mb-3">
-            <label
-              htmlFor="walletUrl"
-              className={`${LABEL} mb-1 block`}
-            >
-              Wallet URL:
-            </label>
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="walletUrl">Wallet URL:</Label>
+            <Input
               type="text"
               id="walletUrl"
               name="walletUrl"
-              className={`${FIELD} w-full`}
               value={formData.walletUrl}
               onChange={handleChange}
             />
           </div>
           {featureFlags?.authMode === 'shared-secret' && (
-            <div className="mb-3">
-              <label
-                htmlFor="users"
-                className={`${LABEL} mb-1 block`}
-              >
-                Users (comma-separated):
-              </label>
-              <input
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="users">Users (comma-separated):</Label>
+              <Input
                 type="text"
                 id="users"
                 name="users"
-                className={`${FIELD} w-full`}
                 value={
                   Array.isArray(formData.users) ? formData.users.join(', ') : (formData.users ?? '')
                 }
@@ -217,67 +183,62 @@ const TenantRegistrationView: React.FC = () => {
               />
             </div>
           )}
-          <button
-            type="submit"
-            className={buttonClass('primary')}
-          >
-            Submit
-          </button>
+          <div>
+            <Button
+              type="submit"
+              variant="primary"
+            >
+              Submit
+            </Button>
+          </div>
         </form>
 
         <div className="mt-4">
           <h3 className="mb-3 text-xl font-bold">Existing Tenant Registrations</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className={`${TABLE.th} whitespace-nowrap`}>Tenant ID</th>
-                  <th className={`${TABLE.th} whitespace-nowrap`}>Party ID</th>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Tenant ID</Th>
+                <Th>Party ID</Th>
+                {featureFlags?.authMode === 'oauth2' && (
+                  <>
+                    <Th>Client ID</Th>
+                    <Th>Issuer URL</Th>
+                  </>
+                )}
+                <Th>Wallet URL</Th>
+                {featureFlags?.authMode === 'shared-secret' && <Th>Users</Th>}
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrations.map((registration) => (
+                <tr key={registration.tenantId}>
+                  <Td overflow="nowrap">{registration.tenantId}</Td>
+                  <Td overflow="nowrap">{registration.partyId}</Td>
                   {featureFlags?.authMode === 'oauth2' && (
                     <>
-                      <th className={`${TABLE.th} whitespace-nowrap`}>Client ID</th>
-                      <th className={`${TABLE.th} whitespace-nowrap`}>Issuer URL</th>
+                      <Td overflow="nowrap">{registration.clientId}</Td>
+                      <Td overflow="nowrap">{registration.issuerUrl}</Td>
                     </>
                   )}
-                  <th className={`${TABLE.th} whitespace-nowrap`}>Wallet URL</th>
+                  <Td overflow="nowrap">{registration.walletUrl}</Td>
                   {featureFlags?.authMode === 'shared-secret' && (
-                    <th className={`${TABLE.th} whitespace-nowrap`}>Users</th>
+                    <Td overflow="nowrap">{registration.users}</Td>
                   )}
-                  <th className={`${TABLE.th} whitespace-nowrap`}>Actions</th>
+                  <Td overflow="nowrap">
+                    <Button
+                      variant="danger"
+                      disabled={registration.internal}
+                      onClick={() => handleDelete(registration.tenantId)}
+                    >
+                      Delete
+                    </Button>
+                  </Td>
                 </tr>
-              </thead>
-              <tbody>
-                {registrations.map((registration) => (
-                  <tr key={registration.tenantId}>
-                    <td className={`${TABLE.td} whitespace-nowrap`}>{registration.tenantId}</td>
-                    <td className={`${TABLE.td} whitespace-nowrap`}>{registration.partyId}</td>
-                    {featureFlags?.authMode === 'oauth2' && (
-                      <>
-                        <td className={`${TABLE.td} whitespace-nowrap`}>{registration.clientId}</td>
-                        <td className={`${TABLE.td} whitespace-nowrap`}>
-                          {registration.issuerUrl}
-                        </td>
-                      </>
-                    )}
-                    <td className={`${TABLE.td} whitespace-nowrap`}>{registration.walletUrl}</td>
-                    {featureFlags?.authMode === 'shared-secret' && (
-                      <td className={`${TABLE.td} whitespace-nowrap`}>{registration.users}</td>
-                    )}
-                    <td className={`${TABLE.td} whitespace-nowrap`}>
-                      <button
-                        type="button"
-                        className={buttonClass('danger')}
-                        disabled={registration.internal}
-                        onClick={() => handleDelete(registration.tenantId)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </Table>
         </div>
       </div>
     </div>
