@@ -21,9 +21,7 @@ const CODE: Record<Size, string> = {
 export function DescriptionList({ size = 'md', children }: { size?: Size; children: ReactNode }) {
   return (
     <SizeContext.Provider value={size}>
-      <dl className={`grid grid-cols-1 sm:grid-cols-[10rem_1fr] ${LIST[size]}`}>
-        {children}
-      </dl>
+      <dl className={`grid grid-cols-1 sm:grid-cols-[10rem_1fr] ${LIST[size]}`}>{children}</dl>
     </SizeContext.Provider>
   );
 }
