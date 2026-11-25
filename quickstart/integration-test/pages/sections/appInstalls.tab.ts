@@ -4,13 +4,13 @@ import RowOps from '../../utils/rowOps';
 const APP_PROVIDER_APP_INSTALLS_URL = 'http://app-provider.localhost:3000/app-installs';
 
 export enum Status {
-  AwaitingAcceptance = 'Requested',
-  Accepted = 'Installed',
+  Requested = 'Requested',
+  Installed = 'Installed',
 }
 
 export enum Button {
   Accept = 'Accept',
-  Cancel = 'Cancel installation',
+  CancelInstallation = 'Cancel installation',
   CreateLicense = 'Create license',
   Reject = 'Reject',
 }
