@@ -14,7 +14,12 @@ export function selectedItem(
 ): AppInstallUnified | undefined {
   return (
     items.find((item) => item.contractId === picked?.contractId) ??
-    items.find((item) => item.user === picked?.user && item.status === 'INSTALL') ??
+    items.find(
+      (item) =>
+        item.user === picked?.user &&
+        item.provider === picked?.provider &&
+        item.status === 'INSTALL',
+    ) ??
     items[0]
   );
 }

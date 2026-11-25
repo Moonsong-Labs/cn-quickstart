@@ -8,7 +8,7 @@ type TableProps = Omit<ComponentPropsWithoutRef<'table'>, 'className'> & {
   layout?: 'auto' | 'fixed';
 };
 
-/** A data table. It scrolls sideways when its columns are wider than the page. */
+/** A data table. It scrolls sideways when its columns are wider than its container. */
 export function Table({ layout = 'auto', ...props }: TableProps) {
   return (
     <div className="overflow-x-auto">

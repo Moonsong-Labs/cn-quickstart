@@ -94,10 +94,7 @@ export default function LicenseRenewalRequestModal({
             </Button>
           </div>
         )}
-        <Table
-          layout="fixed"
-          id="renewals-table"
-        >
+        <Table layout="fixed">
           <thead>
             <tr>
               <Th style={{ width: '90px' }}>Renewal Contract ID</Th>
@@ -108,90 +105,86 @@ export default function LicenseRenewalRequestModal({
               <Th style={{ width: '100px' }}>Prepare Until</Th>
               <Th style={{ width: '100px' }}>Settle Before</Th>
               <Th style={{ width: '100px' }}>Description</Th>
-              <Th style={{ width: '150px', minWidth: '150px' }}>Status</Th>
+              <Th style={{ width: '150px' }}>Status</Th>
               <Th style={{ width: '190px' }}>Actions</Th>
             </tr>
           </thead>
           <tbody>
-            {license?.renewalRequests?.map((renewal) => {
-              return (
-                <tr key={renewal.contractId}>
-                  <Td
-                    overflow="truncate"
-                    data-testid="renewal-contract-id"
-                  >
-                    {renewal.contractId}
-                  </Td>
-                  <Td
-                    overflow="truncate"
-                    data-testid="renewal-request-id"
-                  >
-                    {renewal.requestId}
-                  </Td>
-                  <Td overflow="truncate">{formatDateTime(renewal.requestedAt)}</Td>
-                  <Td overflow="truncate">{renewal.licenseExtensionDuration}</Td>
-                  <Td overflow="truncate">{renewal.licenseFeeAmount}</Td>
-                  <Td overflow="truncate">
-                    {formatDateTime(renewal.prepareUntil)}
-                    {renewal.prepareDeadlinePassed && <OverdueMark />}
-                  </Td>
-                  <Td overflow="truncate">
-                    {formatDateTime(renewal.settleBefore)}
-                    {renewal.settleDeadlinePassed && <OverdueMark />}
-                    {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
-                         date component and remove server side computation of settleDeadlinePassed */}
-                  </Td>
-                  <Td overflow="truncate">{renewal.description}</Td>
-                  <Td overflow="truncate">{makeStatus(renewal)}</Td>
-                  <Td>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isAdmin &&
-                        !renewal.settleDeadlinePassed &&
-                        renewal.allocationCid &&
-                        license && (
-                          <Button
-                            variant="primary"
-                            onClick={() => {
-                              if (!renewal.allocationCid) return;
-                              void onCompleteRenewal(
-                                license.contractId,
-                                renewal.contractId,
-                                renewal.allocationCid,
-                              );
-                            }}
-                          >
-                            Complete Renewal
-                          </Button>
-                        )}
-                      {isAdmin && renewal && (
+            {license?.renewalRequests?.map((renewal) => (
+              <tr key={renewal.contractId}>
+                <Td
+                  overflow="truncate"
+                  data-testid="renewal-contract-id"
+                >
+                  {renewal.contractId}
+                </Td>
+                <Td
+                  overflow="truncate"
+                  data-testid="renewal-request-id"
+                >
+                  {renewal.requestId}
+                </Td>
+                <Td overflow="truncate">{formatDateTime(renewal.requestedAt)}</Td>
+                <Td overflow="truncate">{renewal.licenseExtensionDuration}</Td>
+                <Td overflow="truncate">{renewal.licenseFeeAmount}</Td>
+                <Td overflow="truncate">
+                  {formatDateTime(renewal.prepareUntil)}
+                  {renewal.prepareDeadlinePassed && <OverdueMark />}
+                </Td>
+                <Td overflow="truncate">
+                  {formatDateTime(renewal.settleBefore)}
+                  {renewal.settleDeadlinePassed && <OverdueMark />}
+                  {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
+                       date component and remove server side computation of settleDeadlinePassed */}
+                </Td>
+                <Td overflow="truncate">{renewal.description}</Td>
+                <Td overflow="truncate">{makeStatus(renewal)}</Td>
+                <Td>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin &&
+                      !renewal.settleDeadlinePassed &&
+                      renewal.allocationCid &&
+                      license && (
                         <Button
-                          variant="danger"
+                          variant="primary"
                           onClick={() => {
-                            void onWithdraw(renewal.contractId);
+                            if (!renewal.allocationCid) return;
+                            void onCompleteRenewal(
+                              license.contractId,
+                              renewal.contractId,
+                              renewal.allocationCid,
+                            );
                           }}
                         >
-                          Withdraw
+                          Complete Renewal
                         </Button>
                       )}
-                    </div>
-                    {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
-                      <>
-                        Please accept the allocation request in your{' '}
-                        <a
-                          className="focus-ring font-medium text-primary underline hover:text-primary-hover"
-                          href={`${userWallet}/allocations`}
-                          target="_blank"
-                          rel="noopener"
-                        >
-                          wallet
-                        </a>
-                        .
-                      </>
+                    {isAdmin && (
+                      <Button
+                        variant="danger"
+                        onClick={() => void onWithdraw(renewal.contractId)}
+                      >
+                        Withdraw
+                      </Button>
                     )}
-                  </Td>
-                </tr>
-              );
-            })}
+                  </div>
+                  {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
+                    <>
+                      Please accept the allocation request in your{' '}
+                      <a
+                        href={`${userWallet}/allocations`}
+                        target="_blank"
+                        rel="noopener"
+                        className="focus-ring font-medium text-primary underline hover:text-primary-hover"
+                      >
+                        wallet
+                      </a>
+                      .
+                    </>
+                  )}
+                </Td>
+              </tr>
+            ))}
           </tbody>
         </Table>
       </div>

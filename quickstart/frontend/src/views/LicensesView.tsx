@@ -112,10 +112,7 @@ const LicensesView: React.FC = () => {
       subtitle="Licensing Demo"
     >
       <PageBody>
-        <Table
-          layout="fixed"
-          id="licenses-table"
-        >
+        <Table layout="fixed">
           <thead>
             <tr>
               <Th style={{ width: '100px' }}>License Contract ID</Th>
@@ -129,46 +126,44 @@ const LicensesView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {licenses.map((license) => {
-              return (
-                <tr key={license.contractId}>
-                  <Td overflow="truncate">{license.contractId}</Td>
-                  {user?.isAdmin && <Td overflow="truncate">{license.user}</Td>}
-                  <Td overflow="truncate">
-                    {formatDateTime(license.expiresAt)}
-                    {license.isExpired && <OverdueMark />}
-                  </Td>
-                  <Td overflow="truncate">{license.licenseNum}</Td>
-                  <Td overflow="truncate">
-                    {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
-                  </Td>
-                  <Td overflow="truncate">
-                    {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
-                  </Td>
-                  <Td overflow="truncate">{license.isExpired ? 'EXPIRED' : 'ACTIVE'}</Td>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
-                        <Button
-                          variant="primary"
-                          onClick={() => openRenewalModal(license.contractId)}
-                        >
-                          Renewals
-                        </Button>
-                      )}
-                      {license.expiresAt && license.isExpired && (
-                        <Button
-                          variant="danger"
-                          onClick={() => openArchiveModal(license.contractId)}
-                        >
-                          Archive
-                        </Button>
-                      )}
-                    </div>
-                  </Td>
-                </tr>
-              );
-            })}
+            {licenses.map((license) => (
+              <tr key={license.contractId}>
+                <Td overflow="truncate">{license.contractId}</Td>
+                {user?.isAdmin && <Td overflow="truncate">{license.user}</Td>}
+                <Td overflow="truncate">
+                  {formatDateTime(license.expiresAt)}
+                  {license.isExpired && <OverdueMark />}
+                </Td>
+                <Td overflow="truncate">{license.licenseNum}</Td>
+                <Td overflow="truncate">
+                  {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
+                </Td>
+                <Td overflow="truncate">
+                  {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
+                </Td>
+                <Td overflow="truncate">{license.isExpired ? 'EXPIRED' : 'ACTIVE'}</Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
+                      <Button
+                        variant="primary"
+                        onClick={() => openRenewalModal(license.contractId)}
+                      >
+                        Renewals
+                      </Button>
+                    )}
+                    {license.expiresAt && license.isExpired && (
+                      <Button
+                        variant="danger"
+                        onClick={() => openArchiveModal(license.contractId)}
+                      >
+                        Archive
+                      </Button>
+                    )}
+                  </div>
+                </Td>
+              </tr>
+            ))}
           </tbody>
         </Table>
       </PageBody>

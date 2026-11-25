@@ -1,12 +1,16 @@
+// Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// SPDX-License-Identifier: 0BSD
+
 import { Input, Select } from './Form';
 
+/** A whole number and a time unit, as in `30d`. `id` labels the number input. */
 export default function DurationInput({
   id,
   value,
   onChange,
   units,
 }: {
-  id?: string;
+  id: string;
   value?: string;
   onChange: (v: string) => void;
   units?: Map<string, string> | string;

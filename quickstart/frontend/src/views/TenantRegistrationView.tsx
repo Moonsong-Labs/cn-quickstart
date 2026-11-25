@@ -100,6 +100,10 @@ const TenantRegistrationView: React.FC = () => {
     }
   };
 
+  const usersValue = Array.isArray(formData.users)
+    ? formData.users.join(', ')
+    : (formData.users ?? '');
+
   return (
     <Page
       title="Tenants"
@@ -107,11 +111,13 @@ const TenantRegistrationView: React.FC = () => {
     >
       <PageBody>
         <form
-          className="flex max-w-2xl flex-col gap-3"
           onSubmit={handleSubmit}
+          className="flex max-w-2xl flex-col gap-3"
         >
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="tenantId">Tenant ID:</Label>
+          <Field
+            id="tenantId"
+            label="Tenant ID:"
+          >
             <Input
               type="text"
               id="tenantId"
@@ -120,9 +126,11 @@ const TenantRegistrationView: React.FC = () => {
               onChange={handleChange}
               required
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="partyId">PartyId:</Label>
+          </Field>
+          <Field
+            id="partyId"
+            label="Party ID:"
+          >
             <Input
               type="text"
               id="partyId"
@@ -131,11 +139,13 @@ const TenantRegistrationView: React.FC = () => {
               onChange={handleChange}
               required
             />
-          </div>
+          </Field>
           {featureFlags?.authMode === 'oauth2' && (
             <>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="clientId">Client ID:</Label>
+              <Field
+                id="clientId"
+                label="Client ID:"
+              >
                 <Input
                   type="text"
                   id="clientId"
@@ -144,9 +154,11 @@ const TenantRegistrationView: React.FC = () => {
                   onChange={handleChange}
                   required
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="issuerUrl">Issuer URL:</Label>
+              </Field>
+              <Field
+                id="issuerUrl"
+                label="Issuer URL:"
+              >
                 <Input
                   type="text"
                   id="issuerUrl"
@@ -155,11 +167,13 @@ const TenantRegistrationView: React.FC = () => {
                   onChange={handleChange}
                   required
                 />
-              </div>
+              </Field>
             </>
           )}
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="walletUrl">Wallet URL:</Label>
+          <Field
+            id="walletUrl"
+            label="Wallet URL:"
+          >
             <Input
               type="text"
               id="walletUrl"
@@ -167,20 +181,20 @@ const TenantRegistrationView: React.FC = () => {
               value={formData.walletUrl}
               onChange={handleChange}
             />
-          </div>
+          </Field>
           {featureFlags?.authMode === 'shared-secret' && (
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="users">Users (comma-separated):</Label>
+            <Field
+              id="users"
+              label="Users (comma-separated):"
+            >
               <Input
                 type="text"
                 id="users"
                 name="users"
-                value={
-                  Array.isArray(formData.users) ? formData.users.join(', ') : (formData.users ?? '')
-                }
+                value={usersValue}
                 onChange={handleChange}
               />
-            </div>
+            </Field>
           )}
           <div>
             <Button
@@ -243,5 +257,16 @@ const TenantRegistrationView: React.FC = () => {
     </Page>
   );
 };
+
+const Field: React.FC<{ id: string; label: string; children: React.ReactNode }> = ({
+  id,
+  label,
+  children,
+}) => (
+  <div className="flex flex-col gap-1">
+    <Label htmlFor={id}>{label}</Label>
+    {children}
+  </div>
+);
 
 export default TenantRegistrationView;

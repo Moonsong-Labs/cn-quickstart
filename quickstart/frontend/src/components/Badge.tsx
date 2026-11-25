@@ -15,7 +15,7 @@ const SHAPE = {
   pill: 'rounded-full px-2.5 py-0.5 font-semibold',
 };
 
-/** A short status label. It keeps its width in a flex row. */
+/** A short status label on one line. It keeps its width in a flex row. */
 export function Badge({
   tone,
   shape = 'tag',

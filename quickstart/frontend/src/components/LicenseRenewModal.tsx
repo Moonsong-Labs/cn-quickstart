@@ -79,7 +79,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
             {license?.isExpired && <OverdueMark />}
           </div>
         </div>
-        <div className="grid grid-cols-[10rem_1fr] items-center gap-x-3 gap-y-2">
+        <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-[10rem_1fr] sm:items-center">
           <Label htmlFor="renew-extension">Extension:</Label>
           <DurationInput
             id="renew-extension"
