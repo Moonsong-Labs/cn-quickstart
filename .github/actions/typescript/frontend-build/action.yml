@@ -1,4 +1,4 @@
-name: Frontend build
+name: Frontend build and test
 description: >-
   Builds the frontend, including the OpenAPI client generation and the Vite
   bundle, then runs its unit tests.
