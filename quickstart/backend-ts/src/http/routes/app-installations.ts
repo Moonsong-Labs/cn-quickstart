@@ -39,7 +39,7 @@ const choiceMetadata = t.Object({ data: t.Optional(t.Record(t.String(), t.String
 const acceptBody = t.Object({ installMeta: choiceMetadata, meta: choiceMetadata });
 /** Runtime and API schema for rejection and cancellation metadata. */
 const metadataActionBody = t.Object({ meta: choiceMetadata });
-/** One runtime route handles both actions and checks installMeta for acceptance before validation. */
+/** Shared route schema applied after the transform removes acceptance-only fields from rejection. */
 const requestActionBody = t.Object({
   ...metadataActionBody.properties,
   installMeta: t.Optional(choiceMetadata),
@@ -316,6 +316,7 @@ export function appInstallationRoutes(
             throw installationActionProblem(access, access === 401 ? 'Unauthorized' : 'Forbidden');
           if (!hasMetadataShape(body?.meta) || (isAccept && !hasMetadataShape(body?.installMeta)))
             throw installationActionProblem(400, 'Invalid metadata');
+          if (!isAccept) delete body.installMeta;
         },
         error: installationActionError,
       },

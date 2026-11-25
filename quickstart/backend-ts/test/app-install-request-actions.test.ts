@@ -375,6 +375,11 @@ test.each([
   ['missing operation metadata', commandId, { installMeta }],
   ['null installation metadata', commandId, { installMeta: null, meta: operationMeta }],
   ['numeric metadata map', commandId, { installMeta: { data: 42 }, meta: operationMeta }],
+  [
+    'nonstring installation metadata value',
+    commandId,
+    { installMeta: { data: { unexpected: 42 } }, meta: operationMeta },
+  ],
   ['nonstring metadata value', commandId, { installMeta, meta: { data: { reason: 42 } } }],
 ])('Rejects an acceptance with %s before reading PQS', async (_case, queryCommandId, body) => {
   /** Provides an otherwise valid request so schema errors are the only failure. */
@@ -474,6 +479,32 @@ test('Rejects a request as AppProvider and returns an empty response', async () 
             contractId,
             choice: AppInstallRequest.AppInstallRequest_Reject.choiceName,
             choiceArgument: { meta: { values: operationMeta.data } },
+          },
+        },
+      ],
+    },
+  });
+});
+
+test('Rejects a request even when the unused installMeta field is malformed', async () => {
+  const { app, login, submissions } = setup(
+    [requestRow(contractId, providerParty, 'customer-party')],
+    rejectResponse(),
+  );
+  const provider = await login('app-provider');
+  const body = { meta: operationMeta, installMeta: { data: { unexpected: 42 } } };
+
+  const response = await reject(app, provider, contractId, body);
+
+  expect(response.status).toBe(204);
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0]?.body).toMatchObject({
+    commands: {
+      commands: [
+        {
+          ExerciseCommand: {
+            contractId,
+            choice: AppInstallRequest.AppInstallRequest_Reject.choiceName,
           },
         },
       ],
