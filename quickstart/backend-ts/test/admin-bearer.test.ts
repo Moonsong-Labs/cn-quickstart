@@ -1,9 +1,15 @@
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
+import * as jose from 'jose';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { createApp } from '../src/app';
 import { createAdminBearerVerifier } from '../src/auth/admin-bearer';
 import { readApplicationConfig } from '../src/config/application';
 import { appDependencies } from './fixtures/dependencies';
+
+const adminBearer = {
+  audience: 'https://canton.network.global',
+  clientId: 'app-provider-validator',
+};
 
 test('An administrative bearer must be signed by the configured issuer and valid at request time', async () => {
   const trusted = await generateKeyPair('RS256');
@@ -39,11 +45,21 @@ test('An administrative bearer must be signed by the configured issuer and valid
     const verify = createAdminBearerVerifier(
       { issuer, jwks_uri: `${server.url.origin}/keys` },
       appProvider,
+      adminBearer,
     );
     const now = Math.floor(Date.now() / 1000);
     /** Signs a short-lived access token; identity always comes from backend configuration. */
     const bearer = async (claims = {}, key = trusted.privateKey) =>
-      `Bearer ${await new SignJWT({ iss: issuer, exp: now + 300, party_id: 'ignored', ...claims }).setProtectedHeader({ alg: 'RS256', kid: 'active' }).sign(key)}`;
+      `Bearer ${await new SignJWT({
+        iss: issuer,
+        aud: adminBearer.audience,
+        azp: adminBearer.clientId,
+        exp: now + 300,
+        party_id: 'ignored',
+        ...claims,
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: 'active' })
+        .sign(key)}`;
     for (const header of [null, 'Basic abc', 'Bearer malformed'])
       expect(await verify(header)).toBeNull();
     expect(requests).toBe(0);
@@ -159,6 +175,58 @@ test('An administrative bearer must be signed by the configured issuer and valid
   }
 });
 
+test('Installation routes require the configured API audience for an administrative bearer', async () => {
+  const audience = 'quickstart-admin-api';
+  const issuerServer = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(request) {
+      const url = new URL(request.url);
+      return Response.json({ issuer: `${url.origin}/issuer`, jwks_uri: `${url.origin}/keys` });
+    },
+  });
+  // Keep the bearer inert. This test checks the policy passed to JOSE, not its JWT implementation.
+  const verify = spyOn(jose, 'jwtVerify').mockImplementation(async () => {
+    throw new jose.errors.JWTInvalid('Synthetic bearer');
+  });
+  try {
+    const issuer = `${issuerServer.url.origin}/issuer`;
+    const application = readApplicationConfig({
+      AUTH_MODE: 'oauth2',
+      APP_PROVIDER_PARTY: 'provider::test',
+      AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID: 'web',
+      AUTH_APP_PROVIDER_ISSUER_URL: issuer,
+      AUTH_APP_PROVIDER_ADMIN_AUDIENCE: audience,
+      LEDGER_OAUTH_ALLOW_HTTP: 'true',
+    });
+    const app = createApp({ ...appDependencies, application });
+    const response = await app.handle(
+      new Request('http://localhost/app-install-requests', {
+        headers: { authorization: 'Bearer synthetic-bearer' },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(verify.mock.calls[0]?.[2]).toMatchObject({ issuer, audience });
+
+    verify.mockResolvedValueOnce({
+      payload: { azp: 'customer-client' },
+      protectedHeader: { alg: 'RS256' },
+    });
+    const unauthorizedClient = await app.handle(
+      new Request('http://localhost/app-install-requests', {
+        headers: { authorization: 'Bearer synthetic-bearer' },
+      }),
+    );
+    expect(unauthorizedClient.status).toBe(401);
+    expect(verify).toHaveBeenCalledTimes(2);
+  } finally {
+    verify.mockRestore();
+    issuerServer.stop(true);
+  }
+});
+
 test('Administrative bearer during JWKS rotation verifies tokens without kid', async () => {
   const [previous, current, unrelated] = await Promise.all([
     generateKeyPair('RS256'),
@@ -199,7 +267,13 @@ test('Administrative bearer during JWKS rotation verifies tokens without kid', a
       kid?: string,
       claims: { iss?: string; exp?: number; nbf?: number } = {},
     ) {
-      const token = await new SignJWT({ iss: issuer, exp: now + 300, ...claims })
+      const token = await new SignJWT({
+        iss: issuer,
+        aud: adminBearer.audience,
+        azp: adminBearer.clientId,
+        exp: now + 300,
+        ...claims,
+      })
         .setProtectedHeader(kid === undefined ? { alg: 'RS256' } : { alg: 'RS256', kid })
         .sign(key);
       const response = await app.handle(

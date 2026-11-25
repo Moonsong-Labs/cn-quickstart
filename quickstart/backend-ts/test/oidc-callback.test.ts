@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { SignJWT } from 'jose';
 import { Pool } from 'pg';
 import { createApp } from '../src/app';
 import { readApplicationConfig } from '../src/config/application';
@@ -148,6 +149,14 @@ describe('OIDC callbacks and tenant permissions', () => {
         expect(response.headers.get('location')).toBe('/');
         expect(session).toBeTruthy();
         const providerIdToken = issuedIdToken;
+        const providerAccessToken = await new SignJWT({
+          iss: server.url.origin,
+          aud: 'https://canton.network.global',
+          azp: 'app-provider-validator',
+        })
+          .setExpirationTime('5m')
+          .setProtectedHeader({ alg: 'RS256', kid: 'provider' })
+          .sign(trusted.privateKey);
         const party = scenario === 'profile' ? 'test-party' : 'configured-party';
         const user = await get('/user', session);
         expect(user.status).toBe(200);
@@ -169,7 +178,7 @@ describe('OIDC callbacks and tenant permissions', () => {
         /** A trusted bearer maps to the configured AppProvider instead of using the browser party. */
         const bearerRequests = await app.handle(
           new Request('http://internal/app-install-requests', {
-            headers: { authorization: `Bearer ${providerIdToken}`, cookie: session ?? '' },
+            headers: { authorization: `Bearer ${providerAccessToken}`, cookie: session ?? '' },
           }),
         );
         expect(bearerRequests.status).toBe(200);
@@ -273,7 +282,9 @@ describe('OIDC callbacks and tenant permissions', () => {
             query.mockResolvedValueOnce({ rows: [] } as never);
             expect((await mutate({ cookie: cookies, 'X-XSRF-TOKEN': token })).status).toBe(404);
             query.mockResolvedValueOnce({ rows: [] } as never);
-            expect((await mutate({ authorization: `Bearer ${providerIdToken}` })).status).toBe(404);
+            expect((await mutate({ authorization: `Bearer ${providerAccessToken}` })).status).toBe(
+              404,
+            );
             expect(query).toHaveBeenCalledTimes(2);
           }
         }
@@ -430,7 +441,9 @@ describe('OIDC callbacks and tenant permissions', () => {
               (await cancel({ cookie: browserCookies, 'X-XSRF-TOKEN': customerCsrf ?? '' })).status,
             ).toBe(404);
             query.mockResolvedValueOnce({ rows: [] } as never);
-            expect((await cancel({ authorization: `Bearer ${providerIdToken}` })).status).toBe(404);
+            expect((await cancel({ authorization: `Bearer ${providerAccessToken}` })).status).toBe(
+              404,
+            );
             expect(query).toHaveBeenCalledTimes(2);
           }
           /** Returns the response to a customer callback with its original attempt cookie. */

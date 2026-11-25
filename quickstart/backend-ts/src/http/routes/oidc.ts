@@ -103,7 +103,11 @@ export function oidcRoutes(
   async function authenticateBearer(authorization: string) {
     /** Discovered metadata for the trusted issuer. */
     const config = await discover();
-    verifyBearer ??= createAdminBearerVerifier(config.serverMetadata(), provider);
+    verifyBearer ??= createAdminBearerVerifier(
+      config.serverMetadata(),
+      provider,
+      options.adminBearer,
+    );
     return verifyBearer(authorization);
   }
 
