@@ -91,26 +91,6 @@ test('Covers the installation lifecycle through HTTP against LocalNet', async ()
   /** Runs the real routes on an ephemeral loopback port inside the test container. */
   const app = createApp({ ledger, application, pqs }, { port: 0, apiDocsEnabled: false });
   try {
-    /** Waits for the onboarding backlog before starting the lifecycle checks. */
-    const { offset } = await ledger.client.get('/v2/state/ledger-end');
-    if (offset === undefined) throw new Error('Ledger API did not return a ledger-end offset');
-    await waitForPqs(
-      'onboarding',
-      async () => {
-        /** PQS records the last indexed offset after it has finished its migrations. */
-        const { rows } = await pqs
-          .query<{ offset: string }>(
-            'SELECT "offset" FROM __watermark WHERE "offset" IS NOT NULL AND ix IS NOT NULL',
-          )
-          .catch((error: unknown) => {
-            if (error instanceof DatabaseError && error.code === '42P01') return { rows: [] };
-            throw error;
-          });
-        return rows[0] !== undefined && BigInt(rows[0].offset) >= BigInt(offset);
-      },
-      120_000,
-    );
-
     app.listen({ hostname: '127.0.0.1', port: 0 });
     /** All HTTP calls hit the real listener rather than bypassing its server adapter. */
     const origin = app.server?.url;
@@ -158,7 +138,7 @@ test('Covers the installation lifecycle through HTTP against LocalNet', async ()
     }
 
     /** Creates a uniquely tagged request and waits until the backend can read it. */
-    async function createRequest() {
+    async function createRequest(timeoutMs?: number) {
       /** Distinguishes this request from onboarding and other integration fixtures. */
       const metadata = { integrationTest: randomUUID() };
       /** Captures the user participant's completion offset for the new request. */
@@ -178,7 +158,16 @@ test('Covers the installation lifecycle through HTTP against LocalNet', async ()
       expect(matches).toHaveLength(1);
       /** Uses the real contract ID in all subsequent HTTP operations. */
       const contractId = matches[0].contractId;
-      await waitForPqs('the new installation request', async () => isActiveInPqs(pqs, contractId));
+      await waitForPqs(
+        'the new installation request',
+        () =>
+          isActiveInPqs(pqs, contractId).catch((error: unknown) => {
+            if (error instanceof DatabaseError && ['42P01', '42883'].includes(error.code ?? ''))
+              return false;
+            throw error;
+          }),
+        timeoutMs,
+      );
       return { contractId, provider: providerParty, user: userParty, meta: { data: metadata } };
     }
 
@@ -205,7 +194,8 @@ test('Covers the installation lifecycle through HTTP against LocalNet', async ()
     const userCookie = await login('app-user');
 
     /** Verifies that rejection consumes the request without creating an installation. */
-    const rejected = await createRequest();
+    // The first fixture may arrive while PQS is migrating or still indexing onboarding.
+    const rejected = await createRequest(120_000);
     expect(await list('/app-install-requests', providerCookie)).toContainEqual(rejected);
     /** Confirms rejection returns no HTTP body. */
     const rejection = await action(

@@ -67,38 +67,6 @@ beforeAll(async () => {
   user = { client, ledgerUserId };
 }, TEST_TIMEOUT_MS);
 
-// The participant can confirm a license while Scribe is still indexing onboarding transactions.
-// Without this startup wait, that backlog can exhaust the first contract's visibility timeout.
-beforeAll(async () => {
-  // Capture the ledger end once: later transactions should not move the startup target.
-  const { offset } = await provider.client.get('/v2/state/ledger-end');
-  if (offset === undefined) throw new Error('Ledger API did not return a ledger-end offset');
-  const pool = new Pool(readPostgresConfig());
-  const deadline = Date.now() + PQS_STARTUP_TIMEOUT_MS;
-  let checkpoint: string | null = null;
-  try {
-    while (Date.now() < deadline) {
-      const { rows } = await pool
-        .query<{ offset: string }>(
-          'SELECT "offset" FROM __watermark WHERE "offset" IS NOT NULL AND ix IS NOT NULL',
-        )
-        .catch((error: unknown) => {
-          // A fresh database has no watermark table until Scribe runs its migrations.
-          if (error instanceof DatabaseError && error.code === '42P01') return { rows: [] };
-          throw error;
-        });
-      checkpoint = rows[0]?.offset ?? null;
-      if (checkpoint !== null && BigInt(checkpoint) >= BigInt(offset)) return;
-      await Bun.sleep(500);
-    }
-    throw new Error(
-      `PQS startup timed out at checkpoint ${checkpoint}, expected at least ${offset}`,
-    );
-  } finally {
-    await pool.end();
-  }
-}, PQS_STARTUP_TIMEOUT_MS + TEST_TIMEOUT_MS);
-
 /**
  * Returns active created events for a template visible to a party at the supplied
  * offset, defaulting to the current ledger end.
@@ -129,15 +97,24 @@ async function snapshot(
   );
 }
 
-// After startup, each new contract still takes time to reach PQS after ledger confirmation.
-async function waitForPqs(pool: Pool, contractIds: string[]) {
-  const deadline = Date.now() + PQS_VISIBILITY_TIMEOUT_MS;
+// Only wait for updates that PQS indexes. The global ledger end also counts other updates.
+async function waitForPqs(
+  pool: Pool,
+  contractIds: string[],
+  timeoutMs = PQS_VISIBILITY_TIMEOUT_MS,
+) {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     // An active contract may also appear through one or more interface views.
-    const contracts = await pool.query(
-      'SELECT DISTINCT contract_id FROM active() WHERE contract_id = ANY($1::text[])',
-      [contractIds],
-    );
+    const contracts = await pool
+      .query('SELECT DISTINCT contract_id FROM active() WHERE contract_id = ANY($1::text[])', [
+        contractIds,
+      ])
+      .catch((error: unknown) => {
+        if (error instanceof DatabaseError && ['42P01', '42883'].includes(error.code ?? ''))
+          return { rows: [] };
+        throw error;
+      });
     if (contracts.rows.length === contractIds.length) return;
     await Bun.sleep(VISIBILITY_POLL_INTERVAL_MS);
   }
@@ -240,7 +217,8 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
 
   const pqs = new Pool(readPostgresConfig());
   try {
-    await waitForPqs(pqs, [created.licenseId]);
+    // The first indexed test contract also proves PQS has caught up with onboarding.
+    await waitForPqs(pqs, [created.licenseId], PQS_STARTUP_TIMEOUT_MS);
     const licenseKey = { provider: providerParty, user: userParty, uuid: payload.uuid };
     let activeLicenses = await listActiveByKey(pqs, License, licenseKey);
     const pqsLicense = activeLicenses.find(({ contractId }) => contractId === created.licenseId);
@@ -452,7 +430,7 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
   } finally {
     await pqs.end();
   }
-}, 150_000);
+}, 240_000);
 
 test(
   'Rejects an installation request and decodes the unit result',
