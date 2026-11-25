@@ -4,14 +4,14 @@ import RowOps from '../../utils/rowOps';
 const APP_PROVIDER_APP_INSTALLS_URL = 'http://app-provider.localhost:3000/app-installs';
 
 export enum Status {
-  AwaitingAcceptance = 'AWAITING_ACCEPTANCE',
-  Accepted = 'ACCEPTED',
+  AwaitingAcceptance = 'Waiting for acceptance',
+  Accepted = 'Installed',
 }
 
 export enum Button {
   Accept = 'Accept',
-  Cancel = 'Cancel',
-  CreateLicense = 'Create License',
+  Cancel = 'Cancel installation',
+  CreateLicense = 'Create license',
   Reject = 'Reject',
 }
 
@@ -20,12 +20,17 @@ export default class AppInstalls extends RowOps {
     super(page);
   }
 
+  /** Installation items are list items. Each shows its request metadata, which holds the test tag. */
+  override findRowBy = (pattern: string | RegExp): Locator => {
+    return this.page.getByRole('listitem').filter({ hasText: pattern });
+  };
+
   button = (name: string, row: Locator = this.matchingRow): Locator => {
     return row.getByRole('button', { name: name });
   };
 
   status = (name: Status, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('cell', { name: name });
+    return row.getByText(name, { exact: true });
   };
 
   licenseCount = (row: Locator = this.matchingRow): Locator => {

@@ -1,5 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import ViteYaml from '@modyfi/vite-plugin-yaml';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { type ConfigEnv, defineConfig, loadEnv, type Plugin } from 'vite';
 
@@ -65,7 +66,7 @@ export default defineConfig(({ mode }: ConfigEnv) => {
   const env = loadEnv(mode, '../');
   const backendPort = env.VITE_BACKEND_PORT || 8080;
   return {
-    plugins: [react(), ViteYaml(), printWelcomeMessage()],
+    plugins: [react(), tailwindcss(), ViteYaml(), printWelcomeMessage()],
     server: {
       host: 'localhost',
       strictPort: true,
