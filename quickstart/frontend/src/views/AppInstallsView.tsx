@@ -82,6 +82,8 @@ const AppInstallsView: React.FC = () => {
   const selected = selectedItem(unifiedInstalls, picked);
 
   const run = (action: InstallAction, item: AppInstallUnified) => {
+    // Picking the item lets the selection follow it to its installation after Accept.
+    setPicked(item);
     switch (action) {
       case 'accept':
         return accept(item.contractId, item.meta, {});
