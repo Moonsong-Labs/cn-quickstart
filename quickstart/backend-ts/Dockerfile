@@ -15,7 +15,7 @@ COPY quickstart/daml/licensing/daml.yaml ./
 COPY quickstart/daml/licensing/daml/ ./daml/
 RUN dpm build && dpm codegen-js
 
-FROM oven/bun:1.3.3-slim AS build
+FROM oven/bun:1.4.4-slim AS build
 WORKDIR /app
 
 COPY package.json bun.lock ./
@@ -33,7 +33,7 @@ COPY quickstart/backend-ts/scripts/link-daml-bindings.ts ./quickstart/backend-ts
 WORKDIR /app/quickstart/backend-ts
 RUN bun --no-env-file scripts/link-daml-bindings.ts && bun run build:bundle
 
-FROM oven/bun:1.3.3-slim AS runtime
+FROM oven/bun:1.4.4-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8081

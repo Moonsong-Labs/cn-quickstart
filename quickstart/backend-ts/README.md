@@ -12,7 +12,7 @@ the frontend during the port from Java.
 
 ## Local development
 
-Use Bun 1.3.3, as pinned by the repository. Install dependencies from the repository
+Use Bun 1.4.4, as pinned by the repository. Install dependencies from the repository
 root:
 
 ```bash
