@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: 0BSD
+
 # Installs dpm 3.7.1 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
 # and PATH for the rest of the job.
 #

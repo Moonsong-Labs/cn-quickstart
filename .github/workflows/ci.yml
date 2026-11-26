@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: 0BSD
+
 # Required check "CI / All checks", the display name of the `ci-ok` job.
 # It fails when any job it needs failed or was cancelled. A skipped job
 # counts as success. The only other required check is "PR description",
@@ -26,6 +29,13 @@ permissions:
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}', github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Fork pull requests receive a read-only token, so they cannot publish
+  # check runs. Same-repository pull requests, pushes and manual runs are
+  # not forks. There is no registry login in this workflow; a later one
+  # that needs secrets must be skipped when this is true.
+  IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name }}
 
 jobs:
   changes:
@@ -121,17 +131,21 @@ jobs:
           BINDINGS: ${{ steps.filter.outputs.bindings }}
         run: |
           if [ "${EVENT_NAME}" != "pull_request" ]; then
-            echo "ts=true" >> "${GITHUB_OUTPUT}"
-            echo "daml=true" >> "${GITHUB_OUTPUT}"
-            echo "stack=true" >> "${GITHUB_OUTPUT}"
-            echo "ledger=true" >> "${GITHUB_OUTPUT}"
-            echo "bindings=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo "ts=true"
+              echo "daml=true"
+              echo "stack=true"
+              echo "ledger=true"
+              echo "bindings=true"
+            } >> "${GITHUB_OUTPUT}"
           else
-            echo "ts=${TS}" >> "${GITHUB_OUTPUT}"
-            echo "daml=${DAML}" >> "${GITHUB_OUTPUT}"
-            echo "stack=${STACK}" >> "${GITHUB_OUTPUT}"
-            echo "ledger=${LEDGER}" >> "${GITHUB_OUTPUT}"
-            echo "bindings=${BINDINGS}" >> "${GITHUB_OUTPUT}"
+            {
+              echo "ts=${TS}"
+              echo "daml=${DAML}"
+              echo "stack=${STACK}"
+              echo "ledger=${LEDGER}"
+              echo "bindings=${BINDINGS}"
+            } >> "${GITHUB_OUTPUT}"
           fi
 
   lint:
@@ -210,9 +224,12 @@ jobs:
       COMPOSE_PROGRESS: plain
       DEBIAN_FRONTEND: noninteractive
       NEEDRESTART_MODE: a
+      PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/integration/test
+        with:
+          is-fork-pr: ${{ env.IS_FORK_PR }}
 
   backend-integration:
     name: Backend LocalNet integration test
