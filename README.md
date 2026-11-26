@@ -73,7 +73,7 @@ java -version
 
 ### dpm
 
-The installer installs Daml SDK 3.7.1 through dpm. Put the `dpm` binary on `PATH`. 3.7.1 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
+The installer installs Daml SDK 3.7.1 through dpm. Put the `dpm` binary on `PATH`. 3.7.1 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. CI follows the same steps as the installer below. `make build` runs `dpm build --all`.
 
 ```bash
 curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.7.1

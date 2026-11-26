@@ -5,64 +5,46 @@
 # Installs dpm 3.7.1 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
 # and PATH for the rest of the job.
 #
-# The tarball is the one nix/dpm.nix fetches. Before bootstrap, the SDK
-# manifest is trimmed to the same components as that derivation. After
-# bootstrap, script-service.jar is linked into damlc's resources directory,
-# which is where damlc ide looks for it. The install exits if that jar or
-# directory is missing. The install does not outlive the job.
+# Follows the same steps as the standard installer
+# (https://get.digitalasset.com/install/install.sh): download the SDK
+# tarball, extract it, and run `dpm bootstrap`. Also checks the tarball
+# SHA-256 before extraction. The install does not outlive the job.
 
 set -euo pipefail
 
+# SDK release this job installs. The Daml packages pin the same sdk-version.
 version='3.7.1'
-yq_version='v4.47.1'
-dest="${RUNNER_TEMP}/dpm"
-yq="${RUNNER_TEMP}/yq"
 
-# Integrity: verify artifacts before extraction/execution.
+# Where bootstrap installs the SDK. Removed with the runner workspace.
+dest="${RUNNER_TEMP}/dpm"
+
+# Integrity: verify the tarball before extraction.
 # IMPORTANT: Keep expected_dpm_sha256 in lockstep with nix/dpm.nix's x86_64-linux hash
 # for the same URL this script fetches. Bump both together when changing 'version'.
 expected_dpm_sha256='e251291ef78dcfe290424cece3a7fafa753268727a679a10c7f0d9fa56e6d5e6'
-# yq checksum taken from the published release checksums for v4.47.1 (linux amd64).
-expected_yq_sha256='0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb'
 
-mkdir -p "${dest}"
-curl -fsSL -o "${dest}/dpm.tar.gz" \
+# Scratch directory for the download and the extracted SDK. Removed after bootstrap.
+work="$(mktemp -d "${RUNNER_TEMP}/dpm-install.XXXXXX")"
+
+# SDK archive. Same file the standard installer downloads for linux amd64.
+tarball="${work}/dpm-${version}-linux-amd64.tar.gz"
+
+# Unpacked SDK that bootstrap reads. Not the install location.
+extracted="${work}/extracted"
+
+curl -fsSL -o "${tarball}" \
   "https://get.digitalasset.com/install/dpm-sdk/dpm-${version}-linux-amd64.tar.gz"
-echo "${expected_dpm_sha256}  ${dest}/dpm.tar.gz" | sha256sum -c -
-tar --strip-components=1 -C "${dest}" -xzf "${dest}/dpm.tar.gz"
-rm "${dest}/dpm.tar.gz"
+echo "${expected_dpm_sha256}  ${tarball}" | sha256sum -c -
 
-curl -fsSL -o "${yq}" \
-  "https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_amd64"
-echo "${expected_yq_sha256}  ${yq}" | sha256sum -c -
-chmod +x "${yq}"
-"${yq}" --inplace \
-  '.spec.components |= with_entries(
-    select(   .key == "damlc"
-           or .key == "daml-script"
-           or .key == "codegen"
-           or .key == "canton-open-source"
-           or .key == "upgrade-check"
-           )
-          )' \
-  "${dest}/sdk-manifest.yaml"
+mkdir -p "${extracted}"
+tar --strip-components=1 -C "${extracted}" -xzf "${tarball}"
 
-DPM_HOME="${dest}" "${dest}/bin/dpm" bootstrap "${dest}"
+DPM_HOME="${dest}" "${extracted}/bin/dpm" bootstrap "${extracted}"
 
-# Component directories use the component version from the manifest, which
-# is 3.7.0 for damlc and daml-script inside the 3.7.1 SDK. damlc ide loads
-# script-service.jar from damlc-dist-dpm/resources; dpm leaves the jar in the
-# daml-script component, so the link below is what makes the IDE find it.
-script_jar="$(find "${dest}/cache/components/daml-script" -name script-service.jar -print -quit)"
-resources="$(find "${dest}/cache/components/damlc" -type d -path '*/damlc-dist-dpm/resources' -print -quit)"
-if [ -z "${script_jar}" ] || [ -z "${resources}" ]; then
-  echo "damlc ide needs script-service.jar linked into damlc's resources directory." >&2
-  echo "script-service.jar: ${script_jar:-missing}" >&2
-  echo "damlc resources: ${resources:-missing}" >&2
-  exit 1
-fi
-# The directory is empty, so an existing file fails the install.
-ln -s "${script_jar}" "${resources}/script-service.jar"
+# Bootstrap has unpacked the components. The OCI layout is about 1.3 GB and later commands do not read it.
+rm -rf "${dest}/cache/oci-layout"
+
+rm -rf "${work}"
 
 echo "${dest}/bin" >> "${GITHUB_PATH}"
 {
