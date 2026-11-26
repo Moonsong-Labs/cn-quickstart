@@ -15,7 +15,7 @@ set -euo pipefail
 # SDK release this job installs. The Daml packages pin the same sdk-version.
 version='3.7.1'
 
-# Where bootstrap installs the SDK. Removed with the runner workspace.
+# Where bootstrap installs the SDK. On a runner, RUNNER_TEMP is emptied when the job ends.
 dest="${RUNNER_TEMP}/dpm"
 
 # Integrity: verify the tarball before extraction.
@@ -40,9 +40,6 @@ mkdir -p "${extracted}"
 tar --strip-components=1 -C "${extracted}" -xzf "${tarball}"
 
 DPM_HOME="${dest}" "${extracted}/bin/dpm" bootstrap "${extracted}"
-
-# Bootstrap has unpacked the components. The OCI layout is about 1.3 GB and later commands do not read it.
-rm -rf "${dest}/cache/oci-layout"
 
 rm -rf "${work}"
 

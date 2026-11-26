@@ -3,7 +3,7 @@
 
 name: Install dpm
 description: >-
-  Installs dpm 3.7.1 the same way as the standard installer, checks the
+  Installs dpm the same way as the standard installer, checks the
   tarball checksum, and exports DPM_HOME, DPM_SDK_VERSION, and PATH.
   The install is removed when the job ends.
 
