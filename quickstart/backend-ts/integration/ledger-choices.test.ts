@@ -198,10 +198,11 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
   expect(requests.some((event) => event.contractId === requestId)).toBe(false);
 
   const params = { meta: { values: { description: 'Integration license' } } };
+  const uuid = randomUUID();
   const created = await exerciseChoice(provider, {
     contractId: installId,
     choice: AppInstall.AppInstall_CreateLicense,
-    argument: { params },
+    argument: { uuid, params },
     commandId: randomUUID(),
     actAs: [providerParty],
   });
@@ -223,17 +224,18 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
   expect(payload.user).toBe(userParty);
   expect(payload.params).toEqual(params);
   expect(payload.licenseNum).toBe('1');
+  expect(payload.uuid).toBe(uuid);
   expect(license?.signatories.slice().sort()).toEqual([providerParty, userParty].sort());
   expect(License.keyDecoder.runWithException(license?.contractKey)).toEqual({
     provider: providerParty,
     user: userParty,
-    licenseNum: '1',
+    uuid: payload.uuid,
   });
 
   const pqs = new Pool(readPostgresConfig());
   try {
     await waitForPqs(pqs, [created.licenseId]);
-    const licenseKey = { provider: providerParty, user: userParty, licenseNum: '1' };
+    const licenseKey = { provider: providerParty, user: userParty, uuid: payload.uuid };
     let activeLicenses = await listActiveByKey(pqs, License, licenseKey);
     const pqsLicense = activeLicenses.find(({ contractId }) => contractId === created.licenseId);
     expect(pqsLicense?.payload).toEqual(payload);
@@ -303,6 +305,7 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
       values: {
         'splice.lfdecentralizedtrust.org/reason': renewalArgument.description,
         'cn-quickstart.example.org/licenseNum': '1',
+        'cn-quickstart.example.org/uuid': payload.uuid,
       },
     };
     expect(interfaceContract?.contractId.toString()).toBe(renewalIds[0].toString());
@@ -537,7 +540,10 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
   const { licenseId } = await exerciseChoice(provider, {
     contractId: installId,
     choice: AppInstall.AppInstall_CreateLicense,
-    argument: { params: { meta: { values: { integrationTest: randomUUID() } } } },
+    argument: {
+      uuid: randomUUID(),
+      params: { meta: { values: { integrationTest: randomUUID() } } },
+    },
     commandId: randomUUID(),
     actAs: [providerParty],
   });

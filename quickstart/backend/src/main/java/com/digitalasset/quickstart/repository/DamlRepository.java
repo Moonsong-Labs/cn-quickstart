@@ -79,8 +79,9 @@ public class DamlRepository {
                        allocation.contract_id AS allocation_contract_id
                 FROM active(?) license
                 LEFT JOIN active(?) renewal ON
-                    license.payload->>'licenseNum' = renewal.payload->>'licenseNum'
+                    license.payload->>'uuid' = renewal.payload->>'uuid'
                     AND license.payload->>'user' = renewal.payload->>'user'
+                    AND license.payload->>'provider' = renewal.payload->>'provider'
                 LEFT JOIN active(?) allocation ON
                     renewal.payload->>'requestId' = allocation.payload->'allocation'->'settlement'->'settlementRef'->>'id'
                     AND renewal.payload->>'user' = allocation.payload->'allocation'->'transferLeg'->>'sender'
