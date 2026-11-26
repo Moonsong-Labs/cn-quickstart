@@ -16,12 +16,20 @@ export enum Button {
 }
 
 export default class AppInstalls extends RowOps {
+  private matchingPattern!: string | RegExp;
+
   constructor(page: Page) {
     super(page);
   }
 
-  /** The panel that shows the selected item's status and actions. */
-  private detail = (): Locator => this.page.getByRole('region', { name: 'Installation details' });
+  /**
+   * The panel that shows the selected item's status and actions. It matches only while it shows
+   * the item that `withRowMatching` matched, because the panel also shows the request metadata.
+   */
+  private detail = (): Locator =>
+    this.page
+      .getByRole('region', { name: 'Installation details' })
+      .filter({ hasText: this.matchingPattern });
 
   /** Installation items are list items. Each shows its request metadata, which holds the test tag. */
   override findRowBy = (pattern: string | RegExp): Locator => {
@@ -33,6 +41,7 @@ export default class AppInstalls extends RowOps {
     pattern: string | RegExp,
     withRow: (row: Locator) => Promise<void>,
   ): Promise<void> {
+    this.matchingPattern = pattern;
     await super.withRowMatching(pattern, async (row) => {
       await row.getByRole('button').click();
       await withRow(row);
