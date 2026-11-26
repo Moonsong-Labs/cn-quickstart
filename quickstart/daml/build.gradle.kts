@@ -5,9 +5,6 @@ buildscript {
     repositories {
         mavenCentral()
     }
-    configurations.classpath {
-        resolutionStrategy.force(Deps.transcode.forcedLf)
-    }
     dependencies {
         classpath(Deps.transcode.plugin)
     }

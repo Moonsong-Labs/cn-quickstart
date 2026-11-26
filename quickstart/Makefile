@@ -96,6 +96,43 @@ stop-application: ## Stop the application containers
 restart: ## Restart the application
 	$(QS) restart
 
+# LocalNet only: the Splice LocalNet network without the Quickstart application.
+# Needs only Docker: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
+# Don't run it at the same time as `make start`; both bind the same ports.
+# The application constraint files also list application modules, so use LocalNet's file only.
+LOCALNET_DIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/docker/modules/localnet)
+SPLICE_VERSION := $(shell sed -n 's/^SPLICE_VERSION=//p' .env)
+IMAGE_TAG ?= $(SPLICE_VERSION)
+RESOURCE_CONSTRAINTS_ENABLED ?= true
+ifeq ($(RESOURCE_CONSTRAINTS_ENABLED),true)
+  LOCALNET_ONLY_RESOURCE_CONSTRAINTS := -f $(LOCALNET_DIR)/resource-constraints.yaml
+endif
+LOCALNET_ONLY_COMPOSE = LOCALNET_DIR="$(LOCALNET_DIR)" IMAGE_TAG="$(IMAGE_TAG)" docker compose \
+	--env-file $(LOCALNET_DIR)/compose.env \
+	--env-file $(LOCALNET_DIR)/env/common.env \
+	-f $(LOCALNET_DIR)/compose.yaml $(LOCALNET_ONLY_RESOURCE_CONSTRAINTS) \
+	--profile sv --profile app-provider --profile app-user
+
+.PHONY: start-localnet
+start-localnet: ## Start only Splice LocalNet, without building or starting the application
+	@docker info >/dev/null
+	$(LOCALNET_ONLY_COMPOSE) up -d
+
+.PHONY: stop-localnet
+stop-localnet: ## Stop LocalNet started with start-localnet, keeping its data
+	@docker info >/dev/null
+	$(LOCALNET_ONLY_COMPOSE) down
+
+.PHONY: clean-localnet
+clean-localnet: ## Stop LocalNet started with start-localnet and remove its data
+	@docker info >/dev/null
+	$(LOCALNET_ONLY_COMPOSE) down -v
+
+.PHONY: status-localnet
+status-localnet: ## Show status of LocalNet started with start-localnet
+	@docker info >/dev/null
+	$(LOCALNET_ONLY_COMPOSE) ps
+
 # Utility targets
 .PHONY: status
 status: ## Show status of Docker containers

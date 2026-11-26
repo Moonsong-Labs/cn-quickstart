@@ -5,8 +5,7 @@ This update may require a `make clean-all` to remove old data and then a `make b
 
 This project provides scaffolding to develop a Canton Network (CN) application for the Global Synchronizer.
 We intend that you clone the repository and incrementally update the solution to match your business operations.
-We assume that you have a Daml Enterprise license to leverage all of this project's features at runtime.
-However, an OSS developer can benefit from this project by understanding how a CN Global Synchronizer application is structured.
+You don't need a license to run it: Canton, Daml and Splice are open source, and all of this project's features work without a Daml Enterprise license.
 
 [Binaries terms and conditions](https://github.com/digital-asset/cn-quickstart/blob/main/terms.md).
 
@@ -25,6 +24,10 @@ You can find Quickstart documentation in the Canton Network documentation portal
 - [Exploring The Demo](https://docs.canton.network/appdev/quickstart/running-the-demo)
 - [FAQ](https://docs.canton.network/appdev/faq)
 - [Quickstart Reference](https://docs.canton.network/sdks-tools/reference-projects/cn-quickstart#cn-quickstart)
+- [LocalNet](https://docs.canton.network/sdks-tools/development-tools/localnet): ports, Ledger API authentication and health checks
+- [Version Compatibility Dashboard](https://docs.canton.network/shared/version-compatibility-dashboard): component versions running on DevNet, TestNet and MainNet
+
+AI coding agents: see [AGENTS.md](AGENTS.md), or start from [llms.txt](https://docs.canton.network/llms.txt) or the [docs MCP server](https://docs.canton.network/shared/mcp-server).
 
 ### Technical documentation
 
@@ -70,17 +73,19 @@ java -version
 
 ### dpm
 
-Install dpm 3.5.2 and put the `dpm` binary on `PATH`. That is the version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`. `qs doctor` runs `dpm --version`, or `$DPM_PATH --version` when `DPM_PATH` is set.
+The installer installs Daml SDK 3.7.1 through dpm. Put the `dpm` binary on `PATH`. 3.7.1 is the SDK version CI installs (`.github/actions/setup/install-dpm/install-dpm.sh`) and the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. `make build` runs `dpm build --all`.
 
 ```bash
-curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.5.2
+curl -fsSL https://get.digitalasset.com/install/install.sh | sh -s 3.7.1
 ```
 
-The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the version:
+The installer writes dpm under `~/.dpm` by default. Add `~/.dpm/bin` to `PATH`, then check the active SDK version:
 
 ```bash
-dpm --version
+dpm version --active
 ```
+
+That prints `3.7.1`. `dpm --version` prints the dpm CLI version, a different number (for example `1.0.x`). `qs doctor` runs `dpm version --active`, or `$DPM_PATH version --active` when `DPM_PATH` is set, and reports that SDK version as `Daml SDK`. It warns when that SDK is not installed or differs from the `sdk-version` in `quickstart/daml/licensing/daml.yaml`. It also runs `dpm --version` and reports that CLI version on a separate `dpm CLI` line.
 
 ### Check the install
 
@@ -123,6 +128,38 @@ An assistant helps set up deployment when running `make start` for the first tim
 You can choose to run the application in standard mode or test mode and with or without OAUTH2. 
 You may change this later by running `make setup`.
 
+## LocalNet only
+
+If you only need a running network, for example to deploy and test your own Daml code, start LocalNet without the Quickstart application.
+This needs only Docker: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
+
+```bash
+$ cd quickstart
+
+# Start the super validator with the synchronizer, plus the App Provider and App User validators
+$ make start-localnet
+
+# Show container status
+$ make status-localnet
+
+# Stop LocalNet and keep its data, or stop it and remove its data
+$ make stop-localnet
+$ make clean-localnet
+```
+
+Each validator's JSON Ledger API is at `http://localhost:<prefix>975`: `2975` for the App User, `3975` for the App Provider and `4975` for the Super Validator.
+Requests need a JWT signed with HS256 and the secret `unsafe`, with audience `https://canton.network.global` and subject `ledger-api-user`.
+See [LocalNet](https://docs.canton.network/sdks-tools/development-tools/localnet) for health checks, a token example, and how to change ports that are already in use, for example `DB_PORT` if PostgreSQL already runs on port 5432.
+
+Don't run `make start-localnet` and `make start` at the same time: both use the same ports.
+
+### Versions
+
+`quickstart/.env` pins the versions this project builds and runs with. `SPLICE_VERSION` sets the LocalNet images, and `DAML_RUNTIME_VERSION` sets the Daml libraries the Java backend builds against.
+This fork pins Daml SDK 3.7.1 in each `daml.yaml` and in dpm, ledger API proto `DAML_RUNTIME_VERSION` 3.7.3, and Splice `SPLICE_VERSION` 0.10.2. PQS and daml-shell images are 3.7.0. Those pins stay ahead of the Canton 3.6 / Splice 0.9 versions on upstream `main`.
+They can still differ from the versions running on DevNet, TestNet and MainNet.
+Before you deploy to a shared network, check the [Version Compatibility Dashboard](https://docs.canton.network/shared/version-compatibility-dashboard).
+
 ## Debugging TL;DR
 
 If a container fails to start, there are a few things to try:
@@ -130,7 +167,7 @@ If a container fails to start, there are a few things to try:
 - Ensure Docker Compose is configured to allocate enough memory. The recommended minimum total memory is 8 GB.
 - Start fresh with `make clean-all` and then manually delete all Docker images and volumes.
 
-**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks `dpm`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
+**Note**: `make build` runs Gradle on the host, so the host needs a JDK 21. `qs doctor` checks the `java` on `PATH`, and it checks the active Daml SDK with `dpm version --active`. `quickstart/gradlew` uses `JAVA_HOME` when that variable is set, and otherwise uses `java` on `PATH`. Those lookups can select different installations. Doctor can accept the `java` on `PATH` while Gradle fails because `JAVA_HOME` is an invalid directory, or while Gradle runs a different JDK. Point `JAVA_HOME` at the same JDK 21, or leave it unset. The `backend-service` image in `quickstart/compose.yaml` is `eclipse-temurin:${JAVA_VERSION}`, and `quickstart/.env` sets `JAVA_VERSION=21-jdk`. That container runs the distribution Gradle already built.
 
 If you need assistance, please follow these directions to gather the log information needed for debugging:
 1. `make setup`             # optional
@@ -147,7 +184,7 @@ Read the [FAQ Make target reference](https://docs.canton.network/appdev/quicksta
 
 ## Topology
 
-Quickstart is built on top of https://github.com/hyperledger-labs/splice/tree/main/cluster/compose/localnet. Check [documentation](https://docs.sync.global/app_dev/testing/localnet.html) for more information about Splice LocalNet.
+Quickstart is built on top of https://github.com/hyperledger-labs/splice/tree/main/cluster/compose/localnet. Check the [LocalNet documentation](https://docs.canton.network/sdks-tools/development-tools/localnet) for more information about Splice LocalNet.
 
 This diagram summarizes the relationship of services that are started as part of `make start`. The `canton` and `splice` services are configured to serve multiple logically separate components (each component represented with a box in the diagram) from a single container to reduce resource consumption. Similarly the `postgres` service contains multiple databases required by Quickstart services. One `nginx` service is used as proxy for all Quickstart services that needs one except for `keycloak` that has its own `nginx-keycloak` as it needs to be ready before other services start. The focus of `Canton Network Quickstart` is to provide a development environment for App Providers.
 
@@ -302,6 +339,8 @@ Only the end users from an organization registered using endpoint `http://backen
 The `AppUser` organization is registered on the Quickstart startup by calling the registration script in the `register-app-user-tenant` Docker container.
 
 # Port mappings
+
+Published ports bind to `127.0.0.1`. Set `HOST_BIND_IP` to choose another address, for example `HOST_BIND_IP=0.0.0.0`. That value publishes every Quickstart port on all interfaces, including the participant Admin APIs, which LocalNet leaves unauthenticated, and the JVM debug port on 5005.
 
 ## Web UIs
 

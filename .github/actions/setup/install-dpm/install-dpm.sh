@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Installs dpm 3.5.2 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
+# Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: 0BSD
+
+# Installs dpm 3.7.1 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
 # and PATH for the rest of the job.
 #
 # The tarball is the one nix/dpm.nix fetches. Before bootstrap, the SDK
 # manifest is trimmed to the same components as that derivation. After
-# bootstrap, script-service.jar is linked into damlc's resources when the
-# daml-script component produced it. The install does not outlive the job.
+# bootstrap, script-service.jar is linked into damlc's resources directory,
+# which is where damlc ide looks for it. The install exits if that jar or
+# directory is missing. The install does not outlive the job.
 
 set -euo pipefail
 
-version='3.5.2'
+version='3.7.1'
 yq_version='v4.47.1'
 dest="${RUNNER_TEMP}/dpm"
 yq="${RUNNER_TEMP}/yq"
@@ -17,7 +21,7 @@ yq="${RUNNER_TEMP}/yq"
 # Integrity: verify artifacts before extraction/execution.
 # IMPORTANT: Keep expected_dpm_sha256 in lockstep with nix/dpm.nix's x86_64-linux hash
 # for the same URL this script fetches. Bump both together when changing 'version'.
-expected_dpm_sha256='0c65e97cb4f148cda1dd736d9e25e98b404b3f310fa57918793e5f4ba4bcb604'
+expected_dpm_sha256='e251291ef78dcfe290424cece3a7fafa753268727a679a10c7f0d9fa56e6d5e6'
 # yq checksum taken from the published release checksums for v4.47.1 (linux amd64).
 expected_yq_sha256='0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb'
 
@@ -37,7 +41,7 @@ chmod +x "${yq}"
     select(   .key == "damlc"
            or .key == "daml-script"
            or .key == "codegen"
-           or .key == "canton-enterprise"
+           or .key == "canton-open-source"
            or .key == "upgrade-check"
            )
           )' \
@@ -45,12 +49,20 @@ chmod +x "${yq}"
 
 DPM_HOME="${dest}" "${dest}/bin/dpm" bootstrap "${dest}"
 
-script_jar="${dest}/cache/components/daml-script/${version}/script-service.jar"
-resources="${dest}/cache/components/damlc/${version}/damlc-dist-dpm/lib/resources"
-if [ -f "${script_jar}" ]; then
-  mkdir -p "${resources}"
-  ln -sfn "${script_jar}" "${resources}/script-service.jar"
+# Component directories use the component version from the manifest, which
+# is 3.7.0 for damlc and daml-script inside the 3.7.1 SDK. damlc ide loads
+# script-service.jar from damlc-dist-dpm/resources; dpm leaves the jar in the
+# daml-script component, so the link below is what makes the IDE find it.
+script_jar="$(find "${dest}/cache/components/daml-script" -name script-service.jar -print -quit)"
+resources="$(find "${dest}/cache/components/damlc" -type d -path '*/damlc-dist-dpm/resources' -print -quit)"
+if [ -z "${script_jar}" ] || [ -z "${resources}" ]; then
+  echo "damlc ide needs script-service.jar linked into damlc's resources directory." >&2
+  echo "script-service.jar: ${script_jar:-missing}" >&2
+  echo "damlc resources: ${resources:-missing}" >&2
+  exit 1
 fi
+# The directory is empty, so an existing file fails the install.
+ln -s "${script_jar}" "${resources}/script-service.jar"
 
 echo "${dest}/bin" >> "${GITHUB_PATH}"
 {
