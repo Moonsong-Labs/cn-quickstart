@@ -3,6 +3,10 @@ import * as oidc from 'openid-client';
 import { createAdminBearerVerifier } from '../../auth/admin-bearer';
 import { Sessions } from '../../auth/sessions';
 import type { ApplicationConfig } from '../../config/application';
+import {
+  fetchLocalhostAlias,
+  isLocalhostSubdomain,
+} from '../../integrations/oauth/localhost-fetch';
 
 import { initialRegistrations, type OidcRegistration, oidcTenantRoutes } from './oidc-tenants';
 
@@ -74,14 +78,18 @@ export function oidcRoutes(
 
   let verifyBearer: ReturnType<typeof createAdminBearerVerifier> | undefined;
 
-  /** Loads provider metadata for a public OIDC client. HTTP requires explicit opt-in. */
+  /** Loads public-client metadata, with Docker alias resolution for LocalNet HTTP issuers. */
   function discoverClient(issuer: URL, clientId: string) {
+    const allowHttp = issuer.protocol === 'http:' && options.allowHttp;
     return oidc.discovery(issuer, clientId, { token_endpoint_auth_method: 'none' }, oidc.None(), {
       timeout: 10,
       execute: [
         oidc.enableNonRepudiationChecks,
-        ...(issuer.protocol === 'http:' && options.allowHttp ? [oidc.allowInsecureRequests] : []),
+        ...(allowHttp ? [oidc.allowInsecureRequests] : []),
       ],
+      ...(allowHttp && isLocalhostSubdomain(issuer.hostname)
+        ? { [oidc.customFetch]: fetchLocalhostAlias }
+        : {}),
     });
   }
 

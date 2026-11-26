@@ -1,5 +1,6 @@
-import { createRemoteJWKSet, errors, jwtVerify } from 'jose';
+import { createRemoteJWKSet, customFetch, errors, jwtVerify } from 'jose';
 import type { ApplicationConfig } from '../config/application';
+import { fetchLocalhostAlias, isLocalhostSubdomain } from '../integrations/oauth/localhost-fetch';
 
 /** Builds a verifier from the AppProvider's trusted discovery metadata, reusing its JWKS cache. */
 export function createAdminBearerVerifier(
@@ -13,7 +14,12 @@ export function createAdminBearerVerifier(
     !(url.protocol === 'http:' && new URL(metadata.issuer).protocol === 'http:')
   )
     throw new Error('AppProvider JWKS must use HTTPS unless the issuer uses HTTP');
-  const keys = createRemoteJWKSet(url);
+  const keys = createRemoteJWKSet(
+    url,
+    url.protocol === 'http:' && isLocalhostSubdomain(url.hostname)
+      ? { [customFetch]: fetchLocalhostAlias }
+      : undefined,
+  );
 
   const options = {
     issuer: metadata.issuer,
