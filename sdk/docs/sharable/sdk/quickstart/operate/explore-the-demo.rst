@@ -188,7 +188,7 @@ AppInstallRequest
 -----------------
 
 The install request appears in the list with the status **Requested**.
-Its details show next to the list.
+Select it to show its details next to the list.
 
 Click **Accept**.
 
