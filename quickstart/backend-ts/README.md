@@ -63,6 +63,13 @@ PORT=8082 bun run start
 
 Stop either command with `Ctrl+C`.
 
+OAuth2 administrative bearers must match the configured issuer, audience and
+authorized client (`azp`). Set `AUTH_APP_PROVIDER_ADMIN_AUDIENCE` and
+`AUTH_APP_PROVIDER_ADMIN_CLIENT_ID` to override the deployment's
+`AUTH_APP_PROVIDER_AUDIENCE` and `AUTH_APP_PROVIDER_VALIDATOR_CLIENT_ID`.
+Quickstart defaults to `https://canton.network.global` and
+`app-provider-validator` for LocalNet onboarding.
+
 ## Build and checks
 
 Run these commands from `quickstart/backend-ts`. Regenerate bindings after changing

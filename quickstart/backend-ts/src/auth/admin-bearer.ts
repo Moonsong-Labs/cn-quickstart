@@ -6,6 +6,7 @@ import { fetchLocalhostAlias, isLocalhostSubdomain } from '../integrations/oauth
 export function createAdminBearerVerifier(
   metadata: { issuer: string; jwks_uri?: string },
   provider: ApplicationConfig['appProvider'],
+  { audience, clientId }: NonNullable<ApplicationConfig['oidc']>['adminBearer'],
 ) {
   if (!metadata.jwks_uri) throw new Error('AppProvider discovery is missing jwks_uri');
   const url = new URL(metadata.jwks_uri);
@@ -23,6 +24,7 @@ export function createAdminBearerVerifier(
 
   const options = {
     issuer: metadata.issuer,
+    audience,
     algorithms: ['RS256'],
     clockTolerance: 60, // Spring Security's default clock skew for exp and nbf.
   };
@@ -30,19 +32,17 @@ export function createAdminBearerVerifier(
   /** Tries the issuer's matching keys during rotation, validating claims with the same options. */
   async function verifyToken(token: string) {
     try {
-      await jwtVerify(token, keys, options);
-      return true;
+      return (await jwtVerify(token, keys, options)).payload;
     } catch (error) {
       if (!(error instanceof errors.JWKSMultipleMatchingKeys)) throw error;
       for await (const key of error) {
         try {
-          await jwtVerify(token, key, options);
-          return true;
+          return (await jwtVerify(token, key, options)).payload;
         } catch (cause) {
           if (!(cause instanceof errors.JWSSignatureVerificationFailed)) throw cause;
         }
       }
-      return false;
+      return undefined;
     }
   }
 
@@ -51,7 +51,7 @@ export function createAdminBearerVerifier(
     const token = authorization?.match(/^Bearer +([^\s,]+)$/i)?.[1];
     if (!token) return null;
     try {
-      if (!(await verifyToken(token))) return null;
+      if ((await verifyToken(token))?.azp !== clientId) return null;
       return { tenantId: provider.tenantId, partyId: provider.partyId, isAdmin: true };
     } catch (error) {
       if (

@@ -116,7 +116,11 @@ export function oidcRoutes(
           const authorization = request.headers.get('authorization');
           if (authorization !== null) {
             const config = await discover();
-            verifyBearer ??= createAdminBearerVerifier(config.serverMetadata(), provider);
+            verifyBearer ??= createAdminBearerVerifier(
+              config.serverMetadata(),
+              provider,
+              options.adminBearer,
+            );
             return (await verifyBearer(authorization)) ? 200 : 401;
           }
           const session = sessions.read(sessionId);

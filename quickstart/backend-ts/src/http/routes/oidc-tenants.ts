@@ -28,7 +28,7 @@ export type OidcRegistration = {
 /** Seeds the browser registrations with the built-in AppProvider client. */
 export function initialRegistrations(
   provider: ApplicationConfig['appProvider'],
-  options: NonNullable<ApplicationConfig['oidc']>,
+  options: Pick<NonNullable<ApplicationConfig['oidc']>, 'issuer' | 'clientId'>,
 ) {
   return new Map<string, OidcRegistration>([
     [

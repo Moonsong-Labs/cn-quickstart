@@ -43,6 +43,16 @@ export function readApplicationConfig(
     oidc: {
       issuer,
       clientId,
+      adminBearer: {
+        audience:
+          env.AUTH_APP_PROVIDER_ADMIN_AUDIENCE?.trim() ||
+          env.AUTH_APP_PROVIDER_AUDIENCE?.trim() ||
+          'https://canton.network.global',
+        clientId:
+          env.AUTH_APP_PROVIDER_ADMIN_CLIENT_ID?.trim() ||
+          env.AUTH_APP_PROVIDER_VALIDATOR_CLIENT_ID?.trim() ||
+          'app-provider-validator',
+      },
       testProfile:
         env.TEST_MODE === 'on' ||
         env.SPRING_PROFILES_ACTIVE?.split(',').some((profile) => profile.trim() === 'test') ===

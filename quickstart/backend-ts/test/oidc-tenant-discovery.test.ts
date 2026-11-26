@@ -31,9 +31,6 @@ function setup(allowHttp: boolean) {
     {
       issuer: new URL('https://provider.example'),
       clientId: 'provider-client',
-      publicOrigin: 'https://app.example',
-      testProfile: false,
-      allowHttp,
     },
   );
   const app = oidcTenantRoutes(
