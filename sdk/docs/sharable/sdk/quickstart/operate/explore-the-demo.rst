@@ -156,13 +156,13 @@ Fill in the login credentials: username: app-provider, password: abc123
    :alt: AppProvider login screen
    :width: 60%
 
-The App Installs Menu
----------------------
+The Installations Menu
+----------------------
 
-Once you are logged in select **AppInstalls** in the menu.
+Once you are logged in select **Installations** in the menu.
 
 .. image:: images/qs-demo-app-installs-view.png
-   :alt: App Installs view
+   :alt: Installations view
 
 Open a terminal to create an app install request.
 
@@ -187,7 +187,8 @@ Return to the browser.
 AppInstallRequest
 -----------------
 
-The install request appears in the list.
+The install request appears in the list with the status **Requested**.
+Its details show next to the list.
 
 Click **Accept**.
 
@@ -200,13 +201,13 @@ The ``AppInstallRequest`` is Accepted.
    :alt: accepted request
    :width: 60%
 
-The actions update to Cancel and Create license.
+The status changes to **Installed**, and the actions change to **Create license** and **Cancel installation**.
 
 Create a license
 ----------------
 
-Click **Create License**.
-The license is created and the “# Licenses” field is updated.
+Click **Create license**.
+The app creates the license, and the **Licenses** count of the installation changes to 1.
 
 .. image:: images/created-license.png
    :alt: create license
@@ -307,7 +308,7 @@ If OAUTH2 is disabled, simply log in as ``app-user``.
 
 .. image:: images/login-app-user-noauth.png
    :alt: AppUser login screen without Auth
-   :width: 40%
+   :width: 60%
 
 **OAUTH2 enabled**
 
@@ -323,7 +324,7 @@ Login as ``AppUser`` with “app-user" as the username and the password is “ab
    :alt: AppUser login screen
    :width: 60%
 
-The AppInstall now shows as accepted.
+The **Applications** menu shows the installation with the status **Installed**.
 
 .. image:: images/accepted-app-install.png
    :alt: accepted AppInstall
