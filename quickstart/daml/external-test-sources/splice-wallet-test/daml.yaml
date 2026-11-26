@@ -1,4 +1,4 @@
-sdk-version: 3.5.2
+sdk-version: 3.7.1
 name: splice-wallet-test
 source: daml
 version: 0.1.15
@@ -19,6 +19,5 @@ data-dependencies:
 - ../../dars/splice-api-token-transfer-instruction-v1-1.0.0.dar
 - ../../dars/splice-api-token-allocation-v1-1.0.0.dar
 build-options:
-  - --target=2.3
   - --ghc-option=-Wunused-binds
   - --ghc-option=-Wunused-matches

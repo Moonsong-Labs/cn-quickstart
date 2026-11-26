@@ -6,7 +6,8 @@ COPY .github/actions/setup/install-dpm/install-dpm.sh /tmp/install-dpm.sh
 # Reuse CI's pinned SDK and checksum verification without GitHub environment files.
 RUN RUNNER_TEMP=/opt GITHUB_PATH=/dev/null GITHUB_ENV=/dev/null bash /tmp/install-dpm.sh
 ENV DPM_HOME=/opt/dpm
-ENV DPM_SDK_VERSION=3.5.2
+# dpm build uses this in place of sdk-version. It has to be the SDK install-dpm.sh just bootstrapped.
+ENV DPM_SDK_VERSION=3.7.1
 ENV PATH="/opt/dpm/bin:${PATH}"
 WORKDIR /app/quickstart/daml/licensing
 COPY quickstart/daml/dars/ ../dars/
@@ -14,7 +15,7 @@ COPY quickstart/daml/licensing/daml.yaml ./
 COPY quickstart/daml/licensing/daml/ ./daml/
 RUN dpm build && dpm codegen-js
 
-FROM oven/bun:1.3.3-slim AS build
+FROM oven/bun:1.4.4-slim AS build
 WORKDIR /app
 
 COPY package.json bun.lock ./
@@ -32,7 +33,7 @@ COPY quickstart/backend-ts/scripts/link-daml-bindings.ts ./quickstart/backend-ts
 WORKDIR /app/quickstart/backend-ts
 RUN bun --no-env-file scripts/link-daml-bindings.ts && bun run build:bundle
 
-FROM oven/bun:1.3.3-slim AS runtime
+FROM oven/bun:1.4.4-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8081

@@ -20,24 +20,20 @@ object Deps {
     }
 
     object transcode {
-        val version get() = "3.5.8"
+        /**
+         * Newest 3.7 release that publishes the Java codegen plugin.
+         * 3.7.3 publishes the ledger API proto and the codecs, and not this plugin.
+         */
+        val version get() = "3.7.2"
 
-        // The codegen plugin and its runtime have no stable 3.5.x release; only snapshots.
-        // Their POMs pin Daml LF snapshots that were never published to Maven Central, so
-        // :daml forces those transitives to $version. Keep both on the same snapshot.
-        val codegenVersion get() = "3.5.0-snapshot.20260428.170.1007.v02f2a2a"
-
-        val plugin get() = "com.daml.codegen-java-daml3:com.daml.codegen-java-daml3.gradle.plugin:$codegenVersion"
-        val codegenJavaRuntime get() = "com.daml:transcode-codegen-java-runtime_3:$codegenVersion"
+        /** Gradle plugin that generates the Java bindings from a DAR. */
+        val plugin get() = "com.daml.codegen-java-daml3:com.daml.codegen-java-daml3.gradle.plugin:$version"
+        /** Runtime linked by the classes that plugin writes. */
+        val codegenJavaRuntime get() = "com.daml:transcode-codegen-java-runtime_3:$version"
+        /** Protobuf codec for ledger values. */
         val protoJava get() = "com.daml:transcode-codec-proto-java_3:$version"
+        /** JSON codec for ledger values. */
         val protoJson get() = "com.daml:transcode-codec-json_3:$version"
-
-        // Transitives the codegen snapshots pin to unpublished LF snapshots.
-        val forcedLf get() = listOf(
-            "com.daml:daml-lf-archive_2.13:$version",
-            "com.daml:transcode-daml-lf_3:$version",
-            "com.daml:transcode-schema_3:$version",
-        )
     }
 
     object springBoot {
