@@ -3,6 +3,7 @@ module Licensing.Scripts.TestLicense where
 import Daml.Script
 
 import DA.Assert
+import DA.List (sortOn)
 import DA.Optional (isNone)
 import DA.Time
 import Splice.Api.Token.MetadataV1
@@ -318,6 +319,11 @@ testLicenseTokenStandard_ConcurrentRenewals = script do
   secondRequest <- initiateLicenseRenewal
     "Second concurrent renewal" renewalFee extension
     (registry, providerParty) originalCid "req-id-2"
+
+  visibleRequests <- queryInterface @AllocationRequest userParty
+  let expectedRequests = map (toInterfaceContractId @AllocationRequest) [firstRequest, secondRequest]
+  sortOn show (map fst visibleRequests) === sortOn show expectedRequests
+
   (firstAllocation, _) <- fundRequest registry userParty providerParty firstRequest
   (secondAllocation, _) <- fundRequest registry userParty providerParty secondRequest
   assertReserved registry userParty providerParty (renewalFee + renewalFee)
