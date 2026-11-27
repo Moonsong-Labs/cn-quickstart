@@ -1,14 +1,7 @@
-/** Stores a tenant’s party, registered local usernames, internal status, and optional wallet URL. */
-export type Tenant = {
-  tenantId: string;
-  partyId: string;
-  internal: boolean;
-  users: readonly string[];
-  walletUrl?: string;
-};
+import type { SharedSecretTenant } from '../modules/tenants';
 
 /** Maps a registered username to its tenant's party, roles, and wallet URL, or returns null. */
-export function resolveSharedSecretUser(username: string, tenants: Iterable<Tenant>) {
+export function resolveSharedSecretUser(username: string, tenants: Iterable<SharedSecretTenant>) {
   for (const tenant of tenants) {
     if (!tenant.users.includes(username)) continue;
     return {

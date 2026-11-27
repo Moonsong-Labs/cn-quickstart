@@ -48,7 +48,9 @@ test('Only admins can onboard a tenant and failed registration reserves no users
   });
 
   // The second username collides with app-provider. Both alice and the tenant ID must remain available for retry.
-  expect((await register(admin, { ...tenant, users: ['alice', 'APP-PROVIDER'] })).status).toBe(500);
+  const duplicate = await register(admin, { ...tenant, users: ['alice', 'APP-PROVIDER'] });
+  expect(duplicate.status).toBe(409);
+  expect(await duplicate.json()).toEqual({ message: 'Username already exists' });
   expect(await login('alice')).toBe('');
   const created = await register(admin, tenant);
   expect(created.status).toBe(201);

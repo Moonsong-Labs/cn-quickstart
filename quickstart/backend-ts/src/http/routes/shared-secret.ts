@@ -1,11 +1,12 @@
 import { Elysia } from 'elysia';
 import { Sessions } from '../../auth/sessions';
-import { resolveSharedSecretUser, type Tenant } from '../../auth/shared-secret-user';
+import { resolveSharedSecretUser } from '../../auth/shared-secret-user';
+import type { SharedSecretTenant } from '../../modules/tenants';
 
 import { tenantRegistrationRoutes } from './tenant-registration';
 
 /** Registers shared-secret login, session, and tenant administration endpoints. */
-export function sharedSecretRoutes(tenants: Tenant[]) {
+export function sharedSecretRoutes(tenants: SharedSecretTenant[]) {
   const sessions = new Sessions<string>();
 
   /** Matches login names case-insensitively and preserves the registered spelling in the session. */
@@ -18,7 +19,7 @@ export function sharedSecretRoutes(tenants: Tenant[]) {
   }
 
   /** Ends every session belonging to a user of the removed tenant. */
-  function revokeTenantSessions(tenant: Tenant) {
+  function revokeTenantSessions(tenant: SharedSecretTenant) {
     sessions.revokeWhere((username) => tenant.users.includes(username));
   }
 
