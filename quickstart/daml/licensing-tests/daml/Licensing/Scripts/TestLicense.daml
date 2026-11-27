@@ -5,6 +5,7 @@ import Daml.Script
 import DA.Assert
 import DA.List (sortOn)
 import DA.Optional (isNone)
+import DA.Text (isInfixOf)
 import DA.Time
 import Splice.Api.Token.MetadataV1
 import Splice.Api.Token.AllocationRequestV2
@@ -367,8 +368,13 @@ testRenewalCannotSettleAtOrAfterDeadline = script do
   submitMustFail userParty $ exerciseCmd (toInterfaceContractId @AllocationRequest requestCid)
     AllocationRequest_Accept with actors = [userParty]; extraArgs = emptyExtraArgs
   (disclosures, args) <- completeWithContexts registry licenseCid allocationCid
-  submitWithDisclosuresMustFail' providerParty disclosures $
+  settlementError <- submitWithError (actAs providerParty <> discloseMany' disclosures) $
     exerciseCmd requestCid args
+  case settlementError of
+    FailureStatusError status -> do
+      status.errorId === "stdlib.daml.com/deadline-exceeded"
+      assertMsg "Expected Licensing's settleBefore check" ("'settleBefore'" `isInfixOf` status.message)
+    _ -> fail ("Expected a settlement deadline error, got " <> show settlementError)
   Some _ <- queryContractId providerParty requestCid
   Some _ <- queryContractId providerParty licenseCid
   activeAllocations <- queryInterface @Allocation providerParty
