@@ -200,17 +200,14 @@ testLicenseTokenStandard = script do
 
   WalletClient.checkBalance userParty registry.instrumentId (100.0 - renewalFee)
   WalletClient.checkBalance providerParty registry.instrumentId renewalFee
-  queryContractId providerParty requestCid >>= (=== None)
-  queryContractId providerParty licenseCid >>= (=== None)
-  Some renewedUser <- queryContractId userParty renewedCid
-  Some renewedProvider <- queryContractId providerParty renewedCid
-  renewedUser === renewedProvider
+  [(userLicenseCid, renewedUser)] <- query @License userParty
+  userLicenseCid === renewedCid
+  query @License providerParty >>= (=== [(renewedCid, renewedUser)])
+  query @LicenseRenewalRequest userParty >>= (=== [])
+  query @LicenseRenewalRequest providerParty >>= (=== [])
+  assertMsg "Renewal must replace the license contract ID" (renewedCid /= licenseCid)
   renewedUser.licenseNum === originalLicense.licenseNum
   renewedUser.uuid === originalLicense.uuid
-  queryAllByKey @License providerParty (LicenseKey providerParty userParty originalLicense.uuid)
-    >>= (=== [(renewedCid, renewedUser)])
-  queryAllByKey @LicenseRenewalRequest providerParty (LicenseRenewalRequestKey providerParty userParty "req-id-1")
-    >>= (=== [])
   now <- getTime
   renewedUser.expiresAt === addRelTime now extension
 
