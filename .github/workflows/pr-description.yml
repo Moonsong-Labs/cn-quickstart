@@ -1,12 +1,18 @@
 # Required check "PR description": the pull request description follows
-# .github/pull_request_template.md. The rules live in
-# .github/scripts/pr-description.ts.
+# .github/pull_request_template.md, and the title is a Conventional Commit
+# (`type(optional-scope)!: subject`). Description rules live in
+# .github/scripts/pr-description.ts. Title rules live in
+# .github/scripts/pr-title.ts.
 #
-# A workflow of its own, outside ci.yml and ci-ok: it reruns whenever the
-# description is edited, and an edit must not restart or cancel CI.
-# `synchronize` reruns it on each push, so the result is on the head commit.
-# Dependabot writes its own descriptions; the job is skipped for it, and a
-# skipped job satisfies a required check.
+# A workflow of its own, outside ci.yml and ci-ok. `edited` reruns it when
+# the description or the title changes, and that rerun must not restart CI.
+# There is no path filter: an edit does not change files, and a path filter
+# would skip the job. `synchronize` reruns it on each push, so the result is
+# on the head commit.
+# Dependabot writes its own descriptions. The whole job, including the title
+# step, is skipped for it, and a skipped job satisfies a required check.
+# The title arrives as PR_TITLE. Interpolating it into `run` would let a
+# title break out of the script.
 
 name: PR description
 
@@ -36,9 +42,18 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-      - name: Test the checker
+      - id: tests
+        name: Test the checker
         run: bun test ./.github/scripts
       - name: Check the description
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: bun .github/scripts/pr-description.ts
+      # An if with no status function is implicitly success(), which would
+      # skip this step after a description failure. cancelled() turns that
+      # guard off. A failed checker test, or a cancelled run, still skips it.
+      - name: Check the title
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bun .github/scripts/pr-title.ts

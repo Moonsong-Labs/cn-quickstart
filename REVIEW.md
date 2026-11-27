@@ -79,10 +79,16 @@ A reviewer should understand the description without already knowing the change.
 - **What & Why.** One bullet per point. Start with what changes in plain words, then the paths, commands, and versions.
 - Flag a decision or a What & Why bullet that a person cannot follow: a pile of hashes, component names, or labels where a short sentence would do.
 
+## Pull request titles
+
+A title is a Conventional Commit: `type(optional-scope)!: subject`. The type is `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, or `revert`. The scope and the breaking-change `!` are optional. The subject after `: ` must be non-empty. A gitmoji at the start of the subject is the usual style and is not required.
+
+`.github/workflows/pr-description.yml` checks the title in the same job as the description. The `edited` event reruns that job when the title changes. The rule is `.github/scripts/pr-title.ts`.
+
 ## CI: `.github/**`
 
 - Actions are pinned to a commit SHA with the version in a trailing comment.
 - `permissions` stay at `contents: read` unless a job needs more, and the extra permission is set on that job only.
 - A new job in `.github/workflows/ci.yml` must appear in the `needs` of `ci-ok`. Otherwise its failure never blocks a merge.
-- `.github/workflows/pr-description.yml` is the one required check outside `ci-ok`, because it reruns on every description edit. A change to `.github/scripts/pr-description.ts` that loosens a rule needs a reason in the description.
+- `.github/workflows/pr-description.yml` is the one required check outside `ci-ok`. It reruns on `edited`, which is a description edit or a title edit, and that rerun must not restart CI. Description rules live in `.github/scripts/pr-description.ts`. The title must be a Conventional Commit, checked by `.github/scripts/pr-title.ts`. A change that loosens either rule needs a reason in the description. Leave this job out of `ci-ok`'s `needs`: Dependabot skips it, and a skip has to satisfy the required check by itself.
 - Pull-request runs cancel superseded runs. Runs on `msl` never do.

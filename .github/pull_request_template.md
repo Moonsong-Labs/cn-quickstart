@@ -1,3 +1,5 @@
+<!-- The title is checked as well: Conventional Commits, `type(optional-scope)!: subject`, for example `feat(auth): ✨ Add OIDC tenants`. A gitmoji in the subject is optional. -->
+
 ## Summary 📝
 
 <!-- One or two sentences summarizing what changes and why. Link the issue. -->
