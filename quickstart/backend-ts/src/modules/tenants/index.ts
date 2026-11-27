@@ -26,12 +26,13 @@ export class TenantRegistrationError extends Error {
   }
 }
 
-/** Normalizes a blank optional URI to null and rejects unescaped characters and malformed escapes. */
+/** Normalizes blank URLs to null and requires wallet URLs to be absolute HTTP(S) URLs. */
 export function optionalTenantUrl(value: string | null | undefined, field: 'issuer' | 'wallet') {
   if (!value?.trim()) return null;
   if (
     /\s|[<>"{}|\\^`]|%(?![0-9a-f]{2})/i.test(value) ||
-    !URL.canParse(value, 'https://localhost')
+    !URL.canParse(value, 'https://localhost') ||
+    (field === 'wallet' && !/^https?:\/\//i.test(value))
   ) {
     throw new TenantRegistrationError(400, `Invalid ${field} URL`);
   }

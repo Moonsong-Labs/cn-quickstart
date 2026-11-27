@@ -79,13 +79,15 @@ function setup(allowHttp: boolean) {
   };
 }
 
-test('OIDC registration rejects malformed wallet URLs before discovery', async () => {
+test('OIDC registration rejects invalid wallet URLs before discovery', async () => {
   const fixture = setup(true);
   try {
     for (const walletUrl of [
       'https://wallet.example/has space',
       'https://wallet.example/<path>',
       'https://wallet.example/%ZZ',
+      'javascript:',
+      '/allocations',
     ]) {
       const response = await fixture.register({ walletUrl });
       expect(response.status).toBe(400);

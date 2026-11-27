@@ -195,7 +195,9 @@ test.each([
   'https://wallet.example/has space',
   'https://wallet.example/<path>',
   'https://wallet.example/%ZZ',
-])('Shared-secret registration rejects malformed wallet URL %s', async (walletUrl) => {
+  'javascript:',
+  '/allocations',
+])('Shared-secret registration rejects invalid wallet URL %s', async (walletUrl) => {
   const { login, register } = setup();
   const admin = await login('app-provider');
   const response = await register(admin, {
