@@ -97,11 +97,6 @@ Modify the configuration files to match your application's requirements.
 Start with the Canton console configuration in ``quickstart/config/canton-console/app.conf`` to adjust ledger access permissions and admin operations.
 When you need to change network routing or add SSL certificates, edit the NGINX configurations in ``quickstart/config/nginx/`` directory.
 
-Fine-tune your observability stack by modifying the configurations in ``quickstart/docker/modules/observability/conf/``
-to capture application-specific metrics and create custom dashboards for monitoring your services.
-These files use standard formats (`HOCON <https://docs.tibco.com/pub/sfire-sfds/latest/doc/html/hocon/hocon-syntax-reference.html>`__
-for Canton, `YAML <https://yaml.org/spec/1.2.2/>`__ for Docker services, Grafana JSON for dashboards), making them easy to edit with standard tools.
-
 Override configuration values by setting environment variables in your ``.env`` files rather than editing the configuration files directly.
 This approach makes it easier to incorporate upstream updates by keeping your customizations separate from the base configurations.
 For example, set ``CANTON_ADMIN_PORT=3902`` in your ``.env`` file to change the Canton admin API port without modifying the ``app.conf`` file.
@@ -116,10 +111,8 @@ Use the build utilities in ``quickstart/buildSrc/`` to automate common developme
 The Java convention scripts standardize your application's build configuration across modules.
 
 Configure your deployment environment by selecting the appropriate Docker Compose files in ``quickstart/docker/modules/``.
-Quickstart's modular architecture includes ``LocanNet``, Keycloak, observability, and other services, each with their own ``compose.yaml`` files.
-Adjust resource allocations with the ``resource-constraints.yaml`` files with each module directory. 
-Start the observability stack with ``docker-compose -f quickstart/docker/modules/observability/compose.yaml`` up to monitor your application's performance.
-The observability module integrates with Grafana dashboards defined in ``quickstart/docker/modules/observability/conf/grafana/dashboards/`` to provide real-time metrics visualization.
+Quickstart's modular architecture includes ``LocalNet``, Keycloak, and other services, each with their own ``compose.yaml`` files.
+Adjust resource allocations with the ``resource-constraints.yaml`` files with each module directory.
 
 You can extend these utilities to match your specific requirements to avoid building similar functionality from scratch.
 For example, you might add custom test cases to the existing test framework or create new deployment scripts based on the provided templates.
@@ -297,7 +290,6 @@ be sure to implement a regular, and preferably automated,
 backup strategy if you want to reuse or analyze generated data.
 Verify that access control is properly in place.
 We also suggest establishing a reliable way to monitor resource consumption, especially for extended runs.
-Your team may want to take advantage of resource management tools available through CN’s Observability tools.
 
 For example, a monitoring script in crontab can offer basic alerting.
 

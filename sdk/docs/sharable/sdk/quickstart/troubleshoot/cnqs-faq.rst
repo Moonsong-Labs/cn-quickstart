@@ -43,7 +43,6 @@ Please be aware that the Canton Network Application Quickstart (CN App Quickstar
 **What are the minimum system requirements to run CN App Quickstart LocalNet?**
 
 The CN App Quickstart requires Docker Desktop with at least 8 GB of memory allocated to run ``LocalNet`` properly.
-If your machine has less memory, consider declining Observability when prompted during setup.
 
 **Which browsers are supported for running CN App Quickstart?**
 
@@ -184,15 +183,7 @@ The most common cause is insufficient memory allocation to Docker. Try:
 
 2. Run ``make stop; make clean-all; make clean-docker``
 
-3. Run ``make setup`` and turn off ``observability``
-
-4. Restart with ``make start``
-
-**How can I monitor system metrics?**
-
-You can use Grafana at http://localhost:3030/ to monitor system metrics if ``observability`` is enabled.
-
-For more information see the Observability and Troubleshooting Overview.
+3. Restart with ``make start``
 
 **What should I do if I need to completely reset my environment?**
 
@@ -231,15 +222,9 @@ This provides access to useful commands like:
 
 -  ``contract [contract-id]`` - shows full contract details
 
-**How can I monitor application logs and traces?**
+**How can I see application logs?**
 
-The CN App Quickstart provides several observability options:
-
-1. Direct container logs: ``docker logs <container-name>``
-
-2. Grafana dashboards: http://localhost:3030/
-
-3. Consolidated logs view in Grafana
+Use ``make logs`` or ``docker logs <container-name>``.
 
 **Why do backend configurations disappear after restarting the backend service?**
 
@@ -397,8 +382,8 @@ The Participant Query Store (PQS) is recommended for querying ledger data.
 | clean-all           | Stop and remove all build artifacts, Docker    |
 |                     | containers and volumes.                        |
 +---------------------+------------------------------------------------+
-| clean-application   | Like ``clean-docker``, but leaves              |
-|                     | observability services running.                |
+| clean-application   | Stop and remove the application containers     |
+|                     | and volumes.                                   |
 +---------------------+------------------------------------------------+
 | clean-canton-       | Stop and remove the Canton console container.  |
 | console             |                                                |
@@ -432,16 +417,13 @@ The Participant Query Store (PQS) is recommended for querying ledger data.
 | shell               | Start Daml Shell. Connects to the running      |
 |                     | application PQS database.                      |
 +---------------------+------------------------------------------------+
-| start               | Start the application and observability        |
-|                     | services if enabled.                           |
+| start               | Start the application.                         |
 +---------------------+------------------------------------------------+
 | status              | Show status of Docker containers.              |
 +---------------------+------------------------------------------------+
-| stop                | Stop the application and observability         |
-|                     | services.                                      |
+| stop                | Stop the application.                          |
 +---------------------+------------------------------------------------+
-| stop-application    | Stop only the application, leaving             |
-|                     | observability services running.                |
+| stop-application    | Stop the application containers.               |
 +---------------------+------------------------------------------------+
 | tail                | Tail logs of Docker containers.                |
 +---------------------+------------------------------------------------+
@@ -456,8 +438,6 @@ The Participant Query Store (PQS) is recommended for querying ledger data.
 | **Target**       | **Description**                                   |
 +==================+===================================================+
 | open-app-ui      | Open the Application UI in the active browser     |
-+------------------+---------------------------------------------------+
-| open-observe     | Open the Grafana UI in the active browser         |
 +------------------+---------------------------------------------------+
 | open-sv-wallet   | Open the Super Validator wallet UI in the active  |
 |                  | browser                                           |
@@ -479,9 +459,6 @@ The Participant Query Store (PQS) is recommended for querying ledger data.
 | **URL**                       | **Description**                      |
 +===============================+======================================+
 | http://localhost:3000         | Main application UI                  |
-+-------------------------------+--------------------------------------+
-| http://localhost:3030         | Grafana observability dashboard (if  |
-|                               | enabled)                             |
 +-------------------------------+--------------------------------------+
 | http://localhost:4000         | Super Validator gateway - lists      |
 |                               | available web UI options             |

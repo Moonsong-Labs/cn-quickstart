@@ -249,7 +249,7 @@ Troubleshooting
    .. image:: images/59-verify-keycloak-running.png
       :alt: verify keycloak running
 
-Find **keycloak** near **grafana** and **loki** in the list.
+Find **keycloak** in the list.
 
 **Keycloak** should show as “healthy”
 
