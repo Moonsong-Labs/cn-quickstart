@@ -25,5 +25,5 @@ services:
       - TEST_APP_USER_PARTY=${TEST_APP_USER_PARTY:-}
     entrypoint: [ "/entrypoint.sh", "--exit-on-error" ]
     networks:
-      - ${DOCKER_NETWORK}
+      - quickstart
     depends_on: !reset []
