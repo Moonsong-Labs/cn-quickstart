@@ -417,6 +417,14 @@ test('Creates a keyed license and permits renewal requests sharing the same key'
     }
     if (!accepted) throw new Error('Accepted renewal request replacement missing from PQS');
     expect(accepted.contractId).not.toBe(renewalIds[1]);
+
+    let acceptedView = await findActiveById(pqs, AllocationRequest, accepted.contractId);
+    while (!acceptedView && Date.now() < acceptanceDeadline) {
+      await Bun.sleep(VISIBILITY_POLL_INTERVAL_MS);
+      acceptedView = await findActiveById(pqs, AllocationRequest, accepted.contractId);
+    }
+    if (!acceptedView) throw new Error('Accepted renewal allocation request view missing from PQS');
+    expect(acceptedView.payload.originalRequestCid?.toString()).toBe(renewalIds[1].toString());
     expect(await findActiveById(pqs, AllocationRequest, renewalIds[1])).toBeUndefined();
     const afterAccept = (await findActiveLicenses(pqs, providerParty)).find(
       ({ license }) => license.contractId === created.licenseId,
