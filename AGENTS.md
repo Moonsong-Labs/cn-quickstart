@@ -32,7 +32,7 @@ Don't run `make setup`, `make build` or `make start` for this. `make start` alwa
 ## LocalNet facts
 
 - Three validators: App User (port prefix `2`), App Provider (`3`) and Super Validator (`4`). The Super Validator also runs the synchronizer.
-- JSON Ledger API: `http://localhost:2975`, `:3975`, `:4975`. gRPC Ledger API: `:2901`, `:3901`, `:4901`. Host ports bind to `127.0.0.1` unless `HOST_BIND_IP` is set. `HOST_BIND_IP=0.0.0.0` publishes every Quickstart port, including the unauthenticated participant Admin APIs.
+- JSON Ledger API: `http://localhost:2975`, `:3975`, `:4975`. gRPC Ledger API: `:2901`, `:3901`, `:4901`. LocalNet host ports bind to `127.0.0.1` unless `HOST_BIND_IP` is set. `HOST_BIND_IP=0.0.0.0` publishes those ports, including the unauthenticated participant Admin APIs.
 - Readiness: `curl -f http://localhost:3975/readyz` (JSON Ledger API) and `curl -f http://localhost:3903/api/validator/readyz` (validator).
 - Authentication without OAuth2 (`make start-localnet`, or `make setup` with OAuth2 off): JWT signed with HS256, secret `unsafe`, audience `https://canton.network.global`, subject `ledger-api-user`. The env files write the audience as `${AUTH_..._AUDIENCE:-https://canton.network.global}`; use the resolved URL.
 - `ledger-api-user` is an admin, but admin rights don't allow submitting or reading as a party. Allocate parties with `"userId": "ledger-api-user"` in `POST /v2/parties` to grant `CanActAs`, or the requests fail with HTTP 403.

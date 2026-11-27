@@ -285,7 +285,7 @@ The `AppUser` organization is registered on the Quickstart startup by calling th
 
 # Port mappings
 
-Published ports bind to `127.0.0.1`. Set `HOST_BIND_IP` to choose another address, for example `HOST_BIND_IP=0.0.0.0`. That publishes every Quickstart port on all interfaces, including the participant Admin APIs, which LocalNet leaves unauthenticated, and the JVM debug port on 5005.
+LocalNet, the backend, Keycloak, and the JVM debug port bind to `127.0.0.1`. Set `HOST_BIND_IP` to choose another address, for example `HOST_BIND_IP=0.0.0.0`. That publishes those ports on all interfaces, including the participant Admin APIs, which LocalNet leaves unauthenticated.
 
 ## Web UIs
 
