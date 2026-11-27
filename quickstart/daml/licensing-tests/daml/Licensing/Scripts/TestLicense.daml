@@ -245,8 +245,16 @@ testRenewalRejectsDifferentLicenseUuid = script do
   Some _ <- queryContractId providerParty licenseCid
   Some _ <- queryContractId providerParty otherLicenseCid
   assertReserved registry userParty providerParty renewalFee
-  _ <- completeRenewalCommand registry providerParty requestCid licenseCid allocationCid
-  pure ()
+  renewedCid <- completeRenewalCommand registry providerParty requestCid licenseCid allocationCid
+
+  queryContractId providerParty requestCid >>= (=== None)
+  queryContractId providerParty licenseCid >>= (=== None)
+  Some _ <- queryContractId providerParty otherLicenseCid
+  Some renewedLicense <- queryContractId providerParty renewedCid
+  renewedLicense.uuid === originalLicense.uuid
+  renewedLicense.licenseNum === originalLicense.licenseNum
+  WalletClient.checkBalance userParty registry.instrumentId (100.0 - renewalFee)
+  WalletClient.checkBalance providerParty registry.instrumentId renewalFee
 
 -- | The user can reject the proposal before funding. The original license stays active and no fee is paid.
 testLicenseTokenStandard_RenewalRejection : Script ()
