@@ -289,7 +289,9 @@ testLicenseTokenStandard_ExpiredLicenseRenewal = script do
   renewalTime <- getTime
   renewedCid <- completeRenewalCommand registry providerParty requestCid licenseCid allocationCid
 
-  Some renewed <- queryContractId userParty renewedCid
+  [(userLicenseCid, renewed)] <- query @License userParty
+  userLicenseCid === renewedCid
+  query @License providerParty >>= (=== [(renewedCid, renewed)])
   renewed.expiresAt === addRelTime renewalTime extension
   WalletClient.checkBalance userParty registry.instrumentId (100.0 - renewalFee)
   WalletClient.checkBalance providerParty registry.instrumentId renewalFee
