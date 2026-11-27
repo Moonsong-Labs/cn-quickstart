@@ -191,6 +191,68 @@ test('An internal space is part of a single shared-secret username', async () =>
   expect(await login('Smith')).toBe('');
 });
 
+test.each([
+  'https://wallet.example/has space',
+  'https://wallet.example/<path>',
+  'https://wallet.example/%ZZ',
+])('Shared-secret registration rejects malformed wallet URL %s', async (walletUrl) => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice'],
+    walletUrl,
+  });
+
+  expect(response.status).toBe(400);
+  expect(response.headers.get('content-type')).toContain('application/problem+json');
+  expect(await response.json()).toEqual({ message: 'Invalid wallet URL' });
+});
+
+test('Shared-secret registration rejects duplicate usernames case-insensitively within one request', async () => {
+  const { login, register, list } = setup();
+  const admin = await login('app-provider');
+  const before = await (await list(admin)).json();
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice', 'ALICE'],
+  });
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ message: 'Username already exists' });
+  expect(await (await list(admin)).json()).toEqual(before);
+  expect(await login('alice')).toBe('');
+});
+
+test('Shared-secret registration rejects an empty username', async () => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: [''],
+  });
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ message: 'Username must not be empty' });
+});
+
+test('Shared-secret registration rejects an invalid nonempty issuer URL', async () => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice'],
+    issuerUrl: 'not a URL',
+  });
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ message: 'Invalid issuer URL' });
+});
+
 /** Checks that registration, listing, and login expose the same optional wallet URL. */
 test.each(['', ' ', 'https://wallet.example/pay'])(
   'Shared-secret wallet URL stays consistent for "%s"',
