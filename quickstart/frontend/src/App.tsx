@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: 0BSD
 
 import type React from 'react';
-import './App.css';
 import { Route, Routes } from 'react-router-dom';
-import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import ToastNotification from './components/ToastNotification';
 import { AppInstallProvider } from './stores/appInstallStore.tsx';
 import { LicenseProvider } from './stores/licenseStore';
@@ -28,31 +27,33 @@ const App: React.FC = () => {
 
   return (
     <AppProviders>
-      <Header />
-      <main className="container mt-4">
-        <Routes>
-          <Route
-            path="/"
-            element={<HomeView />}
-          />
-          <Route
-            path="/tenants"
-            element={<TenantRegistrationView />}
-          />
-          <Route
-            path="/login"
-            element={<LoginView />}
-          />
-          <Route
-            path="/app-installs"
-            element={<AppInstallsView />}
-          />
-          <Route
-            path="/licenses"
-            element={<LicensesView />}
-          />
-        </Routes>
-      </main>
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <main className="min-w-0 flex-1">
+          <Routes>
+            <Route
+              path="/"
+              element={<HomeView />}
+            />
+            <Route
+              path="/tenants"
+              element={<TenantRegistrationView />}
+            />
+            <Route
+              path="/login"
+              element={<LoginView />}
+            />
+            <Route
+              path="/app-installs"
+              element={<AppInstallsView />}
+            />
+            <Route
+              path="/licenses"
+              element={<LicensesView />}
+            />
+          </Routes>
+        </main>
+      </div>
       <ToastNotification />
     </AppProviders>
   );

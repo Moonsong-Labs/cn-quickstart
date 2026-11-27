@@ -2,42 +2,43 @@
 // SPDX-License-Identifier: 0BSD
 
 import type React from 'react';
+import { createPortal } from 'react-dom';
 import { useToast } from '../stores/toastStore';
+import { CloseButton } from './CloseButton';
+import { staysInteractive } from './dialogLayer';
 
+/** The notification at the top of the screen. It shows above open dialogs and stays usable there. */
 const ToastNotification: React.FC = () => {
   const { message, show, hideError } = useToast();
 
   const isError = message.startsWith('Error:');
   const isSuccess = message.startsWith('Success:');
 
-  const bgClass = isError ? 'bg-danger' : isSuccess ? 'bg-success' : 'bg-info';
-  const textColor = 'text-white'; // Adjust as desired
-  const headerText = isError ? 'Error' : isSuccess ? 'Success' : 'Info';
+  const background = isError ? 'bg-danger-solid' : isSuccess ? 'bg-primary' : 'bg-info-solid';
+  const heading = isError ? 'Error' : isSuccess ? 'Success' : 'Info';
 
-  return (
+  return createPortal(
     <div
-      className="position-fixed mt3 start-50 translate-middle-x"
-      style={{ zIndex: 2000, top: '3rem' }}
+      {...staysInteractive}
+      className="pointer-events-none fixed inset-x-4 top-12 z-60 flex justify-center"
     >
       <div
         id="liveToast"
-        className={`toast ${bgClass} ${textColor} ${show ? 'show' : ''}`}
         role="alert"
-        aria-live="assertive"
         aria-atomic="true"
+        className={`pointer-events-auto w-full max-w-88 overflow-hidden rounded-xl text-sm text-inverse shadow-lg ${background} ${show ? 'block' : 'hidden'}`}
       >
-        <div className="toast-header">
-          <strong className="me-auto">{headerText}</strong>
-          <button
-            type="button"
-            className="btn-close"
+        <div className="flex items-center justify-between border-b border-inverse/20 px-4 py-2">
+          <strong>{heading}</strong>
+          <CloseButton
+            tone="inverse"
             onClick={hideError}
-            aria-label="Close"
           />
         </div>
-        <div className="toast-body">{message}</div>
+        <div className="px-4 py-3 break-words">{message}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

@@ -181,7 +181,7 @@ jobs:
       - uses: ./.github/actions/typescript/cli-test
 
   frontend-build:
-    name: Frontend build
+    name: Frontend build and test
     needs: [changes]
     if: needs.changes.outputs.ts == 'true'
     runs-on: ubuntu-latest

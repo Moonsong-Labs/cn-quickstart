@@ -26,16 +26,16 @@ test.describe('AppInstall and Licensing workflow', () => {
   test('AppProvider can accept an AppInstallRequest', async ({ requestTag, provider }) => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
-      await provider.installs.assertStatus(InstallStatus.AwaitingAcceptance);
+      await provider.installs.assertStatus(InstallStatus.Requested);
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
     });
   });
 
   test('AppProvider can reject an AppInstallRequest', async ({ requestTag, provider }) => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
-      await provider.installs.assertStatus(InstallStatus.AwaitingAcceptance);
+      await provider.installs.assertStatus(InstallStatus.Requested);
       await provider.installs.clickButton(InstallButton.Reject);
       await provider.installs.assertNoMatchingRowExists();
     });
@@ -44,10 +44,10 @@ test.describe('AppInstall and Licensing workflow', () => {
   test('AppProvider can cancel an AppInstall', async ({ requestTag, provider }) => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
-      await provider.installs.assertStatus(InstallStatus.AwaitingAcceptance);
+      await provider.installs.assertStatus(InstallStatus.Requested);
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
-      await provider.installs.clickButton(InstallButton.Cancel);
+      await provider.installs.assertStatus(InstallStatus.Installed);
+      await provider.installs.clickButton(InstallButton.CancelInstallation);
       await provider.installs.assertNoMatchingRowExists();
     });
   });
@@ -56,7 +56,7 @@ test.describe('AppInstall and Licensing workflow', () => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
     });
     await user.installs.goto();
     await user.installs.assertMatchingRowCountIs(1, user.installs.findRowBy(requestTag));
@@ -66,12 +66,12 @@ test.describe('AppInstall and Licensing workflow', () => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
     });
 
     await user.installs.goto();
     await user.installs.withRowMatching(requestTag, async () => {
-      await user.installs.clickButton(InstallButton.Cancel);
+      await user.installs.clickButton(InstallButton.CancelInstallation);
       await user.installs.assertNoMatchingRowExists();
     });
   });
@@ -80,7 +80,7 @@ test.describe('AppInstall and Licensing workflow', () => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
       await provider.installs.clickButton(InstallButton.CreateLicense);
       await provider.installs.captureLicenseId();
       await provider.installs.assertLicenseCountIs(1);
@@ -95,7 +95,7 @@ test.describe('AppInstall and Licensing workflow', () => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
       await provider.installs.clickButton(InstallButton.CreateLicense);
       licenseIds[0] = await provider.installs.captureLicenseId();
       await provider.installs.assertLicenseCountIs(1);
@@ -115,7 +115,7 @@ test.describe('AppInstall and Licensing workflow', () => {
     await provider.installs.goto();
     await provider.installs.withRowMatching(requestTag, async () => {
       await provider.installs.clickButton(InstallButton.Accept);
-      await provider.installs.assertStatus(InstallStatus.Accepted);
+      await provider.installs.assertStatus(InstallStatus.Installed);
       await provider.installs.clickButton(InstallButton.CreateLicense);
       licenseIds[0] = await provider.installs.captureLicenseId();
       await provider.installs.assertLicenseCountIs(1);
@@ -146,7 +146,7 @@ test.describe('AppInstall and Licensing workflow', () => {
       await provider.installs.goto();
       await provider.installs.withRowMatching(requestTag, async () => {
         await provider.installs.clickButton(InstallButton.Accept);
-        await provider.installs.assertStatus(InstallStatus.Accepted);
+        await provider.installs.assertStatus(InstallStatus.Installed);
         await provider.installs.clickButton(InstallButton.CreateLicense);
         licenseId = await provider.installs.captureLicenseId();
       });
