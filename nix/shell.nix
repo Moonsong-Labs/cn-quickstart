@@ -4,9 +4,11 @@ let
   requiredPackages = with pkgs; ([
     # these packages are required both in CI and for local development
     coreutils # provides gdate command needed by Makefile for Docker log timestamp formatting on macOS
-    bun
     dpm
     jdk21
+    # Bun is installed from .bun-version, not Nixpkgs. This revision packages
+    # Bun 1.3.2, which rejects bun.lock (lockfileVersion 2). direnv would
+    # otherwise select that binary ahead of the documented install.
     nodejs_20
     typescript
   ] ++ (if ci then [ # these packages should only be installed on CI

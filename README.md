@@ -46,7 +46,7 @@ The frontend and the integration tests are a [Bun](https://bun.sh) workspace at 
 curl -fsSL https://bun.sh/install | bash -s "bun-v$(tr -d '[:space:]' < .bun-version)"
 ```
 
-The installer places `bun` in `~/.bun/bin`. Add that directory to `PATH`, open a new shell, and check the version with `bun --version`. The Nix shell in `nix/shell.nix` includes Bun alongside Node.js 20. Nixpkgs currently packages an older Bun than `.bun-version`, so use the command above for the version CI runs.
+The installer places `bun` in `~/.bun/bin`. Add that directory to `PATH`, open a new shell, and check the version with `bun --version`. The Nix development shell does not provide Bun. The locked Nixpkgs revision packages Bun 1.3.2, which cannot read this repository's lockfile, and `direnv allow` would put that binary ahead of this install. Node.js 20 stays in the Nix shell.
 
 Other installation and setup steps are in the [Quickstart Installation Guide](https://docs.canton.network/appdev/quickstart/index).
 
