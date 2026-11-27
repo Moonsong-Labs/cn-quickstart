@@ -1,5 +1,4 @@
 import { lookup } from 'node:dns/promises';
-import type { CustomFetch, CustomFetchOptions } from 'openid-client';
 
 /** Matches 127.0.0.0/8, ::1, and IPv4-mapped loopback, which Bun's fetch already reaches for *.localhost. */
 const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/i;
@@ -44,10 +43,7 @@ function pointAtAddress(url: URL, address: string): void {
  * Names without a non-loopback address, and all other hosts, are fetched unchanged.
  * A failed connection to an alias names the address that was tried.
  */
-export const fetchLocalhostAlias: CustomFetch = async (
-  url: string,
-  options: CustomFetchOptions,
-): Promise<Response> => {
+export async function fetchLocalhostAlias(url: string, options: RequestInit): Promise<Response> {
   const target = new URL(url);
   if (!isLocalhostSubdomain(target.hostname)) return fetch(url, options);
   const address = await resolveAlias(target.hostname);
@@ -63,4 +59,4 @@ export const fetchLocalhostAlias: CustomFetch = async (
   } catch (cause) {
     throw new Error(`Could not reach ${host} at ${target.hostname}`, { cause });
   }
-};
+}
