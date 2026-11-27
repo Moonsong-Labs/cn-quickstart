@@ -79,6 +79,16 @@ if [ -z "$DPM_SDK_VERSION" ]; then
 fi
 echo "  DPM_SDK_VERSION=$DPM_SDK_VERSION"
 
+# The ledger API proto follows the Canton release, not the Daml SDK.
+# Splice records that release in nix/canton-sources.json (3.7.3 for Splice 0.10.2).
+CANTON_SOURCES_URL="https://raw.githubusercontent.com/hyperledger-labs/splice/refs/heads/release-line-${SPLICE_VERSION}/nix/canton-sources.json"
+DAML_RUNTIME_VERSION=$(curl -fsSL "$CANTON_SOURCES_URL" | jq -r '.version')
+if [ -z "$DAML_RUNTIME_VERSION" ] || [ "$DAML_RUNTIME_VERSION" = "null" ]; then
+    echo "❌ Error: Could not fetch the Canton version for splice version '$SPLICE_VERSION'." >&2
+    exit 1
+fi
+echo "  DAML_RUNTIME_VERSION=$DAML_RUNTIME_VERSION"
+
 # Update daml.yaml files
 echo "Updating project files..."
 find . -type f -name "daml.yaml" -print0 | while IFS= read -r -d $'\0' file; do
@@ -89,7 +99,7 @@ done
 # Update .env file
 ENV_FILE="./.env"
 if [ -f "$ENV_FILE" ]; then
-  sed -i -E "s/^(DAML_RUNTIME_VERSION=).*$/\1$DPM_SDK_VERSION/" "$ENV_FILE"
+  sed -i -E "s/^(DAML_RUNTIME_VERSION=).*$/\1$DAML_RUNTIME_VERSION/" "$ENV_FILE"
   sed -i -E "s/^(SPLICE_VERSION=).*$/\1$SPLICE_VERSION/" "$ENV_FILE"
   echo "  $ENV_FILE"
 fi

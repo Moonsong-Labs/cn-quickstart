@@ -96,11 +96,13 @@ See [LocalNet](https://docs.canton.network/sdks-tools/development-tools/localnet
 
 Don't run `make start-localnet` and `make start` at the same time: both use the same ports.
 
+LocalNet's Postgres data directory is `/var/lib/postgresql` (Postgres 18). A volume created by an older LocalNet will not start; run `make clean-localnet` before starting again.
+
 ### Versions
 
-`quickstart/.env` pins the versions this project builds and runs with: `SPLICE_VERSION` sets the LocalNet images, and `DAML_RUNTIME_VERSION` sets the Daml libraries the Java backend builds against.
-The Daml projects set the same SDK version in their `daml.yaml` files.
-They can lag the versions running on DevNet, TestNet and MainNet.
+`quickstart/.env` pins the versions this project builds and runs with: `SPLICE_VERSION` is `0.10.2` (the LocalNet images) and `DAML_RUNTIME_VERSION` is `3.7.3` (the ledger API libraries the Java backend builds against).
+Each `daml.yaml` and the dpm install pin Daml SDK `3.7.1`. PQS and daml-shell images are `3.7.0`.
+These can still differ from the versions running on DevNet, TestNet and MainNet.
 Before you deploy to a shared network, check the [Version Compatibility Dashboard](https://docs.canton.network/shared/version-compatibility-dashboard).
 
 ## Debugging TL;DR
@@ -282,6 +284,8 @@ Only the end users from an organization registered using endpoint `http://backen
 The `AppUser` organization is registered on the Quickstart startup by calling the registration script in the `register-app-user-tenant` Docker container.
 
 # Port mappings
+
+LocalNet, the backend, Keycloak, and the JVM debug port bind to `127.0.0.1`. Set `HOST_BIND_IP` to choose another address, for example `HOST_BIND_IP=0.0.0.0`. That publishes those ports on all interfaces, including the participant Admin APIs, which LocalNet leaves unauthenticated.
 
 ## Web UIs
 
