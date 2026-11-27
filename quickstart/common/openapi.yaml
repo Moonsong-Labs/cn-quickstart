@@ -333,6 +333,8 @@ paths:
       responses:
         '201':
           description: Renewal offer/payment request created
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -364,12 +366,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LicenseRenewalResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -720,22 +726,20 @@ components:
       required:
         - licenseFeeCc
         - licenseExtensionDuration
-        - prepareUntilDuration
         - settleBeforeDuration
         - description
       properties:
         licenseFeeCc:
           type: number
+          minimum: 0
+          exclusiveMinimum: true
           description: License fee amount
         licenseExtensionDuration:
           type: string
-          description: "ISO-8601 duration specifying the requested extension period (e.g. 'P30D' for 30 days)."
-        prepareUntilDuration:
-          type: string
-          description: "ISO-8601 duration after which the allocation request will be not accepted."
+          description: "Positive ISO-8601 duration of at least one microsecond (e.g. 'P30D' for 30 days)."
         settleBeforeDuration:
           type: string
-          description: "ISO-8601 duration within which the transfer must be settled."
+          description: "ISO-8601 duration until the provider must settle the renewal fee."
         description:
           type: string
           description: Human-readable explanation of the renewal request.
@@ -757,12 +761,10 @@ components:
           - licenseFeeAmount
           - licenseFeeInstrument
           - licenseExtensionDuration
-          - prepareUntil
           - settleBefore
           - requestedAt
           - description
           - requestId
-          - prepareDeadlinePassed
           - settleDeadlinePassed
       properties:
         contractId:
@@ -783,26 +785,20 @@ components:
         licenseExtensionDuration:
           type: string
           description: "RelTime representing how long the license should be extended."
-        prepareUntil:
-            type: string
-            format: date-time
-            description: "The time until the license renewal request can be prepared."
         settleBefore:
-            type: string
-            format: date-time
-            description: "The time before which the payment must be settled."
+          type: string
+          format: date-time
+          description: "Exclusive deadline for accepting the request and settling the renewal fee."
         requestedAt :
           type: string
           format: date-time
-          description: "The time until the license renewal request can be prepared."
+          description: "Time when the provider created the renewal request."
         description:
           type: string
         requestId:
           type: string
         allocationCid:
           type: string
-        prepareDeadlinePassed:
-          type: boolean
         settleDeadlinePassed:
           type: boolean
 

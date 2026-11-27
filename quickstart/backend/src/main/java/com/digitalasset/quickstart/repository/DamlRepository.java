@@ -9,7 +9,7 @@ import com.digitalasset.transcode.java.ContractId;
 import com.digitalasset.transcode.java.Template;
 import com.digitalasset.transcode.java.Utils;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -20,8 +20,8 @@ import quickstart_licensing.licensing.appinstall.AppInstall;
 import quickstart_licensing.licensing.appinstall.AppInstallRequest;
 import quickstart_licensing.licensing.license.License;
 import quickstart_licensing.licensing.license.LicenseRenewalRequest;
-import splice_api_token_allocation_request_v1.splice.api.token.allocationrequestv1.AllocationRequest;
-import splice_api_token_allocation_v1.splice.api.token.allocationv1.Allocation;
+import splice_api_token_allocation_request_v2.splice.api.token.allocationrequestv2.AllocationRequest;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.Allocation;
 
 /**
  * Repository for accessing active Daml contracts via PQS.
@@ -68,9 +68,11 @@ public class DamlRepository {
 
     /**
      * Finds active License contracts where the user or provider matches the given party.
+     * Matches funded allocations against the active request's settlement and sender specification.
+     * Amounts and deadlines are compared by value so equivalent JSON encodings match.
      */
     public CompletableFuture<List<LicenseWithRenewalRequests>> findActiveLicenses(String party) {
-        var map = new HashMap<String, LicenseWithRenewalRequests>();
+        var map = new LinkedHashMap<String, LicenseWithRenewalRequests>();
         String sql = """
                 SELECT license.contract_id    AS license_contract_id,
                        license.payload        AS license_payload,
@@ -80,13 +82,21 @@ public class DamlRepository {
                 FROM active(?) license
                 LEFT JOIN active(?) renewal ON
                     license.payload->>'uuid' = renewal.payload->>'uuid'
+                    AND license.payload->>'licenseNum' = renewal.payload->>'licenseNum'
                     AND license.payload->>'user' = renewal.payload->>'user'
                     AND license.payload->>'provider' = renewal.payload->>'provider'
+                LEFT JOIN active(?) request_view ON request_view.contract_id = renewal.contract_id
                 LEFT JOIN active(?) allocation ON
-                    renewal.payload->>'requestId' = allocation.payload->'allocation'->'settlement'->'settlementRef'->>'id'
-                    AND renewal.payload->>'user' = allocation.payload->'allocation'->'transferLeg'->>'sender'
+                    (request_view.payload->'allocations'->0->>'admin') = ANY(allocation.signatories)
+                    AND allocation.payload->'settlement' = request_view.payload->'settlement'
+                    AND (allocation.payload->'allocation' #- '{transferLegSides,0,amount}' #- '{settlementDeadline}') =
+                        (request_view.payload->'allocations'->0 #- '{transferLegSides,0,amount}' #- '{settlementDeadline}')
+                    AND (allocation.payload->'allocation'->'transferLegSides'->0->>'amount')::numeric =
+                        (request_view.payload->'allocations'->0->'transferLegSides'->0->>'amount')::numeric
+                    AND (allocation.payload->'allocation'->>'settlementDeadline')::timestamptz =
+                        (request_view.payload->'allocations'->0->>'settlementDeadline')::timestamptz
                 WHERE license.payload->>'user' = ? OR license.payload->>'provider' = ?
-                ORDER BY license.contract_id
+                ORDER BY license.contract_id, renewal.contract_id, allocation.contract_id
                 """;
         return pqs.query(sql, rs -> {
                     var licenseId = rs.getString("license_contract_id");
@@ -109,6 +119,7 @@ public class DamlRepository {
                 },
                 qualifiedName(License.class),
                 qualifiedName(LicenseRenewalRequest.class),
+                qualifiedName(AllocationRequest.class),
                 qualifiedName(Allocation.class),
                 party,
                 party
@@ -124,6 +135,10 @@ public class DamlRepository {
 
     public CompletableFuture<Optional<Contract<LicenseRenewalRequest>>> findActiveLicenseRenewalRequestById(String contractId) {
        return pqs.contractByContractId(LicenseRenewalRequest.class, contractId);
+    }
+
+    public CompletableFuture<Optional<Contract<Allocation>>> findActiveAllocationById(String contractId) {
+        return pqs.contractByContractId(Allocation.class, contractId);
     }
 
     public CompletableFuture<Optional<Contract<AllocationRequest>>> findActiveAllocationRequestById(String contractId) {

@@ -33,7 +33,6 @@ test('Preserves decimal amounts, timestamps and relative time in choice argument
     licenseFeeAmount: '123456789012345678.1234567890',
     licenseExtensionDuration: { microseconds: '86400000000' },
     requestedAt: '2026-10-22T12:00:00.123456Z',
-    prepareUntil: '2026-10-22T13:00:00.123456Z',
     settleBefore: '2026-10-22T14:00:00.123456Z',
     description: 'Renew test license',
   } satisfies Parameters<typeof License.License_Renew.argumentEncode>[0];
@@ -47,6 +46,9 @@ test('Resolves Token Standard dependencies and preserves nested choice-context v
   const argument = {
     allocationCid: 'allocation-contract-id',
     licenseCid: 'license-contract-id',
+    allocationFactory: 'allocation-factory-id',
+    allocationExtraArgs: { context: { values: {} }, meta: { values: {} } },
+    settlementFactory: 'settlement-factory-id',
     extraArgs: {
       context: {
         values: {

@@ -7,13 +7,14 @@ import com.digitalasset.quickstart.api.LicenseRenewalRequestsApi;
 import com.digitalasset.quickstart.ledger.LedgerApi;
 import com.digitalasset.quickstart.repository.DamlRepository;
 import com.digitalasset.quickstart.security.AuthUtils;
+import com.digitalasset.transcode.java.Party;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
-import splice_api_token_allocation_request_v1.splice.api.token.allocationrequestv1.AllocationRequest;
+import splice_api_token_allocation_request_v2.splice.api.token.allocationrequestv2.AllocationRequest;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ChoiceContext;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ExtraArgs;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.Metadata;
@@ -55,6 +56,7 @@ public class LicenseRenewalRequestsApiImpl implements LicenseRenewalRequestsApi 
                 damlRepository.findActiveAllocationRequestById(contractId).thenCompose(allocReq -> {
                     var allocationRequest = ensurePresent(allocReq, "AllocationRequest %s not found", contractId);
                     var choice = new AllocationRequest.AllocationRequest_Withdraw(
+                            List.of(new Party(party)),
                             new ExtraArgs(new ChoiceContext(Map.of()), new Metadata(Map.of()))
                     );
                     return ledger.exerciseAndGetResult(allocationRequest.contractId, choice, commandId)

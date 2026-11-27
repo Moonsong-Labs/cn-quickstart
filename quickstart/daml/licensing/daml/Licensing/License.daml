@@ -8,14 +8,15 @@ module Licensing.License where
 
 import DA.Time
 import DA.Assert (assertWithinDeadline, assertDeadlineExceeded, (===))
-import DA.Optional (fromSome)
+import DA.Map qualified as Map
 import DA.TextMap as TextMap
 
 import Licensing.Util as Util (require)
 import Splice.Api.Token.MetadataV1
-import Splice.Api.Token.HoldingV1
-import Splice.Api.Token.AllocationRequestV1
-import Splice.Api.Token.AllocationV1 as Api.Token.AllocationV1
+import Splice.Api.Token.HoldingV2
+import Splice.Api.Token.AllocationRequestV2
+import Splice.Api.Token.AllocationV2
+import Splice.Api.Token.AllocationInstructionV2
 
 data LicenseKey = LicenseKey with
     provider : Party
@@ -61,15 +62,18 @@ template License
         licenseFeeAmount : Decimal
         licenseExtensionDuration : RelTime
         requestedAt : Time
-        prepareUntil : Time
         settleBefore : Time
         description : Text
       controller provider
       do
         assertDeadlineExceeded "requestedAt" requestedAt
-        assertWithinDeadline "prepareUntil" prepareUntil
-        require "prepareUntil < settleBefore" (prepareUntil < settleBefore)
+        assertWithinDeadline "settleBefore" settleBefore
+        -- Request keys may repeat. Give each settlement its own ledger identifier.
+        settlementReference <- create RenewalSettlementReference with provider
+        archive settlementReference
         create LicenseRenewalRequest with
+          settlementReference
+          originalRequestCid = None
           requestId
           provider
           user
@@ -78,7 +82,6 @@ template License
           licenseFeeAmount
           licenseFeeInstrumentId
           licenseExtensionDuration
-          prepareUntil
           settleBefore
           requestedAt
           description
@@ -94,6 +97,11 @@ template License
         require "Actor is a signatory" (actor `elem` signatory this)
         assertDeadlineExceeded "expiresAt" expiresAt
 
+-- | Its contract ID identifies the settlement even when the provider reuses a request ID.
+template RenewalSettlementReference
+  with provider : Party
+  where signatory provider
+
 -- | A request to renew a license. This is where the token-standard-based
 --   fee settlement is driven. The user is asked to pay the renewal fee
 --   to the provider. Once settled, the old license is archived and a new
@@ -108,17 +116,15 @@ template LicenseRenewalRequest
     licenseFeeAmount : Decimal -- ^ The amount to be paid for the license renewal
     licenseFeeInstrumentId : InstrumentId -- ^ The instrument used for the license fee payment
     licenseExtensionDuration : RelTime -- ^ The duration for which the license is extended
-    prepareUntil : Time -- ^ Until when (exclusive) the senders are given time to allocate their assets.
-    settleBefore : Time
-      -- ^ Until when (exclusive) the executor is given time to execute the settlement.
-      --
-      -- SHOULD be strictly after `prepareUntil`.
+    settleBefore : Time -- ^ Exclusive deadline for the provider to settle the fee and renew the license.
     requestedAt : Time -- ^ When the settlement was requested
-    description : Text -- ^ Reason for renewal   
+    description : Text -- ^ Reason for renewal
+    settlementReference : ContractId RenewalSettlementReference
+    originalRequestCid : Optional (ContractId AllocationRequest) -- ^ Set if the wallet signalled acceptance.
 
   where
     signatory user, provider
-    ensure uuid /= ""
+    ensure uuid /= "" && licenseFeeAmount > 0.0 && licenseExtensionDuration > seconds 0
 
     key LicenseRenewalRequestKey with provider; user; requestId : LicenseRenewalRequestKey
     maintainer key.provider
@@ -130,9 +136,12 @@ template LicenseRenewalRequest
     --   and replaced with a new license with extended validity.
     postconsuming choice LicenseRenewalRequest_CompleteRenewal : ContractId License
       with
-        allocationCid : ContractId Allocation
+        allocationCid : ContractId Allocation -- ^ Funded by the user.
+        allocationFactory : ContractId AllocationFactory -- ^ Authorizes receipt by the provider.
+        allocationExtraArgs : ExtraArgs -- ^ Registry context for creating the receipt allocation.
+        settlementFactory : ContractId SettlementFactory
         licenseCid : ContractId License
-        extraArgs : ExtraArgs
+        extraArgs : ExtraArgs -- ^ Registry context for settling both sides.
       controller provider
       do
         assertWithinDeadline "settleBefore" settleBefore
@@ -144,70 +153,129 @@ template LicenseRenewalRequest
         user === oldLicense.user
         provider === oldLicense.provider
 
-        alloc <- fetch @Allocation allocationCid  
-        let allocView = view @Allocation alloc
-            thisView = view $ toInterface @AllocationRequest this
-            expectedTransferLegId = licenseFeePaymentLegId
-            expectedTransferLeg = fromSome $ TextMap.lookup expectedTransferLegId thisView.transferLegs
-            expectedSettlement = thisView.settlement
+        fundedAllocation <- fetch allocationCid
+        let allocView = view fundedAllocation
+            admin = licenseFeeInstrumentId.admin
+        allocView.settlement === renewalSettlement this
+        allocView.allocation === senderSpecification this
+        require "Instrument admin signed the allocation" (admin `elem` signatory fundedAllocation)
 
-        -- validate that allocation is for this license renewal request
-        expectedTransferLegId === allocView.allocation.transferLegId
-        expectedTransferLeg === allocView.allocation.transferLeg
-        expectedSettlement === allocView.allocation.settlement
+        -- The provider must obtain both CIDs from the instrument's trusted registry.
+        -- PublicFetch checks the advertised admin; a factory controls its own response.
+        allocationRegistry <- exercise allocationFactory AllocationFactory_PublicFetch with actors = [provider]
+        settlementRegistry <- exercise settlementFactory SettlementFactory_PublicFetch with actors = [provider]
+        allocationRegistry.admin === admin
+        settlementRegistry.admin === admin
 
-        exercise allocationCid (Allocation_ExecuteTransfer extraArgs)
+        -- V2 settles both sides. The provider authorizes receipt here, with no input holdings.
+        now <- getTime
+        receipt <- exercise allocationFactory AllocationFactory_Allocate with
+          actors = [provider]
+          settlement = allocView.settlement
+          allocation = receiverSpecification this
+          inputHoldingCids = []
+          requestedAt = now
+          extraArgs = allocationExtraArgs
+        receiverCid <- case receipt.output of
+          AllocationInstructionResult_Completed cid -> pure cid
+          _ -> abort "The provider's receipt allocation must complete immediately"
+
+        result <- exercise settlementFactory SettlementFactory_SettleBatch with
+          actors = [provider]
+          settlement = allocView.settlement
+          transferLegs = [feeTransfer this]
+          allocations = [FinalizedAllocation cid [] None | cid <- [allocationCid, receiverCid]]
+          extraArgs
+        map (.output) result.allocationSettleResults === replicate 2 (AllocationResult_Settled None)
 
         archive licenseCid
-
-        now <- getTime
         create oldLicense
           with
             expiresAt = (max now oldLicense.expiresAt) `addRelTime` licenseExtensionDuration
 
     interface instance AllocationRequest for LicenseRenewalRequest where
-      view =
-        let
-          meta = Metadata with
-            values = TextMap.fromList [
-              ("splice.lfdecentralizedtrust.org/reason", description)
-              -- Communicate the display number and stable identity using app specific
-              -- metadata as per https://github.com/global-synchronizer-foundation/cips/blob/main/cip-0056/cip-0056.md#generic-metadata
-              ,("cn-quickstart.example.org/licenseNum", show licenseNum)
-              ,("cn-quickstart.example.org/uuid", uuid)
-              ]
-        in
-          AllocationRequestView
-            with
-              settlement =
-                SettlementInfo
-                  with
-                    executor = provider
-                    requestedAt
-                    allocateBefore = prepareUntil
-                    settleBefore
-                    settlementRef =
-                      Reference
-                        with
-                          id = requestId
-                          cid = None
-                    meta
-              transferLegs = TextMap.fromList
-                [(licenseFeePaymentLegId, Api.Token.AllocationV1.TransferLeg
-                    with
-                      sender = user
-                      receiver = provider
-                      amount = licenseFeeAmount
-                      instrumentId = licenseFeeInstrumentId
-                      meta)
-                ]
-              meta
+      view = AllocationRequestView with
+        originalRequestCid
+        settlement = renewalSettlement this
+        -- Accept is only a signal; the wallet may still need to fund this allocation.
+        allocations = [senderSpecification this]
+        requestedAt
+        settleAt = None -- No scheduled execution time; settlementDeadline carries the cutoff.
+        availableActions = Map.fromList $
+          [(ARA_Accept, [[user]]) | originalRequestCid == None] <> [(ARA_Reject, [[user]])]
+        meta = renewalMetadata this
 
-      allocationRequest_RejectImpl _ AllocationRequest_Reject{..} = do
-        require "Actor is the user paying the fee" (actor == user)
-        pure ChoiceExecutionMetadata with meta = emptyMetadata
+      allocationRequest_acceptImpl cid arg = do
+        arg.actors === [user]
+        originalRequestCid === None
+        assertWithinDeadline "settleBefore" settleBefore
+        archive cid
+        -- The signal consumes the wallet request. Keep its terms available for settlement.
+        _ <- create this with originalRequestCid = Some cid
+        pure (AllocationRequest_AcceptResult emptyMetadata)
 
-      allocationRequest_WithdrawImpl _ _ =
-        pure ChoiceExecutionMetadata with meta = emptyMetadata
+      allocationRequest_rejectImpl cid arg = do
+        arg.actors === [user]
+        archive cid
+        pure (AllocationRequest_RejectResult emptyMetadata)
 
+      allocationRequest_withdrawImpl cid arg = do
+        arg.actors === [provider]
+        archive cid
+        pure (AllocationRequest_WithdrawResult emptyMetadata)
+
+      allocationRequest_acceptExtraObservers _ = []
+      allocationRequest_rejectExtraObservers _ = []
+      allocationRequest_withdrawExtraObservers _ = []
+
+renewalMetadata : LicenseRenewalRequest -> Metadata
+renewalMetadata LicenseRenewalRequest{..} = Metadata $ TextMap.fromList
+  [ ("splice.lfdecentralizedtrust.org/reason", description)
+  , ("cn-quickstart.example.org/licenseNum", show licenseNum)
+  , ("cn-quickstart.example.org/uuid", uuid)
+  ]
+
+renewalSettlement : LicenseRenewalRequest -> SettlementInfo
+renewalSettlement r = SettlementInfo with
+  executors = [r.provider]
+  id = r.requestId
+  cid = Some (coerceContractId r.settlementReference)
+  meta = renewalMetadata r
+
+feeTransfer : LicenseRenewalRequest -> TransferLeg
+feeTransfer r = TransferLeg with
+  transferLegId = licenseFeePaymentLegId
+  sender = Account (Some r.user) None ""
+  receiver = Account (Some r.provider) None ""
+  amount = r.licenseFeeAmount
+  instrumentId = r.licenseFeeInstrumentId.id
+  meta = renewalMetadata r
+
+senderSpecification, receiverSpecification : LicenseRenewalRequest -> AllocationSpecification
+senderSpecification = feeSpecification SenderSide
+receiverSpecification = feeSpecification ReceiverSide
+
+feeSpecification : TransferSide -> LicenseRenewalRequest -> AllocationSpecification
+feeSpecification side r =
+  let leg = feeTransfer r
+      (authorizer, otherside) = case side of
+        SenderSide -> (leg.sender, leg.receiver)
+        ReceiverSide -> (leg.receiver, leg.sender)
+  in AllocationSpecification with
+    admin = r.licenseFeeInstrumentId.admin
+    authorizer
+    transferLegSides = [TransferLegSide with
+      transferLegId = leg.transferLegId
+      side
+      otherside
+      amount = leg.amount
+      instrumentId = leg.instrumentId
+      meta = leg.meta]
+    settlementDeadline = Some r.settleBefore
+    nextIterationFunding = None
+    -- As in V1, the user may withdraw the reserved funds before settlement.
+    committed = False
+    meta = emptyMetadata
+
+licenseFeePaymentLegId : Text
 licenseFeePaymentLegId = "licenseFeePayment"

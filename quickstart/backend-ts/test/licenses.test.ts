@@ -1,8 +1,9 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
+import { ContractId } from '@daml/types';
 import { Pool } from 'pg';
-import { AllocationRequest } from '../build/generated-daml-bindings/splice-api-token-allocation-request-v1-1.0.0/lib/Splice/Api/Token/AllocationRequestV1/module';
-import { Allocation } from '../build/generated-daml-bindings/splice-api-token-allocation-v1-1.0.0/lib/Splice/Api/Token/AllocationV1/module';
-import { License, LicenseRenewalRequest } from '../src/daml/licensing';
+import { AllocationRequest } from '../build/generated-daml-bindings/splice-api-token-allocation-request-v2-1.0.0/lib/Splice/Api/Token/AllocationRequestV2/module';
+import { Allocation } from '../build/generated-daml-bindings/splice-api-token-allocation-v2-1.0.0/lib/Splice/Api/Token/AllocationV2/module';
+import { License, LicenseRenewalRequest, RenewalSettlementReference } from '../src/daml/licensing';
 import { findActiveLicenses } from '../src/modules/licenses';
 
 const pools: Pool[] = [];
@@ -41,10 +42,13 @@ const renewalPayload = (requestId: string, provider: string, user: string, licen
   licenseFeeAmount: '12.3400000000',
   licenseFeeInstrumentId: { admin: 'provider::test', id: 'test-token' },
   licenseExtensionDuration: { microseconds: '86400000000' },
-  prepareUntil: '2026-10-22T13:00:00.123456Z',
   settleBefore: '2026-10-22T14:00:00.123456Z',
   requestedAt: '2026-10-22T12:00:00.123456Z',
   description: 'Renewal test',
+  settlementReference: ContractId(RenewalSettlementReference).decoder.runWithException(
+    'settlement-reference-test',
+  ),
+  originalRequestCid: null,
 });
 
 function row(

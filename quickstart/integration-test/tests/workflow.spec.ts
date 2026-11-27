@@ -1,7 +1,7 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { test } from '../fixtures/workflow';
+import { expect, test } from '../fixtures/workflow';
 import {
   Button as InstallButton,
   Status as InstallStatus,
@@ -134,6 +134,43 @@ test.describe('AppInstall and Licensing workflow', () => {
     });
   });
 
+  for (const { field, selector } of [
+    { field: 'fee', selector: '#renew-fee' },
+    { field: 'extension', selector: '#renew-extension' },
+  ]) {
+    test(`AppProvider cannot issue a renewal with zero ${field}`, async ({
+      requestTag,
+      provider,
+    }) => {
+      const installs = provider.installs;
+      await installs.goto();
+      let licenseId!: string;
+      await installs.withRowMatching(requestTag, async () => {
+        await installs.clickButton(InstallButton.Accept);
+        await installs.assertStatus(InstallStatus.Installed);
+        await installs.clickButton(InstallButton.CreateLicense);
+        licenseId = await installs.captureLicenseId();
+      });
+
+      const licenses = provider.licenses;
+      await licenses.goto();
+      await licenses.withRowMatching(licenseId, async () => {
+        await licenses.clickButton(LicenseButton.Renewals);
+        const renewals = licenses.renewalsModal;
+        await renewals.clickButton(RenewalsModalButton.New, renewals.modal);
+        const form = renewals.issueRenewalModal;
+        await form.fillDescription('Renewal validation');
+        const submit = form.button(IssueRenewalModalButton.IssueLicenseRenewalRequest);
+        await expect(submit).toBeEnabled();
+
+        const input = form.page.locator(selector);
+        await input.fill('0');
+        await expect(input).toHaveValue('0');
+        await expect(submit).toBeDisabled({ timeout: 2_000 });
+      });
+    });
+  }
+
   test('Full License Lifecycle should pass', async ({
     requestTag,
     keycloak,
@@ -192,13 +229,31 @@ test.describe('AppInstall and Licensing workflow', () => {
 
     await test.step('AppProvider can complete License Renewal', async () => {
       const licenses = provider.licenses;
+      const original = (await licenses.list()).find((license) => license.contractId === licenseId);
+      if (!original) throw new Error('Original license is missing');
+      let replacementId!: string;
       await licenses.withRowMatching(licenseId, async () => {
         const renewals = licenses.renewalsModal;
         await renewals.withRowMatching(renewalRequestId, async () => {
-          await renewals.clickButton(RenewalsModalButton.CompleteRenewal);
+          replacementId = await renewals.completeRenewal(licenseId);
           await provider.waitForSuccessMessage('License renewal completed successfully');
         });
       });
+      expect(replacementId).not.toBe(licenseId);
+      await expect
+        .poll(async () => {
+          const active = (await licenses.list()).filter(
+            (license) => license.uuid === original.uuid,
+          );
+          return active.map((license) => ({
+            id: license.contractId,
+            extended: Date.parse(license.expiresAt) > Date.parse(original.expiresAt),
+            pending: license.renewalRequests.some(
+              (request) => request.requestId === renewalRequestId,
+            ),
+          }));
+        })
+        .toEqual([{ id: replacementId, extended: true, pending: false }]);
     });
   });
 });

@@ -101,31 +101,6 @@ tasks.register<GenerateTask>("openApiGenerateMetadata") {
     generateModelTests.set(false)
 }
 
-// task to generate client-side bindings for allocation token standard
-tasks.register<GenerateTask>("openApiGenerateAllocation") {
-    generatorName.set("java")
-    inputSpec.set("$projectDir/src/main/resources/vendored/allocation-v1.yaml")
-    outputDir.set("$buildDir/generated-token-standard-openapi")
-    apiPackage.set("com.digitalasset.quickstart.tokenstandard.openapi.allocation")
-    modelPackage.set("com.digitalasset.quickstart.tokenstandard.openapi.allocation.model")
-    configOptions.set(
-        mapOf(
-            "library" to "native",
-            "dateLibrary" to "java8",
-            "asyncNative" to "true",
-            "jsonLibrary" to "jackson"
-        )
-    )
-    additionalProperties.set(
-        mapOf(
-            "apiNameSuffix" to "AllocationApi"
-        )
-    )
-    generateApiTests.set(false)
-    generateModelTests.set(false)
-}
-
-
 sourceSets {
     main {
         java {
@@ -147,9 +122,12 @@ sourceSets {
 tasks.getByName("compileJava").dependsOn(
     ":daml:build",
     "openApiGenerate",
-    "openApiGenerateMetadata",
-    "openApiGenerateAllocation"
+    "openApiGenerateMetadata"
 )
+
+tasks.test {
+    useJUnitPlatform()
+}
 
 tasks.register<JavaExec>("runPqsBackwardCompatibility") {
     group = "verification"

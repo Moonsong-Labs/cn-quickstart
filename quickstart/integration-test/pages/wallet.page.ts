@@ -11,6 +11,10 @@ export default class Wallet {
     this.page = page;
   }
 
+  /**
+   * Reserves funds for the specified renewal and waits for the wallet to offer withdrawal.
+   * The provider settles the fee separately when completing the renewal.
+   */
   public async acceptAllocationRequest(
     amount: number,
     description: string,
@@ -22,7 +26,10 @@ export default class Wallet {
     const table = await allocationRequest.getByRole('table');
     await expect(table.getByText(description)).toBeVisible();
     await expect(table.getByText(`${amount} Amulet`)).toBeVisible();
-    await table.getByRole('button', { name: 'Accept' }).click();
+    await allocationRequest.getByRole('button', { name: 'Accept', exact: true }).click();
+    await expect(
+      allocationRequest.getByRole('button', { name: 'Withdraw', exact: true }),
+    ).toBeVisible();
   }
 
   public async onboardWalletUser(

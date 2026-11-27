@@ -12,25 +12,22 @@ import static com.digitalasset.quickstart.utility.TracingUtils.tracingCtx;
 import static com.digitalasset.quickstart.utility.Utils.*;
 
 import com.daml.ledger.api.v2.CommandsOuterClass;
-import com.daml.ledger.api.v2.ValueOuterClass;
 import com.digitalasset.quickstart.api.LicensesApi;
 import com.digitalasset.quickstart.ledger.LedgerApi;
 import com.digitalasset.quickstart.ledger.TokenStandardProxy;
+import com.digitalasset.quickstart.pqs.Contract;
 import com.digitalasset.quickstart.repository.DamlRepository;
 import com.digitalasset.quickstart.security.AuthUtils;
-import com.digitalasset.quickstart.tokenstandard.openapi.allocation.model.DisclosedContract;
 import com.digitalasset.transcode.java.ContractId;
 import com.digitalasset.transcode.java.Party;
-import com.google.protobuf.ByteString;
+import daml_stdlib_da_time_types.da.time.types.RelTime;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 
-import java.math.BigDecimal;
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import org.openapitools.model.*;
 import org.slf4j.Logger;
@@ -43,12 +40,18 @@ import org.springframework.web.server.ResponseStatusException;
 import quickstart_licensing.licensing.license.License.License_Expire;
 import quickstart_licensing.licensing.license.License.License_Renew;
 import quickstart_licensing.licensing.license.LicenseRenewalRequest.LicenseRenewalRequest_CompleteRenewal;
-import splice_api_token_holding_v1.splice.api.token.holdingv1.InstrumentId;
+import splice_api_token_holding_v2.splice.api.token.holdingv2.InstrumentId;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ChoiceContext;
-import splice_api_token_metadata_v1.splice.api.token.metadatav1.AnyValue;
 import splice_api_token_metadata_v1.splice.api.token.metadatav1.ExtraArgs;
 
-import static com.digitalasset.quickstart.utility.ChoiceContextUtils.convertChoiceContextData;
+import splice_api_token_allocation_instruction_v2.splice.api.token.allocationinstructionv2.AllocationFactory.AllocationFactory_Allocate;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.Allocation;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.AllocationSpecification;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.FinalizedAllocation;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.SettlementFactory.SettlementFactory_SettleBatch;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.TransferLeg;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.TransferLegSide;
+import splice_api_token_allocation_v2.splice.api.token.allocationv2.TransferSide;
 
 /**
  * Management service for handling contract-based operations on Licenses.
@@ -104,6 +107,11 @@ public class LicenseApiImpl implements LicensesApi {
                 "commandId", commandId
         );
         return auth.asAdminParty(party -> traceServiceCallAsync(ctx, () -> {
+            var fee = request.getLicenseFeeCc();
+            if (fee == null || fee.signum() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "licenseFeeCc must be greater than zero");
+            }
+            var extension = parseRenewalExtension(request.getLicenseExtensionDuration());
             var registryAdminIdFut = tokenStandardProxy.getRegistryAdminId();
             var licenseFut = damlRepository.findLicenseById(contractId);
             return registryAdminIdFut.thenCombine(licenseFut, (adminId, optLicense) -> {
@@ -112,10 +120,9 @@ public class LicenseApiImpl implements LicensesApi {
                 License_Renew choice = new License_Renew(
                         UUID.randomUUID().toString(),
                         new InstrumentId(new Party(adminId), "Amulet"),
-                        request.getLicenseFeeCc(),
-                        parseRelTime(request.getLicenseExtensionDuration()),
+                        fee,
+                        extension,
                         now,
-                        now.plus(Duration.parse(request.getPrepareUntilDuration())),
                         now.plus(Duration.parse(request.getSettleBeforeDuration())),
                         request.getDescription()
                 );
@@ -125,6 +132,21 @@ public class LicenseApiImpl implements LicensesApi {
         }));
     }
 
+    private static RelTime parseRenewalExtension(String duration) {
+        if (duration == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "licenseExtensionDuration is required");
+        }
+        try {
+            var extension = parseRelTime(duration);
+            if (extension.getMicroseconds <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "licenseExtensionDuration must be at least one microsecond");
+            }
+            return extension;
+        } catch (DateTimeParseException | ArithmeticException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid licenseExtensionDuration", e);
+        }
+    }
 
     @Override
     @WithSpan
@@ -137,34 +159,75 @@ public class LicenseApiImpl implements LicensesApi {
                 "contractId", contractId,
                 "commandId", commandId
         );
-        return auth.asAdminParty(party -> traceServiceCallAsync(ctx, () -> {
-            var choiceContextFut = tokenStandardProxy.getAllocationTransferContext(request.getAllocationContractId());
-            var renewalFut = damlRepository.findActiveLicenseRenewalRequestById(request.getRenewalRequestContractId());
-            return choiceContextFut.thenCombine(renewalFut, (c, r) -> {
-                var choiceContext = ensurePresent(c, "Transfer context not found for allocation %s", request.getAllocationContractId());
-                var renewal = ensurePresent(r, "Active renewal request not found for contract %s", request.getRenewalRequestContractId());
-                TransferContext transferContext = prepareTransferContext(
-                        choiceContext.getDisclosedContracts(),
-                        Map.of(
-                                "AmuletRules", "amulet-rules",
-                                "OpenMiningRound", "open-round"
-                        ),
-                        choiceContext.getChoiceContextData()
-                );
-                LicenseRenewalRequest_CompleteRenewal choice = new LicenseRenewalRequest_CompleteRenewal(
-                        new ContractId<>(request.getAllocationContractId()),
-                        new ContractId<>(contractId),
-                        transferContext.extraArgs
-                );
-                return ledger.exerciseAndGetResult(renewal.contractId, choice, commandId, transferContext.disclosedContracts)
-                        .thenApply(newLicenseCid -> {
-                            logger.info("newLicenseContractId: {}", newLicenseCid.getContractId);
-                            LicenseRenewalResult result = new LicenseRenewalResult();
-                            result.setLicenseId(newLicenseCid.getContractId);
-                            return ResponseEntity.ok(result);
-                        });
-            }).thenCompose(x -> x);
-        }));
+        return auth.asAdminParty(party -> traceServiceCallAsync(ctx, () ->
+                damlRepository.findActiveLicenseRenewalRequestById(request.getRenewalRequestContractId())
+                        .thenCompose(found -> {
+                            var renewal = ensurePresent(found, "Active renewal request not found for contract %s",
+                                    request.getRenewalRequestContractId());
+                            if (!party.equals(renewal.payload.getProvider.getParty)) {
+                                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the provider can complete renewal");
+                            }
+                            if (!Instant.now().isBefore(renewal.payload.getSettleBefore)) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT, "Renewal settlement deadline has passed");
+                            }
+                            return damlRepository.findActiveAllocationById(request.getAllocationContractId())
+                                    .thenCompose(allocationResult -> {
+                                        var allocation = ensurePresent(allocationResult, "Active allocation not found for contract %s",
+                                                request.getAllocationContractId());
+                                        return completeRenewal(renewal.contractId, contractId, allocation, new Party(party), commandId);
+                                    });
+                        })));
+    }
+
+    private CompletableFuture<ResponseEntity<LicenseRenewalResult>> completeRenewal(
+            ContractId<quickstart_licensing.licensing.license.LicenseRenewalRequest> renewalId,
+            String licenseId, Contract<Allocation> allocation, Party provider, String commandId
+    ) {
+        var senderSpec = allocation.payload.getAllocation;
+        var sides = senderSpec.getTransferLegSides;
+        if (sides.size() != 1 || sides.get(0).getSide != TransferSide.SenderSide
+                || sides.get(0).getOtherside.getOwner
+                        .filter(owner -> owner.getParty.equals(provider.getParty)).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expected a sender allocation for the provider");
+        }
+        var side = sides.get(0);
+        var sender = senderSpec.getAuthorizer;
+        var receiver = side.getOtherside;
+        var settlement = allocation.payload.getSettlement;
+        var emptyMetadata = new splice_api_token_metadata_v1.splice.api.token.metadatav1.Metadata(Map.of());
+        var emptyArgs = new ExtraArgs(new ChoiceContext(Map.of()), emptyMetadata);
+        var actors = List.of(provider);
+
+        // Scan supplies the context for the receipt that CompleteRenewal creates in the transaction.
+        var receiptSide = new TransferLegSide(side.getTransferLegId, TransferSide.ReceiverSide,
+                sender, side.getAmount, side.getInstrumentId, side.getMeta);
+        var receiptSpec = new AllocationSpecification(senderSpec.getAdmin, receiver, List.of(receiptSide),
+                senderSpec.getSettlementDeadline, Optional.empty(), false, emptyMetadata);
+        var allocate = new AllocationFactory_Allocate(settlement, receiptSpec, Instant.now(),
+                List.of(), emptyArgs, actors);
+
+        // Only the sender's allocation exists yet. The ledger choice adds the receipt to the batch.
+        var leg = new TransferLeg(side.getTransferLegId, sender, receiver,
+                side.getAmount, side.getInstrumentId, side.getMeta);
+        var settle = new SettlementFactory_SettleBatch(settlement, List.of(leg),
+                List.of(new FinalizedAllocation(allocation.contractId, List.of(), Optional.empty())), actors, emptyArgs);
+
+        return tokenStandardProxy.getAllocationFactoryContext(allocate)
+                .thenCombine(tokenStandardProxy.getSettlementFactoryContext(settle), (receiptContext, settlementContext) -> {
+                    var choice = new LicenseRenewalRequest_CompleteRenewal(
+                            allocation.contractId, new ContractId<>(receiptContext.factoryId()), receiptContext.extraArgs(),
+                            new ContractId<>(settlementContext.factoryId()), new ContractId<>(licenseId),
+                            settlementContext.extraArgs());
+                    var disclosures = new LinkedHashMap<String, CommandsOuterClass.DisclosedContract>();
+                    receiptContext.disclosedContracts().forEach(contract -> disclosures.put(contract.getContractId(), contract));
+                    settlementContext.disclosedContracts().forEach(contract -> disclosures.putIfAbsent(contract.getContractId(), contract));
+                    return ledger.exerciseAndGetResult(renewalId, choice, commandId, List.copyOf(disclosures.values()));
+                }).thenCompose(result -> result)
+                .thenApply(newLicenseCid -> {
+                    var result = new LicenseRenewalResult();
+                    result.setLicenseId(newLicenseCid.getContractId);
+                    return ResponseEntity.ok(result);
+                });
     }
 
     @Override
@@ -186,7 +249,7 @@ public class LicenseApiImpl implements LicensesApi {
                         meta = new HashMap<>(meta);
                         meta.put("Note", "Triggered by user request");
                     }
-                    License_Expire choice = new License_Expire(new Party(auth.getAppProviderPartyId()), toTokenStandardMetadata(meta));
+                    License_Expire choice = new License_Expire(new Party(auth.getAppProviderPartyId()), new splice_api_token_metadata_v1.splice.api.token.metadatav1.Metadata(meta));
                     return ledger.exerciseAndGetResult(license.contractId, choice, commandId)
                             .thenApply(result -> ResponseEntity.ok("License expired successfully"));
                 })
@@ -224,14 +287,12 @@ public class LicenseApiImpl implements LicensesApi {
         renewalApi.setLicenseNum(rp.getLicenseNum.intValue());
         renewalApi.setLicenseFeeAmount(rp.getLicenseFeeAmount);
         renewalApi.setDescription(rp.getDescription);
-        renewalApi.setPrepareUntil(toOffsetDateTime(rp.getPrepareUntil));
         renewalApi.setSettleBefore(toOffsetDateTime(rp.getSettleBefore));
         renewalApi.setRequestedAt(toOffsetDateTime(rp.getRequestedAt));
         renewalApi.setRequestId(rp.getRequestId);
         long micros = rp.getLicenseExtensionDuration.getMicroseconds;
         String approximateDays = (micros / 1_000_000 / 3600 / 24) + " days";
         renewalApi.setLicenseExtensionDuration(approximateDays);
-        renewalApi.setPrepareDeadlinePassed(!rp.getPrepareUntil.isAfter(now));
         renewalApi.setSettleDeadlinePassed(!rp.getSettleBefore.isAfter(now));
         if (renewalContract.allocationCid().isPresent()) {
             renewalApi.setAllocationCid(renewalContract.allocationCid().get().getContractId);
@@ -239,76 +300,4 @@ public class LicenseApiImpl implements LicensesApi {
         return renewalApi;
     }
 
-    private record TransferContext(ExtraArgs extraArgs, List<CommandsOuterClass.DisclosedContract> disclosedContracts) {
-    }
-
-    private TransferContext prepareTransferContext(
-            List<DisclosedContract> disclosedContracts,
-            Map<String, String> metaMap,
-            Object contextData) {
-        var disclosures = disclosedContracts
-                .stream()
-                .map(this::toLedgerApiDisclosedContract)
-                .toList();
-        Map<String, AnyValue> choiceContextMap = disclosures
-                .stream()
-                .map(dc -> {
-                    var metaKey = metaMap.get(dc.getTemplateId().getEntityName());
-                    if (metaKey != null) {
-                        return Map.entry(metaKey, toAnyValueContractId(dc.getContractId()));
-                    } else {
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            // Choice might contain additional information in context because of the fields enfored by Token Standard API 
-        Map<String, AnyValue> mergedChoiceContext = mergeChoiceContexts(contextData, choiceContextMap);
-        return new TransferContext(
-                new ExtraArgs(new ChoiceContext(mergedChoiceContext), toTokenStandardMetadata(metaMap)),
-                disclosures
-        );
-    }
-
-    private CommandsOuterClass.DisclosedContract toLedgerApiDisclosedContract(DisclosedContract dc) {
-        ValueOuterClass.Identifier templateId = parseTemplateIdentifier(dc.getTemplateId());
-        byte[] blob = Base64.getDecoder().decode(dc.getCreatedEventBlob());
-
-        return CommandsOuterClass.DisclosedContract.newBuilder().setTemplateId(templateId).setContractId(dc.getContractId())
-                .setCreatedEventBlob(ByteString.copyFrom(blob)).build();
-    }
-
-    private static ValueOuterClass.Identifier parseTemplateIdentifier(String templateIdStr) {
-        String[] parts = templateIdStr.split(":");
-        if (parts.length < 3) {
-            throw new IllegalArgumentException("Invalid templateId format: " + templateIdStr);
-        }
-        String packageId = parts[0];
-        String moduleName = parts[1];
-        StringBuilder entityNameBuilder = new StringBuilder();
-        for (int i = 2; i < parts.length; i++) {
-            if (i > 2) {
-                entityNameBuilder.append(":");
-            }
-            entityNameBuilder.append(parts[i]);
-        }
-        String entityName = entityNameBuilder.toString();
-
-        return ValueOuterClass.Identifier.newBuilder().setPackageId(packageId).setModuleName(moduleName)
-                .setEntityName(entityName).build();
-    }
-
-    private Map<String, AnyValue> mergeChoiceContexts(Object originalContextData, Map<String, AnyValue> additionalContextData) {
-        Map<String, AnyValue> mergedContextData = new HashMap<>(convertChoiceContextData(originalContextData));
-        additionalContextData.forEach(mergedContextData::put);
-        return mergedContextData;
-    }
-
-    private static AnyValue toAnyValueContractId(String contractId) {
-        return new AnyValue.AnyValue_AV_ContractId(new ContractId<>(contractId));
-    }
-
-    private static splice_api_token_metadata_v1.splice.api.token.metadatav1.Metadata toTokenStandardMetadata(Map<String, String> meta) {
-        return new splice_api_token_metadata_v1.splice.api.token.metadatav1.Metadata(meta);
-    }
 }

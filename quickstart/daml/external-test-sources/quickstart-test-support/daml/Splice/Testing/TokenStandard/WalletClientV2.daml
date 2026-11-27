@@ -1,0 +1,39 @@
+-- Copyright (c) 2024 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
+-- | V2-only wallet queries used by the licensing tests, adapted from Splice.
+module Splice.Testing.TokenStandard.WalletClientV2 where
+
+import Daml.Script
+import Splice.Api.Token.HoldingV2
+
+listHoldings : Party -> InstrumentId -> Script [(ContractId Holding, HoldingView)]
+listHoldings party instrumentId = do
+  holdings <- queryInterface @Holding party
+  pure [(cid, holding) | (cid, Some holding) <- holdings,
+    holding.instrumentId == instrumentId, holding.account.owner == Some party]
+
+listUnlockedHoldingCidsFor : Account -> Party -> InstrumentId -> Script [ContractId Holding]
+listUnlockedHoldingCidsFor account party instrumentId = do
+  holdings <- listHoldings party instrumentId
+  now <- getTime
+  let unlocked lock = case lock of
+        None -> True
+        Some value -> optional False (<= now) value.expiresAt
+  pure [cid | (cid, holding) <- holdings, holding.account == account, unlocked holding.lock]
+
+checkBalanceBounds : Party -> InstrumentId -> (Decimal, Decimal) -> Script ()
+checkBalanceBounds party instrumentId (lower, upper) = do
+  holdings <- listHoldings party instrumentId
+  let balance = sum (map (\(_, holding) -> holding.amount) holdings)
+  assertMsg ("Unexpected balance for " <> show party <> ": " <> show balance)
+    (balance >= lower && balance <= upper)
+
+checkBalance : Party -> InstrumentId -> Decimal -> Script ()
+checkBalance party instrumentId amount = checkBalanceBounds party instrumentId (amount, amount)
+
+checkBalanceApprox : Party -> InstrumentId -> Decimal -> Script ()
+checkBalanceApprox party instrumentId amount = checkBalanceBounds party instrumentId (amount - 1.0, amount + 1.0)
+
+basicAccount : Party -> Account
+basicAccount owner = Account with owner = Some owner; provider = None; id = ""

@@ -10,7 +10,6 @@ import { OverdueMark } from './OverdueMark';
 type RenewData = {
   extension: string;
   feeAmount: number;
-  prepareIn: string;
   settleIn: string;
   description: string;
 };
@@ -18,10 +17,11 @@ type RenewData = {
 const defaultData: RenewData = {
   extension: '30d',
   feeAmount: 100,
-  prepareIn: '10m',
   settleIn: '20m',
   description: '',
 };
+
+const positiveDuration = /^0*[1-9]\d*[smhd]$/;
 
 type Props = {
   show: boolean;
@@ -39,20 +39,18 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
     [],
   );
 
+  const validFee = Number.isFinite(renewData.feeAmount) && renewData.feeAmount > 0;
+  const validExtension = positiveDuration.test(renewData.extension);
+  const description = renewData.description.trim();
+  const canSubmit = validFee && validExtension && !!renewData.settleIn && !!description;
+
   const handleRenew = async () => {
-    if (
-      !renewData.description.trim() &&
-      !renewData.prepareIn.trim() &&
-      !renewData.settleIn.trim() &&
-      !renewData.extension
-    )
-      return;
+    if (!canSubmit) return;
     const request: LicenseRenewRequest = {
       licenseExtensionDuration: toISO_8601(renewData.extension),
       licenseFeeCc: renewData.feeAmount,
-      prepareUntilDuration: toISO_8601(renewData.prepareIn),
       settleBeforeDuration: toISO_8601(renewData.settleIn),
-      description: renewData.description.trim(),
+      description,
     };
     setRenewData(defaultData);
     await onIssueRenewal(request);
@@ -64,7 +62,7 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
       title="Renew License"
       confirmButtonLabel="Issue License Renewal Request"
       confirmVariant="primary"
-      confirmButtonDisabled={!renewData.description.trim()}
+      confirmButtonDisabled={!canSubmit}
       onClose={onClose}
       onConfirm={handleRenew}
       size="xl"
@@ -81,12 +79,17 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
         </div>
         <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-[10rem_1fr] sm:items-center">
           <Label htmlFor="renew-extension">Extension:</Label>
-          <DurationInput
-            id="renew-extension"
-            units="dhm"
-            value={renewData.extension}
-            onChange={updateField('extension')}
-          />
+          <div>
+            <DurationInput
+              id="renew-extension"
+              units="dhm"
+              value={renewData.extension}
+              onChange={updateField('extension')}
+            />
+            {!validExtension && (
+              <div className="text-sm text-danger">Enter a positive whole duration.</div>
+            )}
+          </div>
           <Label htmlFor="renew-fee">Fee:</Label>
           <div className="w-30">
             <Input
@@ -96,14 +99,8 @@ export default function LicenseRenewModal({ show, license, onClose, onIssueRenew
               value={renewData.feeAmount}
               onChange={(e) => updateField('feeAmount')(Number(e.target.value) || 0)}
             />
+            {!validFee && <div className="text-sm text-danger">Enter a fee greater than zero.</div>}
           </div>
-          <Label htmlFor="renew-prepare">Prepare in:</Label>
-          <DurationInput
-            id="renew-prepare"
-            units="smhd"
-            value={renewData.prepareIn}
-            onChange={updateField('prepareIn')}
-          />
           <Label htmlFor="renew-settle">Settle in:</Label>
           <DurationInput
             id="renew-settle"

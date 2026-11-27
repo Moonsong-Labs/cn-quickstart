@@ -104,7 +104,6 @@ export default function LicenseRenewalRequestModal({
               <Th style={{ width: '100px' }}>Requested At</Th>
               <Th style={{ width: '90px' }}>Extension</Th>
               <Th style={{ width: '60px' }}>Fee</Th>
-              <Th style={{ width: '100px' }}>Prepare Until</Th>
               <Th style={{ width: '100px' }}>Settle Before</Th>
               <Th style={{ width: '100px' }}>Description</Th>
               <Th style={{ width: '150px' }}>Status</Th>
@@ -129,10 +128,6 @@ export default function LicenseRenewalRequestModal({
                 <Td overflow="truncate">{formatDateTime(renewal.requestedAt)}</Td>
                 <Td overflow="truncate">{renewal.licenseExtensionDuration}</Td>
                 <Td overflow="truncate">{renewal.licenseFeeAmount}</Td>
-                <Td overflow="truncate">
-                  {formatDateTime(renewal.prepareUntil)}
-                  {renewal.prepareDeadlinePassed && <OverdueMark />}
-                </Td>
                 <Td overflow="truncate">
                   {formatDateTime(renewal.settleBefore)}
                   {renewal.settleDeadlinePassed && <OverdueMark />}

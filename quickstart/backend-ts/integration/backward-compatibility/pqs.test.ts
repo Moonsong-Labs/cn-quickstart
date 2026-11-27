@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
-import { AllocationRequest } from '../../build/generated-daml-bindings/splice-api-token-allocation-request-v1-1.0.0/lib/Splice/Api/Token/AllocationRequestV1/module';
+import {
+  AllocationRequest,
+  AllocationRequestView,
+} from '../../build/generated-daml-bindings/splice-api-token-allocation-request-v2-1.0.0/lib/Splice/Api/Token/AllocationRequestV2/module';
 import {
   AppInstall,
   AppInstallRequest,
@@ -15,7 +18,7 @@ import {
 import { findActiveById, listActive } from '../../src/integrations/pqs/contracts';
 import { findActiveLicenses } from '../../src/modules/licenses';
 import { run } from '../run';
-import { incompatibleAllocations, seedFixtures } from './fixtures';
+import { seedFixtures } from './fixtures';
 
 interface WireContract {
   contractId: string;
@@ -141,17 +144,24 @@ beforeAll(async () => {
     },
   });
   java = JSON.parse(await readFile(output, 'utf8')) as Snapshot;
-  const lookups = {
+  const lookups: Snapshot['lookups'] = {
     install: await findActiveById(pool, AppInstall, 'install-active'),
     request: await findActiveById(pool, AppInstallRequest, 'request-active'),
     license: await findActiveById(pool, License, 'license-common'),
     renewal: await findActiveById(pool, LicenseRenewalRequest, 'renewal-common'),
-    allocationRequest: await findActiveById(pool, AllocationRequest, 'renewal-common'),
+    allocationRequest: undefined,
     missing: await findActiveById(pool, License, 'missing'),
     archived: await findActiveById(pool, License, 'license-archived'),
     wrongTemplate: await findActiveById(pool, License, 'request-active'),
     blank: await findActiveById(pool, License, ''),
   };
+  const interfaceContract = await findActiveById(pool, AllocationRequest, 'renewal-common');
+  lookups.allocationRequest = interfaceContract
+    ? {
+        contractId: interfaceContract.contractId,
+        payload: AllocationRequestView.encode(interfaceContract.payload),
+      }
+    : undefined;
   typescript = {
     installs: await listActive(pool, AppInstall),
     requests: await listActive(pool, AppInstallRequest),
@@ -190,7 +200,14 @@ function payloadValue(value: unknown, key = ''): unknown {
     );
   if (typeof value !== 'string') return value;
   if (
-    ['expiresAt', 'requestedAt', 'prepareUntil', 'settleBefore', 'allocateBefore'].includes(key)
+    [
+      'createdAt',
+      'expiresAt',
+      'requestedAt',
+      'settleAt',
+      'settleBefore',
+      'settlementDeadline',
+    ].includes(key)
   ) {
     const subMillis = (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? '')
       .padEnd(6, '0')
@@ -281,8 +298,8 @@ test.each(['common-provider', 'common-user', 'same-party', 'outsider'])(
       expect(common?.renewals.map((v) => [v.renewal.contractId, v.allocationCid])).toEqual([
         ['renewal-common', 'allocation-common-1'],
         ['renewal-common', 'allocation-common-2'],
-        ['renewal-duplicate-1', 'allocation-duplicate'],
-        ['renewal-duplicate-2', 'allocation-duplicate'],
+        ['renewal-duplicate-1', 'allocation-duplicate-1'],
+        ['renewal-duplicate-2', 'allocation-duplicate-2'],
         ['renewal-no-allocation', undefined],
       ]);
       expect(
@@ -291,6 +308,21 @@ test.each(['common-provider', 'common-user', 'same-party', 'outsider'])(
     }
   },
 );
+
+test('matches allocations to sibling renewals by settlement contract ID', () => {
+  const strictRenewals = typescript.licenses['common-provider']
+    .find((value) => value.license.contractId === 'license-common')
+    ?.renewals.filter(({ renewal }) => renewal.contractId.startsWith('renewal-duplicate-'))
+    .map(({ renewal, allocationCid }) => [renewal.contractId, allocationCid]);
+  expect(strictRenewals).toEqual([
+    ['renewal-duplicate-1', 'allocation-duplicate-1'],
+    ['renewal-duplicate-2', 'allocation-duplicate-2'],
+  ]);
+  expect(strictRenewals?.flat()).not.toContain('allocation-duplicate-wrong-reference');
+  expect(licenses(java.licenses['common-provider'])).toEqual(
+    licenses(typescript.licenses['common-provider']),
+  );
+});
 
 test('Both backends scope renewals to the license provider', () => {
   expect(java.licenses['provider-a'][0].renewals).toEqual([]);
@@ -303,19 +335,12 @@ test('Both backends scope renewals to the license provider', () => {
   ]);
 });
 
-test('TS intentionally rejects incompatible allocations that pass the Java reference and sender checks', () => {
+test('Java and TS reject allocations that do not match the V2 request view or admin signatory', () => {
   expect(typescript.licenses['strict-provider'][0].renewals.map((v) => v.allocationCid)).toEqual([
     'allocation-valid',
   ]);
   const javaIds = java.licenses['strict-provider'][0].renewals.map((v) => v.allocationCid).sort();
-  expect(javaIds).toEqual(
-    [
-      'allocation-valid',
-      ...incompatibleAllocations
-        .filter(([name]) => name !== 'reference-id' && name !== 'sender')
-        .map(([name]) => `allocation-wrong-${name}`),
-    ].sort(),
-  );
+  expect(javaIds).toEqual(['allocation-valid']);
 });
 
 test('Java and TS reject an invalid renewal payload instead of returning a missing contract', async () => {
