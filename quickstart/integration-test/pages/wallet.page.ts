@@ -11,6 +11,10 @@ export default class Wallet {
     this.page = page;
   }
 
+  /**
+   * Reserves funds for the specified renewal and waits for the wallet to offer withdrawal.
+   * The provider settles the fee separately when completing the renewal.
+   */
   public async acceptAllocationRequest(
     amount: number,
     description: string,
