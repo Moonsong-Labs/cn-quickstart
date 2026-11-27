@@ -348,6 +348,21 @@ export async function runIntegration(
     const clientSecret = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_SECRET;
     if (!userId || !issuer || !clientId || !clientSecret)
       throw new Error('Missing OAuth service credentials after onboarding');
+    /** Reads the same Keycloak token that the tenant-registration onboarding script uses. */
+    const adminToken = (
+      await run(
+        compose(
+          'exec',
+          '-T',
+          'splice-onboarding',
+          'bash',
+          '-ec',
+          'DO_INIT=false; source /app/app-provider-auth.sh >/dev/null; printf "%s" "$APP_PROVIDER_PARTICIPANT_ADMIN_TOKEN"',
+        ),
+        { capture: true },
+      )
+    ).trim();
+    if (!adminToken) throw new Error('Missing AppProvider administrator token after onboarding');
     // Reuse Quickstart's demo wallet identity, whose rights authorize the App User party.
     const appUser = JSON.parse(
       await run(
@@ -390,6 +405,7 @@ export async function runIntegration(
       LEDGER_API_ALLOW_HTTP: 'true',
       LEDGER_API_USER_ID: userId,
       APP_PROVIDER_PARTY: party,
+      APP_PROVIDER_PARTICIPANT_ADMIN_TOKEN: adminToken,
       AUTH_APP_PROVIDER_ISSUER_URL: issuer,
       AUTH_APP_PROVIDER_BACKEND_CLIENT_ID: clientId,
       AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID: webClientId,
