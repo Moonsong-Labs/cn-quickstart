@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import LicenseRenewModal from '../components/LicenseRenewModal.tsx';
 import type { License, LicenseRenewalRequest, LicenseRenewRequest } from '../openapi';
+import { Button } from './Button';
 import Modal from './Modal.tsx';
+import { OverdueMark } from './OverdueMark';
+import { Table, Td, Th } from './Table';
 
 type Props = {
-  show: boolean;
-  license: License | null;
+  license: License;
   onClose: () => void;
   isAdmin: boolean;
   userWallet: string;
@@ -19,8 +21,11 @@ type Props = {
   formatDateTime: (iso?: string) => string;
 };
 
+/**
+ * The renewal requests of one license, with the dialog for a new request nested inside. The caller
+ * mounts it only while it shows, so the nested dialog starts closed each time it opens.
+ */
 export default function LicenseRenewalRequestModal({
-  show,
   license,
   onClose,
   isAdmin,
@@ -65,14 +70,10 @@ export default function LicenseRenewalRequestModal({
 
   return (
     <Modal
-      show={show}
-      title={<div>License Renewal Requests</div>}
+      show
+      title="License Renewal Requests"
       onClose={handleClose}
-      backdrop="static"
       size="xl"
-      zIndexBase={1500}
-      dialogClassName="auto-width-modal"
-      contentClassName="auto-width-content"
     >
       <LicenseRenewModal
         show={showNewModal && isAdmin}
@@ -81,128 +82,110 @@ export default function LicenseRenewalRequestModal({
         onClose={handleClose}
       />
 
-      <div>
-        <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
-      </div>
-
-      <br />
-      {isAdmin && (
-        <button
-          type="button"
-          className="btn btn-success btn-issue-renewal"
-          onClick={() => setShowNewModal(true)}
-        >
-          New
-        </button>
-      )}
-
-      <div className="renewals">
-        <table
-          className="table table-fixed xtable-bordered"
-          id="renewals-table"
-        >
+      <div className="flex flex-col gap-5">
+        <div>
+          <strong>License Contract ID:</strong> {license.contractId.substring(0, 24)}...
+        </div>
+        {isAdmin && (
+          <div>
+            <Button
+              variant="primary"
+              onClick={() => setShowNewModal(true)}
+            >
+              New
+            </Button>
+          </div>
+        )}
+        <Table layout="fixed">
           <thead>
             <tr>
-              <th style={{ width: '110px' }}>Renewal Contract ID</th>
-              <th style={{ width: '110px' }}>Request Id</th>
-              <th style={{ width: '100px' }}>Requested At</th>
-              <th style={{ width: '50px' }}>Extension</th>
-              <th style={{ width: '30px' }}>Fee</th>
-              <th style={{ width: '100px' }}>Prepare Until</th>
-              <th style={{ width: '100px' }}>Settle Before</th>
-              <th style={{ width: '100px' }}>Description</th>
-              <th style={{ width: '150px', minWidth: '150px' }}>Status</th>
-              <th style={{ width: '220px' }}>Actions</th>
+              <Th style={{ width: '90px' }}>Renewal Contract ID</Th>
+              <Th style={{ width: '90px' }}>Request Id</Th>
+              <Th style={{ width: '100px' }}>Requested At</Th>
+              <Th style={{ width: '90px' }}>Extension</Th>
+              <Th style={{ width: '60px' }}>Fee</Th>
+              <Th style={{ width: '100px' }}>Prepare Until</Th>
+              <Th style={{ width: '100px' }}>Settle Before</Th>
+              <Th style={{ width: '100px' }}>Description</Th>
+              <Th style={{ width: '150px' }}>Status</Th>
+              <Th style={{ width: '190px' }}>Actions</Th>
             </tr>
           </thead>
           <tbody>
-            {license?.renewalRequests?.map((renewal) => {
-              return (
-                <tr
-                  key={renewal.contractId}
-                  className="renewal-row"
+            {license.renewalRequests?.map((renewal) => (
+              <tr key={renewal.contractId}>
+                <Td
+                  overflow="truncate"
+                  data-testid="renewal-contract-id"
                 >
-                  <td
-                    className="ellipsis-cell renewal-contract-id"
-                    data-testid="renewal-contract-id"
-                  >
-                    {renewal.contractId}
-                  </td>
-                  <td
-                    className="ellipsis-cell renewal-request-id"
-                    data-testid="renewal-request-id"
-                  >
-                    {renewal.requestId}
-                  </td>
-                  <td className="ellipsis-cell renewal-requested-at">
-                    {formatDateTime(renewal.requestedAt)}
-                  </td>
-                  <td className="ellipsis-cell">{renewal.licenseExtensionDuration}</td>
-                  <td className="ellipsis-cell">{renewal.licenseFeeAmount}</td>
-                  <td
-                    className={`ellipsis-cell ${renewal.prepareDeadlinePassed && 'deadline-passed'}`}
-                  >
-                    {formatDateTime(renewal.prepareUntil)}
-                  </td>
-                  <td
-                    className={`ellipsis-cell ${renewal.settleDeadlinePassed && 'deadline-passed'}`}
-                  >
-                    {formatDateTime(renewal.settleBefore)}
-                    {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
-                         date component and remove server side computation of settleDeadlinePassed */}
-                  </td>
-                  <td className="ellipsis-cell">{renewal.description}</td>
-                  <td className="ellipsis-cell">{makeStatus(renewal)}</td>
-                  <td className="renewals-actions">
-                    {isAdmin &&
-                      !renewal.settleDeadlinePassed &&
-                      renewal.allocationCid &&
-                      license && (
-                        <button
-                          type="button"
-                          className="btn btn-success btn-complete-renewal"
-                          onClick={() => {
-                            if (!renewal.allocationCid) return;
-                            void onCompleteRenewal(
-                              license.contractId,
-                              renewal.contractId,
-                              renewal.allocationCid,
-                            );
-                          }}
-                        >
-                          Complete Renewal
-                        </button>
-                      )}
-                    {isAdmin && renewal && (
-                      <button
-                        type="button"
-                        className="btn btn-danger btn-withdraw"
+                  {renewal.contractId}
+                </Td>
+                <Td
+                  overflow="truncate"
+                  data-testid="renewal-request-id"
+                >
+                  {renewal.requestId}
+                </Td>
+                <Td overflow="truncate">{formatDateTime(renewal.requestedAt)}</Td>
+                <Td overflow="truncate">{renewal.licenseExtensionDuration}</Td>
+                <Td overflow="truncate">{renewal.licenseFeeAmount}</Td>
+                <Td overflow="truncate">
+                  {formatDateTime(renewal.prepareUntil)}
+                  {renewal.prepareDeadlinePassed && <OverdueMark />}
+                </Td>
+                <Td overflow="truncate">
+                  {formatDateTime(renewal.settleBefore)}
+                  {renewal.settleDeadlinePassed && <OverdueMark />}
+                  {/* TODO https://github.com/digital-asset/cn-quickstart/issues/239
+                       date component and remove server side computation of settleDeadlinePassed */}
+                </Td>
+                <Td overflow="truncate">{renewal.description}</Td>
+                <Td overflow="truncate">{makeStatus(renewal)}</Td>
+                <Td>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && !renewal.settleDeadlinePassed && renewal.allocationCid && (
+                      <Button
+                        variant="primary"
                         onClick={() => {
-                          void onWithdraw(renewal.contractId);
+                          if (!renewal.allocationCid) return;
+                          void onCompleteRenewal(
+                            license.contractId,
+                            renewal.contractId,
+                            renewal.allocationCid,
+                          );
                         }}
                       >
+                        Complete Renewal
+                      </Button>
+                    )}
+                    {isAdmin && (
+                      <Button
+                        variant="danger"
+                        onClick={() => void onWithdraw(renewal.contractId)}
+                      >
                         Withdraw
-                      </button>
+                      </Button>
                     )}
-                    {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
-                      <>
-                        Please accept the allocation request in your{' '}
-                        <a
-                          href={`${userWallet}/allocations`}
-                          target="_blank"
-                          rel="noopener"
-                        >
-                          wallet
-                        </a>
-                        .
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                  </div>
+                  {!isAdmin && !renewal.settleDeadlinePassed && !renewal.allocationCid && (
+                    <>
+                      Please accept the allocation request in your{' '}
+                      <a
+                        href={`${userWallet}/allocations`}
+                        target="_blank"
+                        rel="noopener"
+                        className="focus-ring font-medium text-primary underline hover:text-primary-hover"
+                      >
+                        wallet
+                      </a>
+                      .
+                    </>
+                  )}
+                </Td>
+              </tr>
+            ))}
           </tbody>
-        </table>
+        </Table>
       </div>
     </Modal>
   );

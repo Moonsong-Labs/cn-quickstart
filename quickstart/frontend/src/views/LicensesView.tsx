@@ -3,8 +3,12 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { Button } from '../components/Button';
 import LicenseArchiveModal from '../components/LicenseExpireModal.tsx';
 import LicenseRenewalRequestModal from '../components/LicenseRenewalRequestModal.tsx';
+import { OverdueMark } from '../components/OverdueMark';
+import { Page, PageBody } from '../components/Page';
+import { Table, Td, Th } from '../components/Table';
 import type { License, LicenseRenewRequest } from '../openapi.d.ts';
 import { useLicenseStore } from '../stores/licenseStore';
 import { useUserStore } from '../stores/userStore';
@@ -103,85 +107,79 @@ const LicensesView: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2>Licenses</h2>
-      <table
-        className="table table-fixed"
-        id="licenses-table"
-      >
-        <thead>
-          <tr>
-            <th style={{ width: '220px' }}>License Contract ID</th>
-            {user?.isAdmin && <th style={{ width: '150px' }}>User</th>}
-            <th style={{ width: '200px' }}>Expires At</th>
-            <th style={{ width: '110px' }}>License #</th>
-            <th style={{ width: '100px' }}>Pending Renewals</th>
-            <th style={{ width: '100px' }}>Accepted Renewals</th>
-            <th style={{ width: '130px' }}>Status</th>
-            <th style={{ width: '300px' }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {licenses.map((license) => {
-            return (
-              <tr
-                key={license.contractId}
-                className="license-row"
-              >
-                <td className="ellipsis-cell license-contract-id">{license.contractId}</td>
-                {user?.isAdmin && <td className="ellipsis-cell license-user">{license.user}</td>}
-                <td
-                  className={`ellipsis-cell license-expires-at ${license.isExpired && 'deadline-passed'}`}
-                >
+    <Page
+      title="Licenses"
+      subtitle="Licensing Demo"
+    >
+      <PageBody>
+        <Table layout="fixed">
+          <thead>
+            <tr>
+              <Th style={{ width: '100px' }}>License Contract ID</Th>
+              {user?.isAdmin && <Th style={{ width: '120px' }}>User</Th>}
+              <Th style={{ width: '190px' }}>Expires At</Th>
+              <Th style={{ width: '70px' }}>License #</Th>
+              <Th style={{ width: '80px' }}>Pending Renewals</Th>
+              <Th style={{ width: '80px' }}>Accepted Renewals</Th>
+              <Th style={{ width: '80px' }}>Status</Th>
+              <Th style={{ width: '210px' }}>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {licenses.map((license) => (
+              <tr key={license.contractId}>
+                <Td overflow="truncate">{license.contractId}</Td>
+                {user?.isAdmin && <Td overflow="truncate">{license.user}</Td>}
+                <Td overflow="truncate">
                   {formatDateTime(license.expiresAt)}
-                </td>
-                <td className="ellipsis-cell license-number">{license.licenseNum}</td>
-                <td className="ellipsis-cell">
+                  {license.isExpired && <OverdueMark />}
+                </Td>
+                <Td overflow="truncate">{license.licenseNum}</Td>
+                <Td overflow="truncate">
                   {license.renewalRequests?.filter((r) => !r.allocationCid).length || 0}
-                </td>
-                <td className="ellipsis-cell">
+                </Td>
+                <Td overflow="truncate">
                   {license.renewalRequests?.filter((r) => r.allocationCid).length || 0}
-                </td>
-                <td className="ellipsis-cell license-status">
-                  {license.isExpired ? 'EXPIRED' : 'ACTIVE'}
-                </td>
-                <td className="license-actions">
-                  {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-actions-license"
-                      onClick={() => openRenewalModal(license.contractId)}
-                    >
-                      Renewals
-                    </button>
-                  )}
-                  {license.expiresAt && license.isExpired && (
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-expire-license"
-                      onClick={() => openArchiveModal(license.contractId)}
-                    >
-                      Archive
-                    </button>
-                  )}
-                </td>
+                </Td>
+                <Td overflow="truncate">{license.isExpired ? 'EXPIRED' : 'ACTIVE'}</Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    {(isAdmin || (license.renewalRequests?.length ?? 0) > 0) && (
+                      <Button
+                        variant="primary"
+                        onClick={() => openRenewalModal(license.contractId)}
+                      >
+                        Renewals
+                      </Button>
+                    )}
+                    {license.expiresAt && license.isExpired && (
+                      <Button
+                        variant="danger"
+                        onClick={() => openArchiveModal(license.contractId)}
+                      >
+                        Archive
+                      </Button>
+                    )}
+                  </div>
+                </Td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </Table>
+      </PageBody>
 
-      <LicenseRenewalRequestModal
-        show={showRenewalModal && !!selectedLicense}
-        license={selectedLicense}
-        onClose={closeRenewalsModal}
-        isAdmin={isAdmin}
-        userWallet={userWallet}
-        onIssueRenewal={handleRenew}
-        onCompleteRenewal={handleCompleteRenewal}
-        onWithdraw={handleRenewalWithdraw}
-        formatDateTime={formatDateTime}
-      />
+      {showRenewalModal && selectedLicense && (
+        <LicenseRenewalRequestModal
+          license={selectedLicense}
+          onClose={closeRenewalsModal}
+          isAdmin={isAdmin}
+          userWallet={userWallet}
+          onIssueRenewal={handleRenew}
+          onCompleteRenewal={handleCompleteRenewal}
+          onWithdraw={handleRenewalWithdraw}
+          formatDateTime={formatDateTime}
+        />
+      )}
 
       <LicenseArchiveModal
         show={showArchiveModal && !!selectedLicense}
@@ -189,7 +187,7 @@ const LicensesView: React.FC = () => {
         onClose={closeArchiveModal}
         onArchive={handleArchive}
       />
-    </div>
+    </Page>
   );
 };
 

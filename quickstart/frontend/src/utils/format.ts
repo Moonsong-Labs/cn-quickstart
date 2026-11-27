@@ -1,3 +1,8 @@
+/** The readable hint of a party ID, the part before `::`. */
+export function partyHint(party: string) {
+  return party.split('::')[0];
+}
+
 export function formatDateTime(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);

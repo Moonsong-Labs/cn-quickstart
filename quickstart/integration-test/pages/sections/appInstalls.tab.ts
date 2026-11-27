@@ -4,52 +4,65 @@ import RowOps from '../../utils/rowOps';
 const APP_PROVIDER_APP_INSTALLS_URL = 'http://app-provider.localhost:3000/app-installs';
 
 export enum Status {
-  AwaitingAcceptance = 'AWAITING_ACCEPTANCE',
-  Accepted = 'ACCEPTED',
+  Requested = 'Requested',
+  Installed = 'Installed',
 }
 
 export enum Button {
   Accept = 'Accept',
-  Cancel = 'Cancel',
-  CreateLicense = 'Create License',
+  CancelInstallation = 'Cancel installation',
+  CreateLicense = 'Create license',
   Reject = 'Reject',
 }
 
 export default class AppInstalls extends RowOps {
+  private matchingPattern!: string | RegExp;
+
   constructor(page: Page) {
     super(page);
   }
 
-  button = (name: string, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('button', { name: name });
+  /**
+   * The panel that shows the selected item's status and actions. It matches only while it shows
+   * the item that `withRowMatching` matched, because the panel also shows the request metadata.
+   */
+  private detail = (): Locator =>
+    this.page
+      .getByRole('region', { name: 'Installation details' })
+      .filter({ hasText: this.matchingPattern });
+
+  /** Installation items are list items. Each shows its request metadata, which holds the test tag. */
+  override findRowBy = (pattern: string | RegExp): Locator => {
+    return this.page.getByRole('listitem').filter({ hasText: pattern });
   };
 
-  status = (name: Status, row: Locator = this.matchingRow): Locator => {
-    return row.getByRole('cell', { name: name });
-  };
-
-  licenseCount = (row: Locator = this.matchingRow): Locator => {
-    return row.getByTestId('num-licenses');
-  };
+  /** Selects the matching item, so that the detail panel shows it. */
+  override async withRowMatching(
+    pattern: string | RegExp,
+    withRow: (row: Locator) => Promise<void>,
+  ): Promise<void> {
+    this.matchingPattern = pattern;
+    await super.withRowMatching(pattern, async (row) => {
+      await row.getByRole('button').click();
+      await withRow(row);
+    });
+  }
 
   public async goto(): Promise<void> {
     await this.page.goto(APP_PROVIDER_APP_INSTALLS_URL);
   }
 
-  public async assertStatus(status: Status, row: Locator = this.matchingRow): Promise<void> {
-    await expect(this.status(status, row)).toBeVisible();
+  public async assertStatus(status: Status): Promise<void> {
+    await expect(this.detail().getByText(status, { exact: true })).toBeVisible();
   }
 
-  public async clickButton(button: Button, row: Locator = this.matchingRow): Promise<void> {
-    await this.button(button, row).click();
+  public async clickButton(button: Button): Promise<void> {
+    await this.detail().getByRole('button', { name: button }).click();
   }
 
-  public async assertLicenseCountIs(
-    licenseCount: number,
-    row: Locator = this.matchingRow,
-  ): Promise<void> {
+  public async assertLicenseCountIs(licenseCount: number): Promise<void> {
     await expect(
-      this.licenseCount(row),
+      this.detail().getByTestId('num-licenses'),
       `There should be ${licenseCount} license(s) for the AppInstall`,
     ).toHaveText(licenseCount.toString());
   }

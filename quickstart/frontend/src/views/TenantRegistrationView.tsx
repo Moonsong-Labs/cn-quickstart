@@ -4,6 +4,10 @@
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
+import { Button } from '../components/Button';
+import { Input, Label } from '../components/Form';
+import { Page, PageBody } from '../components/Page';
+import { Table, Td, Th } from '../components/Table';
 import type { Client, FeatureFlags } from '../openapi';
 import type { TenantRegistrationRequest } from '../openapi.d.ts';
 import { useTenantRegistrationStore } from '../stores/tenantRegistrationStore';
@@ -96,173 +100,173 @@ const TenantRegistrationView: React.FC = () => {
     }
   };
 
+  const usersValue = Array.isArray(formData.users)
+    ? formData.users.join(', ')
+    : (formData.users ?? '');
+
   return (
-    <div>
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
-          <label
-            htmlFor="tenantId"
-            className="form-label"
-          >
-            Tenant ID:
-          </label>
-          <input
-            type="text"
+    <Page
+      title="Tenants"
+      subtitle="Tenant registrations"
+    >
+      <PageBody>
+        <form
+          onSubmit={handleSubmit}
+          className="flex max-w-2xl flex-col gap-3"
+        >
+          <Field
             id="tenantId"
-            name="tenantId"
-            className="form-control"
-            value={formData.tenantId}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div className="mb-3">
-          <label
-            htmlFor="partyId"
-            className="form-label"
+            label="Tenant ID:"
           >
-            PartyId:
-          </label>
-          <input
-            type="text"
-            id="partyId"
-            name="partyId"
-            className="form-control"
-            value={formData.partyId}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        {featureFlags?.authMode === 'oauth2' && (
-          <>
-            <div className="mb-3">
-              <label
-                htmlFor="clientId"
-                className="form-label"
-              >
-                Client ID:
-              </label>
-              <input
-                type="text"
-                id="clientId"
-                name="clientId"
-                className="form-control"
-                value={formData.clientId}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="issuerUrl"
-                className="form-label"
-              >
-                Issuer URL:
-              </label>
-              <input
-                type="text"
-                id="issuerUrl"
-                name="issuerUrl"
-                className="form-control"
-                value={formData.issuerUrl}
-                onChange={handleChange}
-                required
-              />
-            </div>
-          </>
-        )}
-        <div className="mb-3">
-          <label
-            htmlFor="walletUrl"
-            className="form-label"
-          >
-            Wallet URL:
-          </label>
-          <input
-            type="text"
-            id="walletUrl"
-            name="walletUrl"
-            className="form-control"
-            value={formData.walletUrl}
-            onChange={handleChange}
-          />
-        </div>
-        {featureFlags?.authMode === 'shared-secret' && (
-          <div className="mb-3">
-            <label
-              htmlFor="users"
-              className="form-label"
-            >
-              Users (comma-separated):
-            </label>
-            <input
+            <Input
               type="text"
-              id="users"
-              name="users"
-              className="form-control"
-              value={
-                Array.isArray(formData.users) ? formData.users.join(', ') : (formData.users ?? '')
-              }
+              id="tenantId"
+              name="tenantId"
+              value={formData.tenantId}
+              onChange={handleChange}
+              required
+            />
+          </Field>
+          <Field
+            id="partyId"
+            label="Party ID:"
+          >
+            <Input
+              type="text"
+              id="partyId"
+              name="partyId"
+              value={formData.partyId}
+              onChange={handleChange}
+              required
+            />
+          </Field>
+          {featureFlags?.authMode === 'oauth2' && (
+            <>
+              <Field
+                id="clientId"
+                label="Client ID:"
+              >
+                <Input
+                  type="text"
+                  id="clientId"
+                  name="clientId"
+                  value={formData.clientId}
+                  onChange={handleChange}
+                  required
+                />
+              </Field>
+              <Field
+                id="issuerUrl"
+                label="Issuer URL:"
+              >
+                <Input
+                  type="text"
+                  id="issuerUrl"
+                  name="issuerUrl"
+                  value={formData.issuerUrl}
+                  onChange={handleChange}
+                  required
+                />
+              </Field>
+            </>
+          )}
+          <Field
+            id="walletUrl"
+            label="Wallet URL:"
+          >
+            <Input
+              type="text"
+              id="walletUrl"
+              name="walletUrl"
+              value={formData.walletUrl}
               onChange={handleChange}
             />
+          </Field>
+          {featureFlags?.authMode === 'shared-secret' && (
+            <Field
+              id="users"
+              label="Users (comma-separated):"
+            >
+              <Input
+                type="text"
+                id="users"
+                name="users"
+                value={usersValue}
+                onChange={handleChange}
+              />
+            </Field>
+          )}
+          <div>
+            <Button
+              type="submit"
+              variant="primary"
+            >
+              Submit
+            </Button>
           </div>
-        )}
-        <button
-          type="submit"
-          className="btn btn-primary"
-        >
-          Submit
-        </button>
-      </form>
+        </form>
 
-      <div className="mt-4">
-        <h3>Existing Tenant Registrations</h3>
-        <table className="table nowrap">
-          <thead>
-            <tr>
-              <th>Tenant ID</th>
-              <th>Party ID</th>
-              {featureFlags?.authMode === 'oauth2' && (
-                <>
-                  <th>Client ID</th>
-                  <th>Issuer URL</th>
-                </>
-              )}
-              <th>Wallet URL</th>
-              {featureFlags?.authMode === 'shared-secret' && <th>Users</th>}
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {registrations.map((registration) => (
-              <tr key={registration.tenantId}>
-                <td>{registration.tenantId}</td>
-                <td>{registration.partyId}</td>
+        <div className="mt-4">
+          <h2 className="mb-3 text-xl font-bold">Existing Tenant Registrations</h2>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Tenant ID</Th>
+                <Th>Party ID</Th>
                 {featureFlags?.authMode === 'oauth2' && (
                   <>
-                    <td>{registration.clientId}</td>
-                    <td>{registration.issuerUrl}</td>
+                    <Th>Client ID</Th>
+                    <Th>Issuer URL</Th>
                   </>
                 )}
-                <td>{registration.walletUrl}</td>
-                {featureFlags?.authMode === 'shared-secret' && <td>{registration.users}</td>}
-                <td>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    disabled={registration.internal}
-                    onClick={() => handleDelete(registration.tenantId)}
-                  >
-                    Delete
-                  </button>
-                </td>
+                <Th>Wallet URL</Th>
+                {featureFlags?.authMode === 'shared-secret' && <Th>Users</Th>}
+                <Th>Actions</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            </thead>
+            <tbody>
+              {registrations.map((registration) => (
+                <tr key={registration.tenantId}>
+                  <Td overflow="nowrap">{registration.tenantId}</Td>
+                  <Td overflow="nowrap">{registration.partyId}</Td>
+                  {featureFlags?.authMode === 'oauth2' && (
+                    <>
+                      <Td overflow="nowrap">{registration.clientId}</Td>
+                      <Td overflow="nowrap">{registration.issuerUrl}</Td>
+                    </>
+                  )}
+                  <Td overflow="nowrap">{registration.walletUrl}</Td>
+                  {featureFlags?.authMode === 'shared-secret' && (
+                    <Td overflow="nowrap">{registration.users}</Td>
+                  )}
+                  <Td overflow="nowrap">
+                    <Button
+                      variant="danger"
+                      disabled={registration.internal}
+                      onClick={() => handleDelete(registration.tenantId)}
+                    >
+                      Delete
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </PageBody>
+    </Page>
   );
 };
+
+const Field: React.FC<{ id: string; label: string; children: React.ReactNode }> = ({
+  id,
+  label,
+  children,
+}) => (
+  <div className="flex flex-col gap-1">
+    <Label htmlFor={id}>{label}</Label>
+    {children}
+  </div>
+);
 
 export default TenantRegistrationView;
