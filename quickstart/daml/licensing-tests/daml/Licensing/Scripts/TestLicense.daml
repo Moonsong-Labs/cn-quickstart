@@ -210,6 +210,8 @@ testLicenseTokenStandard = script do
   assertMsg "Renewal must replace the license contract ID" (renewedCid /= licenseCid)
   renewedUser.licenseNum === originalLicense.licenseNum
   renewedUser.uuid === originalLicense.uuid
+  queryAllByKey @License providerParty (LicenseKey providerParty userParty originalLicense.uuid)
+    >>= (=== [(renewedCid, renewedUser)])
   now <- getTime
   renewedUser.expiresAt === addRelTime now extension
 
