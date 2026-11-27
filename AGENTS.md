@@ -32,7 +32,7 @@ Don't run `make setup`, `make build` or `make start` for this. `make start` alwa
 ## LocalNet facts
 
 - Three validators: App User (port prefix `2`), App Provider (`3`) and Super Validator (`4`). The Super Validator also runs the synchronizer.
-- JSON Ledger API: `http://localhost:2975`, `:3975`, `:4975`. gRPC Ledger API: `:2901`, `:3901`, `:4901`.
+- JSON Ledger API: `http://localhost:2975`, `:3975`, `:4975`. gRPC Ledger API: `:2901`, `:3901`, `:4901`. Host ports bind to `127.0.0.1` unless `HOST_BIND_IP` is set. `HOST_BIND_IP=0.0.0.0` publishes every Quickstart port, including the unauthenticated participant Admin APIs.
 - Readiness: `curl -f http://localhost:3975/readyz` (JSON Ledger API) and `curl -f http://localhost:3903/api/validator/readyz` (validator).
 - Authentication without OAuth2 (`make start-localnet`, or `make setup` with OAuth2 off): JWT signed with HS256, secret `unsafe`, audience `https://canton.network.global`, subject `ledger-api-user`. The env files write the audience as `${AUTH_..._AUDIENCE:-https://canton.network.global}`; use the resolved URL.
 - `ledger-api-user` is an admin, but admin rights don't allow submitting or reading as a party. Allocate parties with `"userId": "ledger-api-user"` in `POST /v2/parties` to grant `CanActAs`, or the requests fail with HTTP 403.
@@ -48,7 +48,7 @@ Details: [LocalNet](https://docs.canton.network/sdks-tools/development-tools/loc
 
 ## Versions
 
-`quickstart/.env` pins `SPLICE_VERSION` (LocalNet images) and `DAML_RUNTIME_VERSION` (Daml libraries for the Java backend). The Daml projects set the same SDK version in their `daml.yaml` files. These pins can lag the shared networks; check the Version Compatibility Dashboard before deploying to DevNet, TestNet or MainNet.
+`quickstart/.env` pins Splice `0.10.2` (`SPLICE_VERSION`, the LocalNet images) and ledger API `3.7.3` (`DAML_RUNTIME_VERSION`, the Daml libraries for the Java backend). Each `daml.yaml` and the dpm install pin Daml SDK `3.7.1`. PQS and daml-shell images are `3.7.0`. These pins can still differ from DevNet, TestNet and MainNet; check the Version Compatibility Dashboard before deploying there.
 
 ## Changing this repository
 

@@ -2,33 +2,32 @@
 # Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 # SPDX-License-Identifier: 0BSD
 
-# Installs dpm 3.6.3 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
+# Installs dpm 3.7.1 under RUNNER_TEMP and exports DPM_HOME, DPM_SDK_VERSION
 # and PATH for the rest of the job.
 #
 # The tarball is the one nix/dpm.nix fetches. expected_dpm_sha256 is the
-# x86_64-linux hash in that file (sha256:0m1a3y2cc6z35aj1x3i5w0i1vlqcy5iywmk93lf2hkkvrq3g596d)
+# x86_64-linux hash in that file (sha256:1rnmwrbgmnghqw89lrvsf9l34xgszaky7v2c8a8f5kwdywg2jlg2)
 # converted to hex. Keep the two in lockstep when bumping the version.
 #
-# 3.6.3's sdk-manifest.yaml names components codegen and canton-open-source.
-# nix/dpm.nix still selects codegen-js, codegen-java and canton-enterprise,
-# which this manifest does not contain. The trim below keeps the components
-# the quickstart build actually runs: damlc, daml-script, codegen and
-# upgrade-check. Canton comes from the published Docker images, so the
-# open-source Canton component is left out.
+# 3.7.1's sdk-manifest.yaml names components codegen and canton-open-source.
+# nix/dpm.nix selects those, plus damlc, daml-script and upgrade-check.
+# The trim below keeps the components the quickstart build actually runs:
+# damlc, daml-script, codegen and upgrade-check. Canton comes from the
+# published Docker images, so the open-source Canton component is left out.
 #
 # After bootstrap, script-service.jar is linked into damlc's resources
 # directory. Component directories use the component version (damlc and
-# daml-script are 3.6.2 inside the 3.6.3 SDK). damlc-dist-dpm/lib/resources
+# daml-script are 3.7.0 inside the 3.7.1 SDK). damlc-dist-dpm/lib/resources
 # is a symlink to damlc-dist-dpm/resources, which is where damlc looks.
 
 set -euo pipefail
 
-version='3.6.3'
+version='3.7.1'
 yq_version='v4.47.1'
 dest="${RUNNER_TEMP}/dpm"
 yq="${RUNNER_TEMP}/yq"
 
-expected_dpm_sha256='cda4f206ce7b4e281c1d6956ee63f10cd31d22e0258e1ea42ae31bc6841f2a54'
+expected_dpm_sha256='e251291ef78dcfe290424cece3a7fafa753268727a679a10c7f0d9fa56e6d5e6'
 # Published checksum for mikefarah/yq v4.47.1, linux amd64.
 expected_yq_sha256='0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb'
 
@@ -80,7 +79,7 @@ for damlc_dir in "${dest}/cache/components/damlc/"*/damlc-dist-dpm; do
   if [ ! -d "${damlc_dir}" ]; then
     continue
   fi
-  # lib/resources symlinks to ../resources on the 3.6.3 SDK.
+  # lib/resources symlinks to ../resources on the 3.7.1 SDK.
   mkdir -p "${damlc_dir}/lib/resources"
   ln -sfn "${script_jar}" "${damlc_dir}/lib/resources/script-service.jar"
   if [ ! -f "${damlc_dir}/lib/resources/script-service.jar" ]; then
