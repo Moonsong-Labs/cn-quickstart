@@ -60,13 +60,13 @@ function setup(allowHttp: boolean) {
     publishKeys() {
       publishKeys = true;
     },
-    /** Submits the same tenant on each attempt. */
-    register() {
+    /** Submits the default registration with any fields overridden by the scenario. */
+    register(overrides: { walletUrl?: string } = {}) {
       return app.handle(
         new Request(endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, ...overrides }),
         }),
       );
     },
@@ -78,6 +78,28 @@ function setup(allowHttp: boolean) {
     },
   };
 }
+
+test('OIDC registration rejects invalid wallet URLs before discovery', async () => {
+  const fixture = setup(true);
+  try {
+    for (const walletUrl of [
+      'https://wallet.example/has space',
+      'https://wallet.example/<path>',
+      'https://wallet.example/%ZZ',
+      'javascript:',
+      '/allocations',
+    ]) {
+      const response = await fixture.register({ walletUrl });
+      expect(response.status).toBe(400);
+      expect(response.headers.get('content-type')).toContain('application/problem+json');
+      expect(await response.json()).toEqual({ message: 'Invalid wallet URL' });
+    }
+    expect(fixture.requests).toBe(0);
+    expect(await fixture.list()).toEqual([expect.objectContaining({ tenantId: 'AppProvider' })]);
+  } finally {
+    fixture.server.stop(true);
+  }
+});
 
 test('An HTTP issuer is rejected before discovery when HTTP is disabled', async () => {
   const fixture = setup(false);

@@ -48,7 +48,9 @@ test('Only admins can onboard a tenant and failed registration reserves no users
   });
 
   // The second username collides with app-provider. Both alice and the tenant ID must remain available for retry.
-  expect((await register(admin, { ...tenant, users: ['alice', 'APP-PROVIDER'] })).status).toBe(500);
+  const duplicate = await register(admin, { ...tenant, users: ['alice', 'APP-PROVIDER'] });
+  expect(duplicate.status).toBe(409);
+  expect(await duplicate.json()).toEqual({ message: 'Username already exists' });
   expect(await login('alice')).toBe('');
   const created = await register(admin, tenant);
   expect(created.status).toBe(201);
@@ -187,6 +189,70 @@ test('An internal space is part of a single shared-secret username', async () =>
   expect(await user.json()).toMatchObject({ name: 'Bob Smith the user', party: tenant.partyId });
   expect(await login('Bob')).toBe('');
   expect(await login('Smith')).toBe('');
+});
+
+test.each([
+  'https://wallet.example/has space',
+  'https://wallet.example/<path>',
+  'https://wallet.example/%ZZ',
+  'javascript:',
+  '/allocations',
+])('Shared-secret registration rejects invalid wallet URL %s', async (walletUrl) => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice'],
+    walletUrl,
+  });
+
+  expect(response.status).toBe(400);
+  expect(response.headers.get('content-type')).toContain('application/problem+json');
+  expect(await response.json()).toEqual({ message: 'Invalid wallet URL' });
+});
+
+test('Shared-secret registration rejects duplicate usernames case-insensitively within one request', async () => {
+  const { login, register, list } = setup();
+  const admin = await login('app-provider');
+  const before = await (await list(admin)).json();
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice', 'ALICE'],
+  });
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ message: 'Username already exists' });
+  expect(await (await list(admin)).json()).toEqual(before);
+  expect(await login('alice')).toBe('');
+});
+
+test('Shared-secret registration rejects an empty username', async () => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: [''],
+  });
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ message: 'Username must not be empty' });
+});
+
+test('Shared-secret registration rejects an invalid nonempty issuer URL', async () => {
+  const { login, register } = setup();
+  const admin = await login('app-provider');
+  const response = await register(admin, {
+    tenantId: 'AppUser',
+    partyId: 'customer::123',
+    users: ['Alice'],
+    issuerUrl: 'not a URL',
+  });
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ message: 'Invalid issuer URL' });
 });
 
 /** Checks that registration, listing, and login expose the same optional wallet URL. */
