@@ -1,4 +1,4 @@
-import {test as base, type Page, type Locator} from '@playwright/test';
+import {test as base} from '@playwright/test';
 import AppUserSetup from '../utils/appUserSetup';
 import QS from '../pages/qs.page';
 import {PROVIDER_STORAGE} from '../tests/global';

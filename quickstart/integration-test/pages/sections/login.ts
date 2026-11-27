@@ -1,4 +1,4 @@
-import {expect, type Page, type Locator} from '@playwright/test';
+import {expect, type Page} from '@playwright/test';
 import {APP_PROVIDER_LOGIN_URL, DEFAULT_PASSWORD} from '../../tests/global.ts';
 
 export default class Login {

@@ -139,6 +139,10 @@ endef
 
 SETUP_COMMAND := ./gradlew configureProfiles --no-daemon --console=plain --quiet
 
+# Parent of this Makefile. The Bun workspace (package.json and bun.lock) lives here.
+REPO_ROOT := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/..)
+INSTALL_WORKSPACE := cd "$(REPO_ROOT)" && bun install --frozen-lockfile
+
 # Build targets
 .PHONY: build
 ifeq ($(strip $(PARTY_HINT)),)
@@ -155,7 +159,8 @@ endif
 
 .PHONY: build-frontend
 build-frontend: ## Build the frontend application
-	cd frontend && npm install && npm run build
+	$(INSTALL_WORKSPACE)
+	cd "$(REPO_ROOT)" && bun run --filter frontend build
 
 .PHONY: build-backend
 build-backend: ## Build the backend service
@@ -255,7 +260,7 @@ start-vite-dev: ## Start the frontend application in development mode
 .PHONY: vite-dev
 vite-dev:
 	@echo "Starting Vite frontend development server..."
-	cd frontend && npm run dev
+	cd "$(REPO_ROOT)" && bun run --filter frontend dev
 
 .PHONY: stop
 stop: docker-available ## Stop the application and observability services
@@ -366,14 +371,14 @@ integration-test: docker-available ## Run integration tests
 		echo "Integration tests supported only for AUTH_MODE=oauth2."; \
 		exit 1; \
 	fi
-	@cd integration-test && \
-	npm install && \
-	npx playwright test
+	@$(INSTALL_WORKSPACE) && \
+	cd "$(REPO_ROOT)/quickstart/integration-test" && \
+	bunx playwright test
 
 .PHONY: show-integration-test-report
 show-integration-test-report: ## Show the integration test report
-	@cd integration-test && \
-	npx playwright show-report --port=9323 --host=0.0.0.0
+	@cd "$(REPO_ROOT)/quickstart/integration-test" && \
+	bunx playwright show-report --port=9323 --host=0.0.0.0
 
 # Console
 .PHONY: canton-console
@@ -452,9 +457,9 @@ ci-create-env-local:
 # Install playwright dependencies in CI/CD
 .PHONY: ci-install-playwright
 ci-install-playwright:
-	cd integration-test \
-		&& npm ci \
-		&& npx playwright install chromium --with-deps
+	$(INSTALL_WORKSPACE) \
+		&& cd "$(REPO_ROOT)/quickstart/integration-test" \
+		&& bunx playwright install chromium --with-deps
 
 endif
 

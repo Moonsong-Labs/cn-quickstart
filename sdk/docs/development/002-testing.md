@@ -112,7 +112,7 @@ Both methods support parallel, repeatable end-to-end test runs without restartin
 3. **Run tests in VS Code**
    - Open ``quickstart/integration-test`` in VS Code
    - Install the [Playwright Test for VS Code](https://marketplace.visualstudio.com/items?itemName=ms-playwright.playwright) extension.
-   - If run for the first time in VS Code invoke action ``Test: Install Playwright`` or ``npm install``
+   - If run for the first time in VS Code invoke action ``Test: Install Playwright``, or from the repository root run ``bun install``
    - Execute tests via the Playwright view
 
 4. **Run tests via CLI**

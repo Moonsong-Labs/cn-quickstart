@@ -1,4 +1,4 @@
-import {expect, test, type Page, type Locator} from '@playwright/test';
+import {expect, test, type Page} from '@playwright/test';
 import {WALLET_URL, DEFAULT_PASSWORD} from '../tests/global';
 import {Keycloak} from '../utils/keycloak';
 import {onboardWalletUser} from '../utils/wallet';
