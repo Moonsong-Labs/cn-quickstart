@@ -3,7 +3,8 @@ FROM --platform=linux/amd64 eclipse-temurin:21-jdk-jammy AS bindings
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY .github/actions/setup/install-dpm/install-dpm.sh /tmp/install-dpm.sh
-# Reuse CI's pinned SDK and checksum verification without GitHub environment files.
+# Same steps as CI. The script installs the SDK at ${RUNNER_TEMP}/dpm, which is /opt/dpm here.
+# GITHUB_PATH and GITHUB_ENV are discarded; DPM_HOME and PATH below match that install.
 RUN RUNNER_TEMP=/opt GITHUB_PATH=/dev/null GITHUB_ENV=/dev/null bash /tmp/install-dpm.sh
 ENV DPM_HOME=/opt/dpm
 # dpm build uses this in place of sdk-version. It has to be the SDK install-dpm.sh just bootstrapped.
