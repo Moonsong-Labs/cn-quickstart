@@ -700,6 +700,7 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
       renewal.contractId,
       allocationCid,
     ]);
+    expect(pending).toHaveLength(2);
     expect(pending).toEqual(
       expect.arrayContaining([
         [renewalId, undefined],
@@ -737,13 +738,9 @@ test('Matches a real wallet allocation and observes completed renewal in PQS', a
       const joined = (await findActiveLicenses(pqs, party)).find(
         ({ license }) => license.contractId === licenseId,
       );
-      const allocatedRenewal = joined?.renewals.find(
-        ({ renewal }) => renewal.contractId === renewalId,
-      );
-      expect(allocatedRenewal?.allocationCid).toBe(allocationId);
       expect(
-        joined?.renewals.find(({ renewal }) => renewal.contractId === siblingId)?.allocationCid,
-      ).toBeUndefined();
+        joined?.renewals.map(({ renewal, allocationCid }) => [renewal.contractId, allocationCid]),
+      ).toEqual(pending.map(([id, cid]) => [id, id === renewalId ? allocationId : cid]));
     }
 
     const specification = allocation.payload.allocation;
