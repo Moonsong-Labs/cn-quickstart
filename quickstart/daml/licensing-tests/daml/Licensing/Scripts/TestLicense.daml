@@ -256,9 +256,17 @@ testRenewalRejectsDifferentLicenseUuid = script do
 -- | The user can reject the proposal before funding. The original license stays active and no fee is paid.
 testLicenseTokenStandard_RenewalRejection : Script ()
 testLicenseTokenStandard_RenewalRejection = script do
+  let renewalFee = 20.0
   ((registry, userParty, providerParty), licenseCid) <- setupLicenseTest ()
   requestCid <- initiateLicenseRenewal
-    "Rejected renewal" 20.0 (days 365) (registry, providerParty) licenseCid "req-id-1"
+    "Rejected renewal" renewalFee (days 365) (registry, providerParty) licenseCid "req-id-1"
+  requestView <- discoverAllocationRequestView userParty requestCid
+  [senderSpec] <- pure requestView.allocations
+  [feeLeg] <- pure senderSpec.transferLegSides
+  feeLeg.side === SenderSide
+  feeLeg.instrumentId === registry.instrumentId.id
+  feeLeg.amount === renewalFee
+
   let requestIid = toInterfaceContractId @AllocationRequest requestCid
   submitMustFail providerParty $ exerciseCmd requestIid AllocationRequest_Reject with
     actors = [providerParty]
