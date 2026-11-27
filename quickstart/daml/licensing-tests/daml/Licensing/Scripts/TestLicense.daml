@@ -376,6 +376,9 @@ testAllocationRequestAcceptSignalIsOptional = script do
   requestData.settleAt === None
   setTime (terms.settleBefore `addRelTime` seconds (-1))
   let requestIid = toInterfaceContractId @AllocationRequest requestCid
+  submitMustFail providerParty $ exerciseCmd requestIid AllocationRequest_Accept with
+    actors = [providerParty]
+    extraArgs = emptyExtraArgs
   submit userParty $ exerciseCmd requestIid AllocationRequest_Accept with
     actors = [userParty]
     extraArgs = emptyExtraArgs
