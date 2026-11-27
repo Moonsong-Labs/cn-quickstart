@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { composeArgs } from '../src/lib/compose.ts';
 import { loadProject, readProject } from '../src/lib/project.ts';
-import { projectCleaner, tempProject } from './project-fixture.ts';
+import { projectCleaner, TEST_LOCALNET_SHA, tempProject } from './project-fixture.ts';
 
 /** Temp checkouts for this file. */
 const cleaner = projectCleaner();
@@ -117,6 +117,47 @@ describe('readProject', () => {
     expect(project.settings.pqsSv).toBe(true);
     expect(project.settings.debug).toBe(true);
     expect(project.settings.pqsAppUser).toBe(false);
+  });
+
+  test('defaults LOCALNET_DIR to the commit-keyed cache directory from links.csv', async () => {
+    /** Temporary quickstart checkout with the default `links.csv` and no `.env.local` override. */
+    const dir = await tempProject(cleaner.dirs);
+    /** Project read without an explicit LOCALNET_DIR override. */
+    const project = readProject(dir, {});
+    expect(project.settings.localnetDir).toBe(join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA));
+    expect(project.settings.localnetDirExplicit).toBe(false);
+  });
+
+  test('explicit LOCALNET_DIR overrides the cache default', async () => {
+    /** Temporary quickstart checkout tested with an explicit shell `LOCALNET_DIR`. */
+    const dir = await tempProject(cleaner.dirs);
+    /** Project read with an explicit shell LOCALNET_DIR override. */
+    const project = readProject(dir, { LOCALNET_DIR: '/offline/localnet' });
+    expect(project.settings.localnetDir).toBe('/offline/localnet');
+    expect(project.settings.localnetDirExplicit).toBe(true);
+  });
+
+  test('falls back to <modules>/localnet when links.csv is absent', async () => {
+    /** Temporary quickstart checkout whose `links.csv` is deleted to test the modules fallback. */
+    const dir = await tempProject(cleaner.dirs);
+    await rm(join(dir, 'links.csv'));
+    /** Project read without links.csv falls back to the modules directory. */
+    const project = readProject(dir, {});
+    expect(project.settings.localnetDir).toBe(join(dir, 'docker', 'modules', 'localnet'));
+    expect(project.settings.localnetDirExplicit).toBe(false);
+  });
+
+  test('expands LOCALNET_DIR references using the cache default when unset', async () => {
+    /** Temporary quickstart checkout whose `.env.local` references `${LOCALNET_DIR}` without setting it. */
+    const dir = await tempProject(
+      cleaner.dirs,
+      `QS_EXTRA_COMPOSE_FILES=${braced('LOCALNET_DIR')}/extra.yaml\n`,
+    );
+    /** Project whose extra compose path expands the default cache LOCALNET_DIR. */
+    const project = readProject(dir, {});
+    expect(project.settings.extraComposeFiles).toEqual([
+      join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA, 'extra.yaml'),
+    ]);
   });
 
   test('loadProject throws when SPLICE_VERSION is missing', async () => {

@@ -26,7 +26,7 @@ The Provider and User are independent parties, each requiring their own validato
 They coordinate through the Super Validator.
 Payments require Canton Wallet integration and Splice dependencies.
 
-This four-party model shapes the project. The Splice container runs all three validators with configs in ``docker/modules/localnet/conf/splice/`` (app-provider/, app-user/, sv/), provider and user application modules in ``backend/`` and ``frontend/``, payment contracts in ``daml/``, and Splice DARs in ``daml/dars/``.
+This four-party model shapes the project. The Splice container runs all three validators with configs fetched into ``.cache/localnet/<sha>/conf/splice/`` (app-provider/, app-user/, sv/) and QuickStart overrides in ``docker/modules/localnet-overrides/``, provider and user application modules in ``backend/`` and ``frontend/``, payment contracts in ``daml/``, and Splice DARs in ``daml/dars/``.
 
 Work through the :ref:`quickstart-explore-the-demo` guide for the complete workflow walkthrough.
 
@@ -175,7 +175,7 @@ Health check endpoints for each validator are in ``..docker/splice/health-check.
 
 Empty responses indicate healthy services.
 
-Admin ports are defined in ``quickstart/docker/modules/localnet/compose.yaml``
+Admin ports are defined in ``quickstart/.cache/localnet/<sha>/compose.yaml`` (override via ``quickstart/docker/modules/localnet-overrides/compose.yaml``)
 
 .. code-block:: bash
     :name: cf-docs-snippet-cn-quickstart-project-structure-health-check-admin-ports-start

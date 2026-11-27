@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runBuild } from '../src/commands/build.ts';
 import { runConsole, runShell } from '../src/commands/console.ts';
@@ -11,7 +11,7 @@ import { runClean, runRestart, runStart } from '../src/commands/stack.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import type { Runner } from '../src/lib/exec.ts';
 import { scriptedIo } from './io.ts';
-import { projectCleaner, tempProject } from './project-fixture.ts';
+import { projectCleaner, TEST_LOCALNET_SHA, tempProject } from './project-fixture.ts';
 import { fakeRunner } from './runner.ts';
 
 /** Temp checkouts for this file. */
@@ -155,6 +155,20 @@ describe('runRestart', () => {
     expect(await runRestart(context, 'nope')).toBe(1);
     expect(noted()).toContain('Unknown service: nope');
     expect(noted()).toContain('nginx');
+  });
+
+  test('skips service validation during a cold-cache dry-run and prints the planned commands', async () => {
+    /** Recording runner whose capture must not be invoked when the LocalNet cache is absent. */
+    const fake = fakeRunner([{ code: 1 }]);
+    /** Cold-cache checkout configured for dry-run service restart. */
+    const { context, dir, noted } = await ctx(fake.runner);
+    context.dryRun = true;
+    await rm(join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA), { recursive: true, force: true });
+    expect(await runRestart(context, 'nginx')).toBe(0);
+    expect(noted()).toContain('Skipping service validation during dry-run');
+    expect(fake.calls.some((call) => call.cmd.includes('--services'))).toBe(false);
+    expect(fake.calls.some((call) => call.cmd.includes('rm'))).toBe(true);
+    expect(fake.calls.some((call) => call.cmd.includes('up'))).toBe(true);
   });
 });
 
@@ -433,7 +447,7 @@ describe('console and shell', () => {
     expect(cmd.slice(0, 2)).toEqual(['docker', 'compose']);
     expect(cmd).toContain('compose.yaml');
     expect(cmd.slice(-5)).toEqual(['run', '--rm', '--name', 'canton-console', 'console']);
-    expect(cmd).toContain(`${dir}/docker/modules/localnet/resource-constraints.yaml`);
+    expect(cmd).toContain(`${dir}/.cache/localnet/${TEST_LOCALNET_SHA}/resource-constraints.yaml`);
   });
 
   test('shell names the container and uses the daml-shell files', async () => {

@@ -1288,7 +1288,7 @@ Additional ports the default setup exposes
 Health checks
 ~~~~~~~~~~~~~
 
-You can find the health check endpoints for each validator in ``quickstart/docker/modules/localnet/docker/splice/health-check.sh``.
+You can find the health check endpoints for each validator in ``quickstart/.cache/localnet/<sha>/docker/splice/health-check.sh`` (fetched from the commit pinned in ``quickstart/links.csv``).
 
 Empty responses indicate healthy services.
 
@@ -1301,7 +1301,7 @@ Empty responses indicate healthy services.
 Access admin ports
 ~~~~~~~~~~~~~~~~~~
 
-Admin ports are defined in ``quickstart/docker/modules/localnet/compose.yaml``
+Admin ports are defined in ``quickstart/.cache/localnet/<sha>/compose.yaml`` (override via ``quickstart/docker/modules/localnet-overrides/compose.yaml``)
 
 .. code-block:: bash
    :name: cf-docs-snippet-cn-quickstart-json-api-access-admin-ports-start

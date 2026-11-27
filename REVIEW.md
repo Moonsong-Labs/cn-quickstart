@@ -67,7 +67,7 @@ Scheduled for deletion once the TypeScript backend passes the Playwright suite. 
 ## LocalNet and Docker: `quickstart/docker/**`, `quickstart/compose.yaml`, `quickstart/config/**`
 
 - Image versions stay consistent with the targeted Splice release (0.10.x) and its Canton version.
-- `quickstart/docker/modules/localnet/**` is LocalNet vendored from upstream Splice. Check only that a re-vendor matches the upstream release, not its contents.
+- Splice LocalNet is fetched from the commit pinned in `quickstart/links.csv` into the git-ignored cache `quickstart/.cache/localnet/<sha>/`. QuickStart-specific overrides live in `quickstart/docker/modules/localnet-overrides/` and are reviewed like any other QuickStart code.
 - New shell scripts start with `set -euo pipefail` and quote their variables. Existing scripts keep at least `set -e`.
 - Flag a port, hostname, or volume change that `README.md` or the integration tests still rely on.
 

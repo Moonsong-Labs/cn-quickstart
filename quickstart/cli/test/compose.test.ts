@@ -1,10 +1,22 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { type ComposeCall, composeArgs, composeEnv } from '../src/lib/compose.ts';
-import type { Project, Settings } from '../src/lib/project.ts';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { type ComposeCall, compose, composeArgs, composeEnv } from '../src/lib/compose.ts';
+import type { CommandContext } from '../src/lib/context.ts';
+import type { Runner } from '../src/lib/exec.ts';
+import { type Project, readProject, type Settings } from '../src/lib/project.ts';
+import { scriptedIo } from './io.ts';
+import { projectCleaner, TEST_LOCALNET_SHA, tempProject } from './project-fixture.ts';
+import { fakeRunner } from './runner.ts';
+
+/** Temp checkouts for Compose cache-fetch tests. */
+const cleaner = projectCleaner();
+
+afterEach(() => cleaner.cleanup());
 
 /** Captured `make -n compose-config` argument lists, keyed by the five Makefile variables. */
 const cases = JSON.parse(
@@ -28,7 +40,7 @@ function settingsFor(key: string): Settings {
     splice: '0.8.4',
     dockerNetwork: 'quickstart',
     modulesDir: '<project>/docker/modules',
-    localnetDir: '<project>/docker/modules/localnet',
+    localnetDir: '<project>/.cache/localnet/<sha>',
     extraComposeFiles: [],
     extraEnvFiles: [],
   };
@@ -155,7 +167,7 @@ function oneshotSettings(key: string): Settings {
     splice: '0.8.4',
     dockerNetwork: 'quickstart',
     modulesDir: '<project>/docker/modules',
-    localnetDir: '<project>/docker/modules/localnet',
+    localnetDir: '<project>/.cache/localnet/<sha>',
     extraComposeFiles: [],
     extraEnvFiles: [],
   };
@@ -196,5 +208,188 @@ describe('composeArgs console, shell, and install request', () => {
     expect(args.indexOf('./mine.env')).toBeGreaterThan(
       args.indexOf(`${settings.modulesDir}/daml-shell/compose.env`),
     );
+  });
+});
+
+describe('compose cache fetch', () => {
+  test('fetches LocalNet into the cache before running docker compose when missing', async () => {
+    /** Temporary quickstart checkout with shared-secret auth and a cold LocalNet cache. */
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\nPARTY_HINT=App-User-1\n');
+    /** Expected commit-keyed cache directory, deleted to simulate a cold cache. */
+    const cacheDir = join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA);
+    await rm(cacheDir, { recursive: true, force: true });
+    /** Recorded commands across both git fetch and docker compose. */
+    const calls: string[][] = [];
+    /** Temporary sparse checkout created by `git init`, populated on `checkout`. */
+    let tmp = '';
+    /** Runner that populates the sparse checkout on `git checkout` and records every call. */
+    const runner: Runner = {
+      /** Records `cmd` and plants a stub `compose.yaml` when `git checkout` runs. */
+      async run(cmd) {
+        calls.push(cmd);
+        if (cmd[0] === 'git' && cmd[1] === 'init') tmp = cmd.at(-1) ?? '';
+        if (cmd[0] === 'git' && cmd.includes('checkout')) {
+          /** Simulated sparse checkout tree. */
+          const source = join(tmp, 'cluster/compose/localnet');
+          await mkdir(source, { recursive: true });
+          await writeFile(join(source, 'compose.yaml'), 'services: {}\n');
+        }
+        return 0;
+      },
+      /** Returns empty success because this path issues no captured commands. */
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      /** Yields no lines because this path does not stream logs. */
+      lines() {
+        return (async function* empty() {})();
+      },
+      /** Returns a finished child because this path spawns no background process. */
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    /** Loaded checkout whose default `localnetDir` points at the missing cache directory. */
+    const project = readProject(dir, {});
+    /** Command context wired to the simulated git and Compose runner. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(calls.some((cmd) => cmd[0] === 'git' && cmd.includes('fetch'))).toBe(true);
+    expect(calls.at(-1)?.slice(0, 2)).toEqual(['docker', 'compose']);
+    expect(calls.at(-1)).toContain(`${cacheDir}/compose.yaml`);
+    expect(calls.at(-1)).toContain(`${dir}/docker/modules/localnet-overrides/compose.yaml`);
+  });
+
+  test('refreshes an existing cache directory when override patches change', async () => {
+    /** Temporary quickstart checkout with a warm cache before a new patch is added. */
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\nPARTY_HINT=App-User-1\n');
+    /** Escape-hatch patches directory where a new patch is added after the initial cache. */
+    const patchesDir = join(dir, 'docker', 'modules', 'localnet-overrides', 'patches');
+    await mkdir(patchesDir, { recursive: true });
+    await writeFile(join(patchesDir, '01-change.patch'), 'patch-v1\n');
+    /** Recorded commands across both runs. */
+    const calls: string[][] = [];
+    /** Temporary sparse checkout created by `git init`, populated on `checkout`. */
+    let tmp = '';
+    /** Runner that populates the sparse checkout and succeeds on git apply and compose. */
+    const runner: Runner = {
+      /** Records `cmd` and creates the sparse checkout tree during `git checkout`. */
+      async run(cmd) {
+        calls.push(cmd);
+        if (cmd[0] === 'git' && cmd[1] === 'init') tmp = cmd.at(-1) ?? '';
+        if (cmd[0] === 'git' && cmd.includes('checkout')) {
+          /** Simulated sparse checkout tree. */
+          const source = join(tmp, 'cluster/compose/localnet');
+          await mkdir(source, { recursive: true });
+          await writeFile(join(source, 'compose.yaml'), 'services: {}\n');
+        }
+        return 0;
+      },
+      /** Returns empty success because this path issues no captured commands. */
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      /** Yields no lines because this path does not stream logs. */
+      lines() {
+        return (async function* empty() {})();
+      },
+      /** Returns a finished child because this path spawns no background process. */
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    /** Loaded checkout pointing at the default commit-keyed cache directory. */
+    const project = readProject(dir, {});
+    /** Command context wired to the simulated runner. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(calls.some((cmd) => cmd[0] === 'git' && cmd.includes('apply'))).toBe(true);
+    calls.length = 0;
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(calls.map((cmd) => cmd[0])).toEqual(['docker']);
+    await writeFile(join(patchesDir, '01-change.patch'), 'patch-v2\n');
+    calls.length = 0;
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(calls.some((cmd) => cmd[0] === 'git' && cmd.includes('apply'))).toBe(true);
+  });
+
+  test('does not fetch when LOCALNET_DIR is explicitly set', async () => {
+    /** Temporary quickstart checkout with an explicit offline `LOCALNET_DIR` override. */
+    const dir = await tempProject(cleaner.dirs, 'LOCALNET_DIR=/custom/offline/localnet\n');
+    /** Recording runner that must only see Docker Compose and no git calls. */
+    const fake = fakeRunner();
+    /** Loaded checkout whose explicit `LOCALNET_DIR` suppresses auto-fetching. */
+    const project = readProject(dir, {});
+    /** Command context for the explicit-override Compose invocation. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(0);
+    expect(fake.calls.map((call) => call.cmd[0])).toEqual(['docker']);
+    expect(fake.calls[0]?.cmd).toContain('/custom/offline/localnet/compose.yaml');
+  });
+
+  test('stops before docker compose when the LocalNet fetch fails', async () => {
+    /** Temporary quickstart checkout whose missing cache triggers a failing git fetch. */
+    const dir = await tempProject(cleaner.dirs, 'AUTH_MODE=shared-secret\n');
+    await rm(join(dir, '.cache', 'localnet', TEST_LOCALNET_SHA), { recursive: true, force: true });
+    /** Recorded commands. Compose must not run after a failed git fetch. */
+    const calls: string[][] = [];
+    /** Runner that fails `git fetch` and records every command issued. */
+    const runner: Runner = {
+      /** Records `cmd` and returns exit 1 on `git fetch`. */
+      run(cmd) {
+        calls.push(cmd);
+        return Promise.resolve(cmd.includes('fetch') ? 1 : 0);
+      },
+      /** Returns empty success because this path issues no captured commands. */
+      capture() {
+        return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      },
+      /** Yields no lines because this path does not stream logs. */
+      lines() {
+        return (async function* empty() {})();
+      },
+      /** Returns a finished child because this path spawns no background process. */
+      background() {
+        return { stop() {}, exited: Promise.resolve(0) };
+      },
+    };
+    /** Loaded checkout whose default `localnetDir` points at the missing cache directory. */
+    const project = readProject(dir, {});
+    /** Command context wired to the failing fetch runner. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner,
+    };
+    expect(await compose(context, project, ['ps'])).toBe(1);
+    expect(calls.some((cmd) => cmd[0] === 'docker')).toBe(false);
   });
 });

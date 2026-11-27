@@ -131,7 +131,8 @@ You may change this later by running `make setup`.
 ## LocalNet only
 
 If you only need a running network, for example to deploy and test your own Daml code, start LocalNet without the Quickstart application.
-This needs only Docker: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
+This needs only Docker and `git`: no `make setup`, no `make build`, and no Bun, JDK, or Node.js.
+The first run fetches the pinned Splice LocalNet tree from `quickstart/links.csv` into `quickstart/.cache/localnet/<sha>/`; offline users can set `LOCALNET_DIR` to an existing copy.
 
 ```bash
 $ cd quickstart
@@ -439,7 +440,7 @@ Quickstart uses a port suffix scheme for participant/validator services:
 # Docker Compose-based development for LocalNet
 Quickstart leverages Docker Compose for modular development. 
 Instead of relying on a single extensive docker-compose.yaml file, this approach orchestrates multiple compose files and corresponding environment files for each Quickstart module. 
-Splice LocalNet is housed within the `docker/modules/localnet` directory. 
+Splice LocalNet is fetched from the commit pinned in `quickstart/links.csv` into the git-ignored cache `quickstart/.cache/localnet/<sha>/`, with QuickStart-specific overrides layered from `docker/modules/localnet-overrides/`.
 In the `Makefile`, Docker Compose commands are dynamically assembled from Splice LocalNet, Quickstart modules, and Quickstart-specific compose and environment files, arranged in an order that respects the interdependencies of the various components.
 
 Some modules (e.g., Keycloak) are optional and can be toggled on or off based on your selections made during `make setup`. 
@@ -481,7 +482,7 @@ This approach enhances security and clearly separates services in line with ente
 The Quickstart repository includes modular components that can be reused in developer projects outside of Quickstart. 
 These modules are located in the `docker/modules` directory by default, however, they can be sourced from any directory by setting the `MODULES_DIR` environment variable accordingly.
 
-Splice LocalNet is a special module borrowed from the [Splice repository](https://github.com/hyperledger-labs/splice/tree/main/cluster/compose/localnet) and is placed by default in `docker/modules`. It can also be relocated by properly configuring the LOCALNET_DIR environment variable.
+Splice LocalNet is a special module fetched on demand from the [Splice repository](https://github.com/canton-network/splice/tree/main/cluster/compose/localnet) at the commit pinned in `quickstart/links.csv` into `quickstart/.cache/localnet/<sha>/`. QuickStart-specific customizations belong in `docker/modules/localnet-overrides/` (`compose.yaml`, `localnet.env`, and optional `patches/*.patch`). You can also point `LOCALNET_DIR` at an existing local copy.
 
 Each module provides specific functionality and may depend on other modules. The currently supported modules are:
 

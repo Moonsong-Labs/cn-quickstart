@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { CommandContext } from './context.ts';
 import { expandEnvValue, parseDotEnv } from './env.ts';
+import { localnetCacheDir } from './localnet.ts';
 import { resolveProjectRoot } from './paths.ts';
 
 /**
@@ -34,8 +35,10 @@ export type Settings = {
   dockerNetwork: string;
   /** Absolute `docker/modules` directory, or `MODULES_DIR` when that is set. */
   modulesDir: string;
-  /** Absolute LocalNet directory, or `LOCALNET_DIR` when that is set. */
+  /** Absolute LocalNet directory: explicit `LOCALNET_DIR`, or the pinned cache directory from `links.csv`. */
   localnetDir: string;
+  /** True when `LOCALNET_DIR` was explicitly set in the environment or env files rather than defaulted. */
+  localnetDirExplicit?: boolean;
   /** Extra Compose files from `QS_EXTRA_COMPOSE_FILES`, in listed order. */
   extraComposeFiles: string[];
   /** Extra env files from `QS_EXTRA_ENV_FILES`, in listed order. */
@@ -165,11 +168,18 @@ export function readProject(
       }
     }
     if (name === 'MODULES_DIR') return defaultModules;
-    if (name === 'LOCALNET_DIR') return join(resolvedModules(), 'localnet');
+    if (name === 'LOCALNET_DIR') return defaultLocalnet();
     return '';
   };
   /**
-   * `MODULES_DIR` for the `LOCALNET_DIR` default.
+   * Default `LOCALNET_DIR` when neither the environment nor the env files set it.
+   * Uses the commit-keyed cache path from `links.csv`, falling back to `<modules>/localnet`
+   * when `links.csv` is absent or has no `localnet` row.
+   */
+  const defaultLocalnet = (): string =>
+    localnetCacheDir(dir) ?? join(resolvedModules(), 'localnet');
+  /**
+   * `MODULES_DIR` for the fallback `LOCALNET_DIR` default.
    * A set value is expanded. An unset value uses the checkout default without
    * looking `MODULES_DIR` up again, so a reference from that default cannot cycle.
    */
@@ -192,11 +202,12 @@ export function readProject(
   };
   /** `MODULES_DIR`, or `<checkout>/docker/modules`. Relative values are resolved from the checkout. */
   const modulesDir = resolve(dir, firstNonEmpty(pick('MODULES_DIR')) ?? join('docker', 'modules'));
-  /** `LOCALNET_DIR`, or `<modules>/localnet`. */
-  const localnetDir = resolve(
-    dir,
-    firstNonEmpty(pick('LOCALNET_DIR')) ?? join(modulesDir, 'localnet'),
-  );
+  /** Explicit `LOCALNET_DIR` from the environment or env files, when set. */
+  const explicitLocalnet = firstNonEmpty(pick('LOCALNET_DIR'));
+  /** True when `LOCALNET_DIR` came from the environment or env files rather than the default. */
+  const localnetDirExplicit = explicitLocalnet !== undefined;
+  /** `LOCALNET_DIR`, or the pinned cache directory from `links.csv`. */
+  const localnetDir = resolve(dir, explicitLocalnet ?? defaultLocalnet());
   /** Auth mode. Only the two Makefile values are kept. */
   const authRaw = pick('AUTH_MODE');
   /** Test mode. Only `on` and `off` are kept. */
@@ -222,6 +233,7 @@ export function readProject(
       dockerNetwork: firstNonEmpty(pick('DOCKER_NETWORK')) ?? 'quickstart',
       modulesDir,
       localnetDir,
+      localnetDirExplicit,
       extraComposeFiles: colonList(pick('QS_EXTRA_COMPOSE_FILES')),
       extraEnvFiles: colonList(pick('QS_EXTRA_ENV_FILES')),
     },

@@ -2,18 +2,34 @@
 // SPDX-License-Identifier: 0BSD
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readSdkLine, rewriteSdkVersion, runVersionsSync } from '../src/commands/versions.ts';
 import type { CommandContext } from '../src/lib/context.ts';
 import { scriptedIo } from './io.ts';
-import { projectCleaner, tempProject } from './project-fixture.ts';
+import {
+  projectCleaner,
+  TEST_LOCALNET_REPO,
+  TEST_LOCALNET_SHA,
+  tempProject,
+} from './project-fixture.ts';
 import { fakeRunner } from './runner.ts';
 
 /** Temp checkouts for this file. */
 const cleaner = projectCleaner();
 
 afterEach(() => cleaner.cleanup());
+
+/** Full commit SHA returned by stubbed `git ls-remote` for a bumped Splice release tag. */
+const BUMPED_SHA = 'de3724016885ba7c88cb8bf8b94c47682386b5f5';
+
+/** Annotated tag object SHA used to verify `^{}` dereferencing. */
+const TAG_OBJECT_SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+/** Scripted `git ls-remote` output for lightweight tag `version`. */
+function lsRemoteTag(version: string, sha = BUMPED_SHA): { stdout: string } {
+  return { stdout: `${sha}\trefs/tags/${version}\n` };
+}
 
 /** Info document for a network whose current synchronizer is `version`. */
 function info(version: string): string {
@@ -55,7 +71,7 @@ describe('rewriteSdkVersion', () => {
 });
 
 describe('runVersionsSync', () => {
-  test('rewrites manifests and SPLICE_VERSION and leaves the proto pin', async () => {
+  test('rewrites manifests, SPLICE_VERSION, and links.csv and leaves the proto pin', async () => {
     const dir = await tempProject(cleaner.dirs);
     await writeFile(
       join(dir, '.env'),
@@ -66,8 +82,8 @@ describe('runVersionsSync', () => {
     await writeFile(join(dir, 'daml', 'licensing', '.daml', 'daml.yaml'), 'sdk-version: 9\n');
     await writeFile(join(dir, 'daml', 'other', 'daml.yaml'), 'sdk-version: 1.0.0\nname: other\n');
     const io = scriptedIo([]);
-    const fake = fakeRunner();
-    /** Context with a stubbed fetch and no git calls expected. */
+    const fake = fakeRunner([lsRemoteTag('0.9.3')]);
+    /** Context with a stubbed fetch and scripted tag lookup for the bumped Splice release. */
     const context: CommandContext = {
       io: io.io,
       env: {},
@@ -93,16 +109,122 @@ describe('runVersionsSync', () => {
     expect(await readFile(join(dir, '.env'), 'utf8')).toBe(
       'SPLICE_VERSION=0.9.3\nDOCKER_NETWORK=quickstart\nDAML_RUNTIME_VERSION=3.5.14\n',
     );
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toContain(
+      `${TEST_LOCALNET_REPO},${BUMPED_SHA},cluster/compose/localnet,.cache`,
+    );
     expect(io.noted()).toContain('DAML_RUNTIME_VERSION stays 3.5.14');
     expect(io.noted()).toContain('migration 4');
-    expect(io.noted()).toContain('Run qs vendor localnet');
-    expect(fake.calls).toEqual([]);
+    expect(io.noted()).toContain(`links.csv: localnet ${TEST_LOCALNET_SHA} -> ${BUMPED_SHA}`);
+    expect(io.noted()).not.toContain('Run qs vendor localnet');
+    expect(fake.calls.map((call) => call.cmd)).toEqual([
+      ['git', 'ls-remote', '--tags', TEST_LOCALNET_REPO, 'refs/tags/0.9.3', 'refs/tags/0.9.3^{}'],
+    ]);
+  });
+
+  test('prefers the dereferenced commit SHA for an annotated Splice tag', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    const fake = fakeRunner([
+      {
+        stdout: `${TAG_OBJECT_SHA}\trefs/tags/0.11.0\n${BUMPED_SHA}\trefs/tags/0.11.0^{}\n`,
+      },
+    ]);
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+      fetch: fetchVersions('0.11.0'),
+    };
+    expect(
+      await runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+    ).toBe(0);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toContain(BUMPED_SHA);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).not.toContain(TAG_OBJECT_SHA);
+  });
+
+  test('fails without writing any files when the bumped Splice tag cannot be resolved', async () => {
+    const dir = await tempProject(cleaner.dirs);
+    /** Env and links snapshots taken before the failed sync. Both must stay untouched. */
+    const envBefore = await readFile(join(dir, '.env'), 'utf8');
+    const linksBefore = await readFile(join(dir, 'links.csv'), 'utf8');
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: {},
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fakeRunner([{ stdout: '' }]).runner,
+      fetch: fetchVersions('0.11.0'),
+    };
+    await expect(
+      runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+    ).rejects.toThrow("Could not find Splice tag '0.11.0'");
+    expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
+  });
+
+  test('leaves SPLICE_VERSION and links.csv unchanged when writing links.csv fails', async () => {
+    /** Temporary checkout whose directory is made read-only so atomic replacement fails. */
+    const dir = await tempProject(cleaner.dirs);
+    /** Env file snapshot before the failed write. Must keep the old `SPLICE_VERSION`. */
+    const envBefore = await readFile(join(dir, '.env'), 'utf8');
+    /** Pin file snapshot before the failed write. Must stay intact. */
+    const linksBefore = await readFile(join(dir, 'links.csv'), 'utf8');
+    await chmod(dir, 0o555);
+    try {
+      /** Context syncing to a new Splice version while `dir` cannot accept the temp file. */
+      const context: CommandContext = {
+        io: scriptedIo([]).io,
+        env: {},
+        cwd: dir,
+        cliDir: dir,
+        dryRun: false,
+        project: dir,
+        runner: fakeRunner([lsRemoteTag('0.11.0')]).runner,
+        fetch: fetchVersions('0.11.0'),
+      };
+      await expect(
+        runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+      ).rejects.toThrow();
+      expect(await readFile(join(dir, '.env'), 'utf8')).toBe(envBefore);
+      expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
+    } finally {
+      await chmod(dir, 0o755);
+    }
+  });
+
+  test('updates links.csv when SPLICE_VERSION in env already matches the published version', async () => {
+    /** Temporary checkout whose `.env` still holds an older Splice version. */
+    const dir = await tempProject(cleaner.dirs);
+    await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.8.4\nDOCKER_NETWORK=quickstart\n');
+    /** Recording runner scripted with the bumped Splice release tag. */
+    const fake = fakeRunner([lsRemoteTag('0.9.3')]);
+    /** Context whose shell environment overrides `SPLICE_VERSION` to the target release. */
+    const context: CommandContext = {
+      io: scriptedIo([]).io,
+      env: { SPLICE_VERSION: '0.9.3' },
+      cwd: dir,
+      cliDir: dir,
+      dryRun: false,
+      project: dir,
+      runner: fake.runner,
+      fetch: fetchVersions('0.9.3'),
+    };
+    expect(
+      await runVersionsSync(context, { network: 'dev', tag: false, force: false, copy: false }),
+    ).toBe(0);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toContain(BUMPED_SHA);
   });
 
   test('dry-run fetches and writes nothing', async () => {
     const dir = await tempProject(cleaner.dirs);
-    /** Manifest before the command. */
+    /** Manifest and links.csv before the command. */
     const before = await readFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'utf8');
+    const linksBefore = await readFile(join(dir, 'links.csv'), 'utf8');
     const io = scriptedIo([]);
     const context: CommandContext = {
       io: io.io,
@@ -111,13 +233,15 @@ describe('runVersionsSync', () => {
       cliDir: dir,
       dryRun: true,
       project: dir,
-      runner: fakeRunner().runner,
+      runner: fakeRunner([lsRemoteTag('0.9.3')]).runner,
       fetch: fetchVersions('0.9.3'),
     };
     expect(
       await runVersionsSync(context, { network: 'dev', tag: true, force: false, copy: true }),
     ).toBe(0);
     expect(await readFile(join(dir, 'daml', 'licensing', 'daml.yaml'), 'utf8')).toBe(before);
+    expect(await readFile(join(dir, 'links.csv'), 'utf8')).toBe(linksBefore);
+    expect(io.noted()).toContain(`links.csv: localnet ${TEST_LOCALNET_SHA} -> ${BUMPED_SHA}`);
     expect(io.noted()).toContain('Would tag splice-0.9.3');
     expect(io.noted()).toContain('Would copy DARs');
     expect(io.noted()).not.toContain('No sibling');
@@ -125,7 +249,7 @@ describe('runVersionsSync', () => {
 
   test('refuses an existing tag unless --force', async () => {
     const dir = await tempProject(cleaner.dirs);
-    const existing = fakeRunner([{ code: 0 }]);
+    const existing = fakeRunner([lsRemoteTag('0.8.4'), { code: 0 }]);
     const io = scriptedIo([]);
     /** Context whose tag lookup succeeds, so the tag is already there. */
     const context: CommandContext = {
@@ -148,6 +272,7 @@ describe('runVersionsSync', () => {
 
   test('--force deletes the tag and creates it again', async () => {
     const dir = await tempProject(cleaner.dirs);
+    await writeFile(join(dir, '.env'), 'SPLICE_VERSION=0.8.4\nDOCKER_NETWORK=quickstart\n');
     const fake = fakeRunner([{ code: 0 }]);
     const context: CommandContext = {
       io: scriptedIo([]).io,
@@ -180,7 +305,7 @@ describe('runVersionsSync', () => {
       cliDir: dir,
       dryRun: false,
       project: dir,
-      runner: fakeRunner().runner,
+      runner: fakeRunner([lsRemoteTag('0.9.3')]).runner,
       fetch: fetchVersions('0.9.3'),
     };
     expect(
@@ -244,7 +369,7 @@ describe('runVersionsSync', () => {
       cliDir: dir,
       dryRun: false,
       project: dir,
-      runner: fakeRunner().runner,
+      runner: fakeRunner([lsRemoteTag('0.9.3')]).runner,
       fetch: fetchVersions('0.9.3'),
     };
     await expect(
@@ -268,7 +393,7 @@ describe('runVersionsSync', () => {
       cliDir: dir,
       dryRun: false,
       project: dir,
-      runner: fakeRunner().runner,
+      runner: fakeRunner([lsRemoteTag('0.9.3')]).runner,
       fetch: fetchVersions('0.9.3'),
     };
     await expect(
@@ -279,8 +404,8 @@ describe('runVersionsSync', () => {
 
   test('refuses to tag a dirty tree after the rewrite', async () => {
     const dir = await tempProject(cleaner.dirs);
-    /** Tag is absent, then the working tree is dirty, so no `git tag` runs. */
-    const fake = fakeRunner([{ code: 1 }, { stdout: ' M .env\n' }]);
+    /** Tag commit lookup succeeds, tag is absent, then the working tree is dirty, so no `git tag` runs. */
+    const fake = fakeRunner([lsRemoteTag('0.9.3'), { code: 1 }, { stdout: ' M .env\n' }]);
     const context: CommandContext = {
       io: scriptedIo([]).io,
       env: {},

@@ -1,0 +1,6 @@
+# Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: 0BSD
+#
+# QuickStart overrides layered on top of the fetched Splice LocalNet compose.yaml.
+# Add extra environment variables, mounts, or ports for LocalNet services here.
+services: {}

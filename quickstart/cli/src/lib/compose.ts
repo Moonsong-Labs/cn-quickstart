@@ -3,6 +3,7 @@
 
 import type { CommandContext } from './context.ts';
 import { definedEnv, loggedRun } from './exec.ts';
+import { ensureLocalnet } from './localnet.ts';
 import type { Project, Settings } from './project.ts';
 
 /**
@@ -34,6 +35,8 @@ function baseEnvFiles(settings: Settings): string[] {
     `${settings.localnetDir}/compose.env`,
     '--env-file',
     `${settings.localnetDir}/env/common.env`,
+    '--env-file',
+    `${settings.modulesDir}/localnet-overrides/localnet.env`,
   ];
   if (settings.authMode === 'oauth2') {
     envFiles.push('--env-file', `${settings.modulesDir}/keycloak/compose.env`);
@@ -78,7 +81,14 @@ export function composeArgs(settings: Settings, opts?: ComposeCall): string[] {
     ];
   }
   /** Compose files, in merge order. Later files override earlier ones. */
-  const files = ['-f', 'compose.yaml', '-f', `${settings.localnetDir}/compose.yaml`];
+  const files = [
+    '-f',
+    'compose.yaml',
+    '-f',
+    `${settings.localnetDir}/compose.yaml`,
+    '-f',
+    `${settings.modulesDir}/localnet-overrides/compose.yaml`,
+  ];
   if (settings.authMode === 'oauth2') {
     files.push('-f', `${settings.modulesDir}/keycloak/compose.yaml`);
   }
@@ -149,7 +159,7 @@ export function composeEnv(
 
 /**
  * Run `docker compose` with the quickstart files.
- * Prints the command, then runs it in the checkout directory.
+ * Ensures the pinned LocalNet cache is populated before invoking Compose, then prints and runs it.
  * Constraint files are included when the settings leave them on.
  */
 export async function compose(
@@ -158,6 +168,9 @@ export async function compose(
   args: string[],
   opts?: ComposeCall,
 ): Promise<number> {
+  /** Ensure the pinned LocalNet checkout exists before Compose reads its files. */
+  const fetched = await ensureLocalnet(ctx, project);
+  if (fetched !== 0) return fetched;
   /** Full command, including the files and profiles for this checkout. */
   const cmd = ['docker', 'compose', ...composeArgs(project.settings, opts), ...args];
   return loggedRun(ctx.io, ctx.runner, cmd, {
