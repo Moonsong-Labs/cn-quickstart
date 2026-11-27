@@ -40,7 +40,6 @@ refer to :ref:`quickstart-cnqs-installation`.
   make setup
  
   # When prompted, select:
-  # - Enable Observability? no
   # - Enable OAUTH2? no
   # - Party hint: use default
   # - Enable Test mode: no
@@ -55,7 +54,6 @@ Your ``.env.local`` file should look like:
 .. code-block:: text
   :name: cf-docs-snippet-cn-quickstart-external-parties-env-local-example-start
 
-  OBSERVABILITY_ENABLED=false
   AUTH_MODE=shared-secret
   PARTY_HINT=quickstart-USERNAME-1
   TEST_MODE=off

@@ -50,8 +50,4 @@ object Deps {
         val actuator get() = "org.springframework.boot:spring-boot-starter-actuator:$version"
         val test get() = "org.springframework.boot:spring-boot-starter-test:$version"
     }
-
-    object opentelemetry {
-        val version get() = VersionFiles.dotenv["OTEL_AGENT_VERSION"]
-    }
 }

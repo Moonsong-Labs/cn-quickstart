@@ -31,10 +31,7 @@ dependencies {
         implementation("javax.annotation:javax.annotation-api:1.3.1")
     }
 
-    // NB this is only here to let Gradle manage the dependency download
-    implementation("io.opentelemetry.javaagent:opentelemetry-javaagent:${Deps.opentelemetry.version}")
-
-    implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:${Deps.opentelemetry.version}")
+    implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.10.0")
     implementation("net.logstash.logback:logstash-logback-encoder:8.0")
     implementation(Deps.springBoot.actuator)
     implementation(Deps.springBoot.oauth2Client)
@@ -62,16 +59,6 @@ tasks.withType<Jar> {
             "libs/${file.name}"
         }
     }
-}
-
-tasks.register<Copy>("copyOtelAgentJar") {
-    from(configurations.runtimeClasspath)
-    into("$projectDir/build/otel-agent")
-    include("**/*opentelemetry*javaagent*.jar")
-}
-
-tasks.named("build") {
-    dependsOn("copyOtelAgentJar")
 }
 
 openApiGenerate {
