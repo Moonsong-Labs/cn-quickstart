@@ -1,5 +1,6 @@
 import * as oidc from 'openid-client';
 import type { ClientCredentialsConfig } from '../../config/ledger';
+import { fetchLocalhostAlias, isLocalhostSubdomain } from '../oauth/localhost-fetch';
 import type { LedgerTokenProvider } from './token-provider';
 
 /** Limits how long discovery and token requests may wait for the identity provider. */
@@ -15,6 +16,7 @@ const MAX_RENEWAL_MARGIN_MS = 30_000;
  * Performs OIDC discovery once and caches service tokens until their early renewal time.
  * Concurrent callers share one in-flight request. The injected clock controls expiry in tests;
  * tokens without expires_in are acquired again on the next request.
+ * A *.localhost issuer uses fetchLocalhostAlias so LocalNet's Keycloak alias resolves inside Docker.
  */
 export async function createOAuthTokenProvider(
   options: ClientCredentialsConfig & { ledgerUserId: string },
@@ -28,6 +30,9 @@ export async function createOAuthTokenProvider(
     {
       timeout: OAUTH_REQUEST_TIMEOUT_SECONDS,
       execute: options.allowHttp ? [oidc.allowInsecureRequests] : undefined,
+      ...(isLocalhostSubdomain(options.issuer.hostname)
+        ? { [oidc.customFetch]: fetchLocalhostAlias }
+        : {}),
     },
   );
 

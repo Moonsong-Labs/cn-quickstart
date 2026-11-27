@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { License } from '../openapi';
+import { Input, Label } from './Form';
 import Modal from './Modal.tsx';
 
 type Props = {
@@ -15,7 +16,7 @@ export default function LicenseArchiveModal({ show, license, onClose, onArchive 
   return (
     <Modal
       show={show}
-      title={<div>Archive License</div>}
+      title="Archive License"
       onClose={() => {
         setExpireDescription('');
         onClose();
@@ -26,34 +27,23 @@ export default function LicenseArchiveModal({ show, license, onClose, onArchive 
         setExpireDescription('');
         onClose();
       }}
-      backdrop="static"
       size="lg"
-      zIndexBase={1500}
-      dialogClassName="xauto-width-modal"
-      contentClassName="auto-width-content"
-      confirmButtonClassName="btn-danger btn-expire-license"
+      confirmVariant="danger"
       confirmButtonLabel="Archive"
     >
-      <div className="mb-4">
+      <div className="flex flex-col gap-4">
         <div>
           <strong>License Contract ID:</strong> {license?.contractId.substring(0, 24)}...
         </div>
-        <br />
-        <div className="d-flex align-items-center mb-2 flex-nowrap">
-          <label
-            htmlFor="expire-description"
-            className="me-2 mb-0 flex-shrink-0"
-          >
-            Description:
-          </label>
-          <input
-            id="expire-description"
-            className="form-control input-expire-description flex-grow-1"
-            placeholder=""
-            value={expireDescription}
-            onChange={(e) => setExpireDescription(e.target.value)}
-            style={{ minWidth: 0 }}
-          />
+        <div className="flex items-center gap-2">
+          <Label htmlFor="expire-description">Description:</Label>
+          <div className="min-w-0 flex-1">
+            <Input
+              id="expire-description"
+              value={expireDescription}
+              onChange={(e) => setExpireDescription(e.target.value)}
+            />
+          </div>
         </div>
       </div>
     </Modal>

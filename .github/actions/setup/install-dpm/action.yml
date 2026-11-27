@@ -1,3 +1,6 @@
+# Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# SPDX-License-Identifier: 0BSD
+
 name: Install dpm
 description: >-
   Installs dpm 3.7.1 for the rest of the job and exports DPM_HOME,

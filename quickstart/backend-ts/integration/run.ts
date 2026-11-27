@@ -343,9 +343,26 @@ export async function runIntegration(
     const userId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_USER_ID;
     const issuer = backendEnvironment.AUTH_APP_PROVIDER_ISSUER_URL;
     const clientId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_CLIENT_ID;
+    const webClientId = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID;
+    if (!webClientId) throw new Error('Missing AppProvider web client ID');
     const clientSecret = backendEnvironment.AUTH_APP_PROVIDER_BACKEND_SECRET;
     if (!userId || !issuer || !clientId || !clientSecret)
       throw new Error('Missing OAuth service credentials after onboarding');
+    /** Reads the same Keycloak token that the tenant-registration onboarding script uses. */
+    const adminToken = (
+      await run(
+        compose(
+          'exec',
+          '-T',
+          'splice-onboarding',
+          'bash',
+          '-ec',
+          'DO_INIT=false; source /app/app-provider-auth.sh >/dev/null; printf "%s" "$APP_PROVIDER_PARTICIPANT_ADMIN_TOKEN"',
+        ),
+        { capture: true },
+      )
+    ).trim();
+    if (!adminToken) throw new Error('Missing AppProvider administrator token after onboarding');
     // Reuse Quickstart's demo wallet identity, whose rights authorize the App User party.
     const appUser = JSON.parse(
       await run(
@@ -375,6 +392,7 @@ export async function runIntegration(
         return [name, value];
       }),
     );
+    /** Passes LocalNet service endpoints and onboarding credentials to the test container. */
     const tokenEnvironment = {
       ...postgresEnvironment,
       APP_USER_LEDGER_API_URL: 'http://canton:2975',
@@ -388,8 +406,10 @@ export async function runIntegration(
       LEDGER_API_ALLOW_HTTP: 'true',
       LEDGER_API_USER_ID: userId,
       APP_PROVIDER_PARTY: party,
+      APP_PROVIDER_PARTICIPANT_ADMIN_TOKEN: adminToken,
       AUTH_APP_PROVIDER_ISSUER_URL: issuer,
       AUTH_APP_PROVIDER_BACKEND_CLIENT_ID: clientId,
+      AUTH_APP_PROVIDER_BACKEND_OIDC_CLIENT_ID: webClientId,
       AUTH_APP_PROVIDER_BACKEND_SECRET: clientSecret,
       LEDGER_OAUTH_ALLOW_HTTP: 'true',
     };

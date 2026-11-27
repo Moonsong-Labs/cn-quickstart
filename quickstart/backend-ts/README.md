@@ -12,7 +12,7 @@ the frontend during the port from Java.
 
 ## Local development
 
-Use Bun 1.3.3, as pinned by the repository. Install dependencies from the repository
+Use Bun 1.4.4, as pinned by the repository. Install dependencies from the repository
 root:
 
 ```bash
@@ -62,6 +62,13 @@ PORT=8082 bun run start
 ```
 
 Stop either command with `Ctrl+C`.
+
+OAuth2 administrative bearers must match the configured issuer, audience and
+authorized client (`azp`). Set `AUTH_APP_PROVIDER_ADMIN_AUDIENCE` and
+`AUTH_APP_PROVIDER_ADMIN_CLIENT_ID` to override the deployment's
+`AUTH_APP_PROVIDER_AUDIENCE` and `AUTH_APP_PROVIDER_VALIDATOR_CLIENT_ID`.
+Quickstart defaults to `https://canton.network.global` and
+`app-provider-validator` for LocalNet onboarding.
 
 ## Build and checks
 

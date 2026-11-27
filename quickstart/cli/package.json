@@ -9,7 +9,7 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "1.3.3"
+    "@types/bun": "1.4.4"
   },
   "dependencies": {
     "commander": "15.0.0"
