@@ -1,7 +1,7 @@
 // Copyright (c) 2026, Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 // SPDX-License-Identifier: 0BSD
 
-import { Locator, test } from '../fixtures/workflow';
+import { test } from '../fixtures/workflow';
 import { Status as InstallStatus, Button as InstallButton } from "../pages/sections/appInstalls.tab";
 import { Button as LicenseButton } from "../pages/sections/licenses/licenses.tab";
 import { Button as ArchiveModalButton } from "../pages/sections/licenses/archive.modal";

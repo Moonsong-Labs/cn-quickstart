@@ -41,4 +41,7 @@ gradle-app.setting
 # direnv
 .direnv/
 
+# Bun workspace install at the repository root
+node_modules/
+
 logs

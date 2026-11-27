@@ -40,7 +40,15 @@ This project is rapidly enhanced, so please check back often for updates.
 
 ## Setup
 
-See the [Quickstart Installation Guide](https://docs.canton.network/appdev/quickstart/index) for installation and setup directions.
+The frontend and the integration tests are a [Bun](https://bun.sh) workspace at the repository root. Install the Bun version pinned in `.bun-version` before `make build` or `make integration-test`.
+
+```bash
+curl -fsSL https://bun.sh/install | bash -s "bun-v$(tr -d '[:space:]' < .bun-version)"
+```
+
+The installer places `bun` in `~/.bun/bin`. Add that directory to `PATH`, open a new shell, and check the version with `bun --version`. The Nix shell in `nix/shell.nix` includes Bun alongside Node.js 20. Nixpkgs currently packages an older Bun than `.bun-version`, so use the command above for the version CI runs.
+
+Other installation and setup steps are in the [Quickstart Installation Guide](https://docs.canton.network/appdev/quickstart/index).
 
 ## Quickstart
 
@@ -74,7 +82,7 @@ You may change this later by running `make setup`.
 ## LocalNet only
 
 If you only need a running network, for example to deploy and test your own Daml code, start LocalNet without the Quickstart application.
-This needs only Docker: no `make setup`, no `make build`, and no Nix, JDK or Node.js.
+This needs only Docker: no `make setup`, no `make build`, and no Nix, JDK, Node.js or Bun.
 
 ```bash
 $ cd quickstart

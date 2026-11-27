@@ -1,4 +1,4 @@
-import type {APIRequestContext} from 'playwright-core';
+import type {APIRequestContext} from '@playwright/test';
 
 export async function createParty(request: APIRequestContext, token: string, partyIdHint: string, participant: string): Promise<string> {
   const namespace = await getParticipantNamespace(request, token, participant);

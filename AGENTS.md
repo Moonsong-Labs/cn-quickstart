@@ -27,7 +27,7 @@ make clean-localnet   # stop and remove data when done
 
 Don't run `make setup`, `make build` or `make start` for this. `make start` always runs `make build`, which builds the Java backend, the React frontend and the Daml model.
 
-**To study or extend the Quickstart application** (the licensing demo with a Java backend and React frontend), follow the [Quickstart installation guide](https://docs.canton.network/appdev/quickstart/prerequisites): `make setup`, `make build`, `make start`.
+**To study or extend the Quickstart application** (the licensing demo with a Java backend and React frontend), install Bun from [README Setup](README.md#setup), then from `quickstart/` run `make setup`, `make build` and `make start`.
 
 ## LocalNet facts
 

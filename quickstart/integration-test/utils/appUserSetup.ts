@@ -1,4 +1,4 @@
-import type {APIRequestContext} from 'playwright-core';
+import type {APIRequestContext} from '@playwright/test';
 import TagProvider from '../fixtures/workflow';
 import {execFileSync} from 'child_process';
 import {resolve} from 'path';

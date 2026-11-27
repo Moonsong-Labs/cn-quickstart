@@ -1,0 +1,15 @@
+{
+  "name": "cn-quickstart",
+  "private": true,
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "quickstart/frontend",
+    "quickstart/integration-test"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b quickstart/frontend --noEmit && tsc -p quickstart/integration-test --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

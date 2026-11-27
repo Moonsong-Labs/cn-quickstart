@@ -7,9 +7,6 @@ import { WALLET_URL } from './global.ts';
 import { Button as TenantButton } from "../pages/sections/tenants.tab";
 
 
-import { expect, BrowserContext, Page } from '@playwright/test';
-
-
 test.describe('Tenant Registrations (E2E)', () => {
     test.beforeEach(async ({ provider }) => {
         await provider.tenants.stubConfirmAlwaysTrue();
@@ -64,7 +61,7 @@ test.describe('Tenant Registrations (E2E)', () => {
     });
 
     test('409 conflict on duplicate tenantId -> shows reason + delete confirmation flow', async ({ provider }) => {
-        const mode = await provider.tenants.getAuthMode();
+        await provider.tenants.getAuthMode();
         const tenantId = `e2e-tenant-dup-${Date.now()}`;
         const partyId = `party-${Math.floor(Math.random() * 1e6)}`;
         const walletUrl = WALLET_URL;
