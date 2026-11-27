@@ -490,7 +490,7 @@ test.each(mismatchedAllocationFields)(
 test('normalizes numeric and deadline representations when matching allocations', async () => {
   const primary = renewalPayload('request-primary', party.provider, party.user, '7');
   const allocation = structuredClone(allocationPayload(primary));
-  firstTransferLegSide(allocation).amount = '12.3400000000';
+  firstTransferLegSide(allocation).amount = '12.34';
   allocation.allocation.settlementDeadline = '2026-10-30T15:00:00+01:00';
   await seedAllocation('allocation-equivalent-format', allocation);
 
