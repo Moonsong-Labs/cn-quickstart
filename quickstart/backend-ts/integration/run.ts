@@ -392,6 +392,7 @@ export async function runIntegration(
         return [name, value];
       }),
     );
+    /** Passes LocalNet service endpoints and onboarding credentials to the test container. */
     const tokenEnvironment = {
       ...postgresEnvironment,
       APP_USER_LEDGER_API_URL: 'http://canton:2975',

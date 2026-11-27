@@ -13,7 +13,7 @@ test('LocalNet Keycloak serves browser login and accepts the onboarding bearer',
   const application = readApplicationConfig();
   const { appProvider, oidc } = application;
   if (!oidc) throw new Error('LocalNet authentication test requires OIDC');
-  // These routes need the real IdP but do not query the ledger or PQS.
+  /** Uses real OIDC settings and fixture dependencies for the ledger and PQS. */
   const app = createApp({ ...appDependencies, application });
 
   const login = await app.handle(
