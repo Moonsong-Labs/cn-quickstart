@@ -239,8 +239,15 @@ testRenewalRejectsDifferentLicenseUuid = script do
   Some _ <- queryContractId providerParty licenseCid
 
   (disclosures, badArgs) <- completeWithContexts registry otherLicenseCid allocationCid
+  userHoldingsBefore <- WalletClient.listHoldings userParty registry.instrumentId
+  providerHoldingsBefore <- WalletClient.listHoldings providerParty registry.instrumentId
   submitWithDisclosuresMustFail' providerParty disclosures $
     exerciseCmd requestCid badArgs
+
+  userHoldingsAfter <- WalletClient.listHoldings userParty registry.instrumentId
+  providerHoldingsAfter <- WalletClient.listHoldings providerParty registry.instrumentId
+  sortOn (show . fst) userHoldingsAfter === sortOn (show . fst) userHoldingsBefore
+  sortOn (show . fst) providerHoldingsAfter === sortOn (show . fst) providerHoldingsBefore
 
   Some _ <- queryContractId providerParty requestCid
   Some _ <- queryContractId providerParty licenseCid
