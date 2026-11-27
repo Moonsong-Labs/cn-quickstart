@@ -115,6 +115,14 @@ describe('pr-description workflow', () => {
     }
   });
 
+  test('reports the title when the description check has failed', () => {
+    // GitHub treats an if with no status function as success(), which would
+    // skip the title step after a description failure.
+    expect(WORKFLOW).toMatch(
+      /if:\s*\$\{\{\s*!cancelled\(\)\s*&&\s*steps\.tests\.outcome == 'success'\s*\}\}/,
+    );
+  });
+
   test('leaves ci-ok aggregating the other jobs only', () => {
     /** The `needs` list of the `ci-ok` job, brackets included. */
     const needs = / {2}ci-ok:[\s\S]*?\n {4}needs:\s*\[([\s\S]*?)\]/.exec(CI);

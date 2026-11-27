@@ -49,10 +49,11 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: bun .github/scripts/pr-description.ts
-      # `steps.tests.outcome` ignores a description failure, so a rejected
-      # title is still reported. A failed checker test skips this step.
+      # An if with no status function is implicitly success(), which would
+      # skip this step after a description failure. cancelled() turns that
+      # guard off. A failed checker test, or a cancelled run, still skips it.
       - name: Check the title
-        if: ${{ steps.tests.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: bun .github/scripts/pr-title.ts
